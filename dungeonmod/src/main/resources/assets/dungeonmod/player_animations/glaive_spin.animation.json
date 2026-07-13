@@ -1,0 +1,25 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"animation.glaive.spin": {
+			"loop": true,
+			"animation_length": 0.4,
+			"bones": {
+				"right_arm": {
+					"rotation": {
+						"0.0": [-90, -20, 5],
+						"0.2": [-80, -20, 5],
+						"0.4": [-70, -20, 5]
+					}
+				},
+				"left_arm": {
+					"rotation": {
+						"0.0": [-90, 20, -5],
+						"0.2": [-80, 20, -5],
+						"0.4": [-70, 20, -5]
+					}
+				}
+			}
+		}
+	}
+}

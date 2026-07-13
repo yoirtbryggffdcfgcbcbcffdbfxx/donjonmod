@@ -1,0 +1,19 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"animation.sabre.slash": {
+			"loop": false,
+			"animation_length": 0.3,
+			"bones": {
+				"right_arm": {
+					"rotation": {
+						"0.0": [-140, 0, 0],
+						"0.1": [-100, 0, 0],
+						"0.2": [-60, 0, 0],
+						"0.3": [-20, 0, 0]
+					}
+				}
+			}
+		}
+	}
+}

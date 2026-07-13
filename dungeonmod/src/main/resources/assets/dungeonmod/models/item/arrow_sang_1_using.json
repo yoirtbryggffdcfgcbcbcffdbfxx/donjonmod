@@ -1,0 +1,18 @@
+{
+    "parent": "minecraft:item/generated",
+    "textures": {
+        "layer0": "dungeonmod:item/arrow_sang_1"
+    },
+    "display": {
+        "firstperson_righthand": {
+            "rotation": [0, 10, 45],
+            "translation": [0, 1, -4],
+            "scale": [1.0, 1.0, 1.0]
+        },
+        "firstperson_lefthand": {
+            "rotation": [0, 30, 45],
+            "translation": [0, 1, -4],
+            "scale": [1.0, 1.0, 1.0]
+        }
+    }
+}

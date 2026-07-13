@@ -1,0 +1,18 @@
+{
+    "parent": "minecraft:item/generated",
+    "textures": {
+        "layer0": "dungeonmod:item/anneau_sang"
+    },
+    "display": {
+        "gui": {
+            "translation": [-2, 0, 0],
+            "scale": [1.5, 1.5, 1.5]
+        },
+        "ground": {
+            "scale": [1.5, 1.5, 1.5]
+        },
+        "fixed": {
+            "scale": [1.5, 1.5, 1.5]
+        }
+    }
+}

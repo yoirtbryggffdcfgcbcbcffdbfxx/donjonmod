@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "dungeonmod",
+  "version": "${version}",
+  "name": "Dungeon Mod",
+  "description": "Génère des donjons avec des salles connectées via /donjon.",
+  "authors": ["You"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.dungeonmod.DungeonMod"
+    ],
+    "client": [
+      "com.dungeonmod.DungeonModClient"
+    ]
+  },
+  "mixins": [
+    "dungeonmod.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": ">=1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
