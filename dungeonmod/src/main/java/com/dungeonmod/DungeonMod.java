@@ -4,6 +4,7 @@ import com.dungeonmod.test.TestGenerator;
 import com.dungeonmod.util.FlecheComboData;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
@@ -54,9 +55,12 @@ public class DungeonMod implements ModInitializer {
 
     public static final List<DungeonData> dungeons = new ArrayList<>();
     public static BlockPos lastDepartPos = null;
+    public static final Map<UUID, BlockPos> lastAnchorSpawn = new HashMap<>();
 
     public static final String FLASK_NAME = "§aFiole";
     public static final String FLASK_BLESSED_NAME = "§9Fiole d'eau bénite";
+
+    public static final Map<UUID, List<ItemStack>> sacBackup = new HashMap<>();
 
     public static final Set<UUID> customZombies = new HashSet<>();
     public static final Map<UUID, Identifier> zombieTextures = new HashMap<>();
@@ -69,13 +73,14 @@ public class DungeonMod implements ModInitializer {
     public void onInitialize() {
 
         ModItems.addToCreativeTabs();
+        com.dungeonmod.screen.ModScreenHandlers.register();
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             TestGenerator.loadFromDisk(server);
             if (TestGenerator.getLastSeed() != 0) {
                 ServerWorld world = server.getOverworld();
                 addDungeon("LastGen",
-                    new BlockPos(0, TestGenerator.getLastOriginY(), 0),
+                    new BlockPos(TestGenerator.getLastOriginX(), TestGenerator.getLastOriginY(), TestGenerator.getLastOriginZ()),
                     10, 10,
                     world.getRegistryKey().getValue(), 0, null);
             }
@@ -85,7 +90,49 @@ public class DungeonMod implements ModInitializer {
             DungeonCommand.register(dispatcher);
         });
 
-        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> ActionResult.PASS);
+        // Nettoyage de l'armure lourde à la mort réelle, et respawn sur l'ancre
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
+                if (!alive) {
+                UUID u = newPlayer.getUuid();
+                heavyPieceGiven.remove(u);
+                heavyPieceStored.remove(u);
+                pendingDamage.remove(u);
+                // Restaurer le Sac dans l'inventaire après la mort
+                List<ItemStack> savedSacs = sacBackup.remove(u);
+                if (savedSacs != null) {
+                    for (ItemStack sac : savedSacs) {
+                        newPlayer.getInventory().offerOrDrop(sac);
+                    }
+                }
+                // Forcer le spawn sur l'ancre si elle a été utilisée
+                BlockPos myAnchor = lastAnchorSpawn.get(u);
+                if (myAnchor != null) {
+                    // Téléporter le joueur au puit après le respawn
+                    BlockPos anchorPos = myAnchor;
+                    var worldKey = oldPlayer.getWorld().getRegistryKey();
+                    newPlayer.getServer().execute(() -> {
+                        ServerWorld targetWorld = newPlayer.getServer().getWorld(worldKey);
+                        if (targetWorld != null) {
+                            newPlayer.teleport(targetWorld,
+                                anchorPos.getX(), anchorPos.getY() + 1.0, anchorPos.getZ(),
+                                java.util.Set.of(), 0, 0, true);
+                            newPlayer.sendMessage(Text.literal(""), true);
+                            newPlayer.sendMessage(Text.literal("§6Vous réapparaissez au puits !"), true);
+                            LOGGER.info("[Ancre] Téléporté au puits après respawn: {}", anchorPos);
+                        }
+                    });
+                }
+            }
+        });
+
+        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
+            if (!world.isClient()) {
+                LOGGER.info("[AttackBlock] pos={}, hand={}", pos, hand);
+                if (com.dungeonmod.util.AncreGrappling.onAttackBlock(player, world, hand, pos))
+                    return ActionResult.SUCCESS;
+            }
+            return ActionResult.PASS;
+        });
 
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             ItemStack stack = player.getStackInHand(hand);
@@ -111,6 +158,43 @@ public class DungeonMod implements ModInitializer {
             }
 
             if (!world.isClient() && world instanceof ServerWorld sw) {
+                // Ancre : poser son spawn sur l'eau du puits (clic droit)
+                if (!stack.isEmpty() && stack.isOf(Items.CONDUIT)
+                    && stack.contains(DataComponentTypes.CUSTOM_NAME)
+                    && stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Ancre")
+                    && player instanceof ServerPlayerEntity sp) {
+                    LOGGER.info("[Ancre] Right-click detected, pos={}", pos);
+                    boolean isWater = isNearWater(world, pos);
+                    LOGGER.info("[Ancre] isNearWater={}", isWater);
+                    if (isWater) {
+                        LOGGER.info("[Ancre] lastPuitPositions count={}", com.dungeonmod.test.TestGenerator.lastPuitPositions.size());
+                        boolean inPuit = false;
+                        for (BlockPos p : com.dungeonmod.test.TestGenerator.lastPuitPositions) {
+                            boolean inRange = pos.getX() >= p.getX() && pos.getX() < p.getX() + 10
+                                && pos.getZ() >= p.getZ() && pos.getZ() < p.getZ() + 10;
+                            LOGGER.info("[Ancre] Checking puit pos p={}, pos={}, inRange={}", p, pos, inRange);
+                            if (inRange) {
+                                inPuit = true; break;
+                            }
+                        }
+                        LOGGER.info("[Ancre] inPuit={}", inPuit);
+                        if (inPuit) {
+                            BlockPos waterPos = findWaterPos(world, pos);
+                            BlockPos spawnPos = waterPos.up();
+                            sp.setSpawnPoint(net.minecraft.registry.RegistryKey.of(
+                                net.minecraft.registry.RegistryKeys.WORLD,
+                                world.getRegistryKey().getValue()),
+                                spawnPos, 0.0f, true, false);
+                            lastAnchorSpawn.put(sp.getUuid(), waterPos);
+                            sp.sendMessage(Text.literal("§6Point de réapparition défini sur l'eau du puits !"), true);
+                            LOGGER.info("[Ancre] Spawn set at {} (water at {})", spawnPos, waterPos);
+                            return ActionResult.SUCCESS;
+                        } else {
+                            LOGGER.info("[Ancre] Not in puit area");
+                        }
+                    }
+                }
+
                 if (isKey(stack)) {
                     if (state.isOf(Blocks.IRON_DOOR)) {
                         if (tryOpenIronDoor(sw, pos)) {
@@ -296,7 +380,6 @@ public class DungeonMod implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (ServerWorld world : server.getWorlds()) {
                 for (ServerPlayerEntity player : world.getPlayers()) {
-                    handleDungeonFood(player);
                     handleHeavyHelmet(player);
                     handleMinerHelmet(player);
                     handleTorchLight(player);
@@ -307,7 +390,13 @@ public class DungeonMod implements ModInitializer {
                     handleHunterLeggings(player);
                     handleDentDeLoup(player);
                     checkFlecheTimers(player, System.currentTimeMillis());
+                    handleTetralame(player);
+                    handleDungeonFood(player);
                 }
+            }
+            // Grappin de l'ancre
+            for (ServerWorld world : server.getWorlds()) {
+                com.dungeonmod.util.AncreGrappling.tickHooks(world);
             }
             spawnBoneStars(server);
             processHolyWater(server);
@@ -533,6 +622,42 @@ public class DungeonMod implements ModInitializer {
         }
     }
 
+    private static boolean hasTetralame(ServerPlayerEntity player) {
+        return isTetralame(player.getMainHandStack()) || isTetralame(player.getOffHandStack());
+    }
+
+    private static boolean isTetralame(ItemStack stack) {
+        return !stack.isEmpty() && stack.isOf(net.minecraft.item.Items.NETHERITE_SWORD)
+            && stack.contains(net.minecraft.component.DataComponentTypes.CUSTOM_NAME)
+            && stack.get(net.minecraft.component.DataComponentTypes.CUSTOM_NAME).getString().contains("Tétralame mort subite");
+    }
+
+    public static final Map<UUID, Double> tetralameSavedHealth = new HashMap<>();
+
+    private static void handleTetralame(ServerPlayerEntity player) {
+        UUID u = player.getUuid();
+        var attr = player.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+        if (attr == null) return;
+
+        if (hasTetralame(player)) {
+            if (attr.getBaseValue() > 1.0) {
+                tetralameSavedHealth.put(u, attr.getBaseValue());
+                attr.setBaseValue(1.0);
+            }
+            if (player.getHealth() > 1.0f) {
+                player.setHealth(1.0f);
+            }
+        } else {
+            Double saved = tetralameSavedHealth.remove(u);
+            if (saved != null) {
+                double prevMax = saved;
+                float prevHealth = player.getHealth();
+                attr.setBaseValue(prevMax);
+                player.setHealth((float)(prevHealth > prevMax ? prevMax : Math.max(0.5f, prevHealth)));
+            }
+        }
+    }
+
     public static boolean isHeart(ItemStack stack) {
         if (stack.isEmpty()) return false;
         if (!stack.isOf(Items.HEART_OF_THE_SEA)) return false;
@@ -566,6 +691,19 @@ public class DungeonMod implements ModInitializer {
         return false;
     }
 
+    private static BlockPos findWaterPos(World world, BlockPos pos) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    BlockPos check = pos.add(dx, dy, dz);
+                    if (world.getFluidState(check).isOf(net.minecraft.fluid.Fluids.WATER)) return check;
+                    if (world.getBlockState(check).isOf(net.minecraft.block.Blocks.WATER)) return check;
+                }
+            }
+        }
+        return pos;
+    }
+
     private static LoreComponent flaskLore(String... lines) {
         java.util.List<Text> lore = new java.util.ArrayList<>();
         for (String line : lines) lore.add(Text.literal(line));
@@ -595,8 +733,9 @@ public class DungeonMod implements ModInitializer {
     }
 
     private static final Set<UUID> healthSet = new HashSet<>();
+
+    public static Set<UUID> getHealthSet() { return healthSet; }
     private static final Map<UUID, BlockPos> minerLightPositions = new HashMap<>();
-    private static final Set<UUID> heavyChestplateSet = new HashSet<>();
     private static final Set<UUID> voyageurSpeedSet = new HashSet<>();
     private static final Identifier VOYAGEUR_SPEED_ID = Identifier.of("dungeonmod", "voyageur_speed_boost");
     public static final Map<UUID, Long> hunterCooldown = new java.util.concurrent.ConcurrentHashMap<>();
@@ -735,63 +874,197 @@ public class DungeonMod implements ModInitializer {
         }
     }
 
-    private static boolean hasHeavyArmorPiece(ServerPlayerEntity player, Item baseItem, String name) {
-        for (int slot = 0; slot < 4; slot++) {
-            ItemStack stack = player.getInventory().getArmorStack(slot);
-            if (stack.isEmpty() || !stack.isOf(baseItem)) continue;
-            if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) continue;
-            if (stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains(name)) return true;
-        }
-        return false;
+    private static boolean isHeavyPiece(ItemStack stack, Item baseItem, String name) {
+        if (stack.isEmpty()) return false;
+        if (!stack.isOf(baseItem)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        return stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains(name);
     }
 
     private static float getHeavyAbsorption(ServerPlayerEntity player) {
         float total = 0.0f;
-        if (hasHeavyArmorPiece(player, Items.IRON_HELMET, "Casque lourd")) total += 2.0f;
-        if (hasHeavyArmorPiece(player, Items.IRON_CHESTPLATE, "Plastron lourd")) total += 10.0f;
-        if (hasHeavyArmorPiece(player, Items.IRON_LEGGINGS, "Jambière lourde")) total += 6.0f;
+        if (isHeavyPiece(player.getInventory().getArmorStack(3), Items.IRON_HELMET, "Casque lourd")) total += 2.0f;
+        if (isHeavyPiece(player.getInventory().getArmorStack(2), Items.IRON_CHESTPLATE, "Plastron lourd")) total += 10.0f;
+        if (isHeavyPiece(player.getInventory().getArmorStack(1), Items.IRON_LEGGINGS, "Jambière lourde")) total += 6.0f;
         return total;
     }
 
-    private static final Map<UUID, Float> heavyAbsorptionGiven = new HashMap<>();
-    private static final Map<UUID, Float> lastHeavyAbsorption = new HashMap<>();
+    private static final Map<UUID, Set<String>> heavyPieceGiven = new HashMap<>();
+    private static final Map<UUID, Map<String, Float>> heavyPieceStored = new HashMap<>();
+    private static final Map<UUID, Float> pendingDamage = new HashMap<>();
+
+    public static Set<String> getHeavyClaimed(UUID uuid) {
+        return heavyPieceGiven.get(uuid);
+    }
+
+    public static Set<String> getOrCreateHeavyClaimed(UUID uuid) {
+        return heavyPieceGiven.computeIfAbsent(uuid, k -> new HashSet<>());
+    }
+
+    public static Map<String, Float> getHeavyStored(UUID uuid) {
+        return heavyPieceStored.get(uuid);
+    }
+
+    public static Map<String, Float> getOrCreateHeavyStored(UUID uuid) {
+        return heavyPieceStored.computeIfAbsent(uuid, k -> new HashMap<>());
+    }
 
     private static void handleHeavyChestplate(ServerPlayerEntity player) {
         UUID uuid = player.getUuid();
 
-        // Mort → reset (prochaine vie = nouveau stock)
-        if (!player.isAlive()) {
-            heavyAbsorptionGiven.remove(uuid);
-            lastHeavyAbsorption.remove(uuid);
-            heavyChestplateSet.remove(uuid);
+        // S'assurer que MAX_ABSORPTION est assez grand pour ne pas clamer setAbsorptionAmount
+        var maxAbsAttr = player.getAttributeInstance(EntityAttributes.MAX_ABSORPTION);
+        if (maxAbsAttr != null && maxAbsAttr.getBaseValue() < 100.0) {
+            maxAbsAttr.setBaseValue(100.0);
+        }
+
+        // Détection mort réelle (health = 0) → on ne fait rien mais on NE RESET PAS
+        if (player.getHealth() <= 0.0f) return;
+
+        // Nettoyage uniquement si joueur n'est plus dans le monde (spectateur/déconnecté)
+        if (player.isSpectator()) {
+            heavyPieceGiven.remove(uuid);
+            heavyPieceStored.remove(uuid);
+            pendingDamage.remove(uuid);
             return;
         }
 
-        float total = getHeavyAbsorption(player);
-        Float prev = lastHeavyAbsorption.get(uuid);
+        Set<String> given = heavyPieceGiven.computeIfAbsent(uuid, k -> new HashSet<>());
 
-        if (prev == null || prev != total) {
-            lastHeavyAbsorption.put(uuid, total);
-            float given = heavyAbsorptionGiven.getOrDefault(uuid, 0f);
+        ItemStack head = player.getInventory().getArmorStack(3);
+        ItemStack chest = player.getInventory().getArmorStack(2);
+        ItemStack legs = player.getInventory().getArmorStack(1);
+        ItemStack feet = player.getInventory().getArmorStack(0);
 
-            if (total <= 0) {
-                heavyChestplateSet.remove(uuid);
-                player.setAbsorptionAmount(0.0f);
-            } else if (total > given) {
-                // Nouvelle pièce équipée → donner l'absorption supplémentaire
-                float additional = total - given;
-                heavyAbsorptionGiven.put(uuid, total);
-                float current = player.getAbsorptionAmount();
-                player.setAbsorptionAmount(Math.min(current + additional, total));
-                heavyChestplateSet.add(uuid);
-            } else if (total < given) {
-                // Pièce retirée (mais pas toutes) → réduire le maximum donné
-                heavyAbsorptionGiven.put(uuid, total);
-                if (player.getAbsorptionAmount() > total) {
-                    player.setAbsorptionAmount(total);
-                }
+        boolean hasHelmet = !head.isEmpty() && head.isOf(Items.IRON_HELMET)
+            && head.contains(DataComponentTypes.CUSTOM_NAME)
+            && head.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Casque lourd");
+        boolean hasChestplate = !chest.isEmpty() && chest.isOf(Items.IRON_CHESTPLATE)
+            && chest.contains(DataComponentTypes.CUSTOM_NAME)
+            && chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron lourd");
+        boolean hasLeggings = !legs.isEmpty() && legs.isOf(Items.IRON_LEGGINGS)
+            && legs.contains(DataComponentTypes.CUSTOM_NAME)
+            && legs.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Jambière lourde");
+        boolean hasBoots = !feet.isEmpty() && feet.isOf(Items.IRON_BOOTS)
+            && feet.contains(DataComponentTypes.CUSTOM_NAME)
+            && feet.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Bottes lourdes");
+
+        Map<String, Float> stored = heavyPieceStored.computeIfAbsent(uuid, k -> new HashMap<>());
+
+        // Mettre à jour pendingDamage (dégâts pris depuis la dernière modif d'équipement)
+        float newAbs = player.getAbsorptionAmount();
+        Float lastAbs = stored.get("_last_abs");
+        if (lastAbs != null && lastAbs > newAbs) {
+            pendingDamage.merge(uuid, lastAbs - newAbs, Float::sum);
+        }
+        stored.put("_last_abs", newAbs);
+
+        // État précédent
+        boolean prevHelmet = given.contains("prev_helmet");
+        boolean prevChestplate = given.contains("prev_chestplate");
+        boolean prevLeggings = given.contains("prev_leggings");
+        boolean prevBoots = given.contains("prev_boots");
+
+        // Mettre à jour l'état précédent
+        if (hasHelmet) given.add("prev_helmet"); else given.remove("prev_helmet");
+        if (hasChestplate) given.add("prev_chestplate"); else given.remove("prev_chestplate");
+        if (hasLeggings) given.add("prev_leggings"); else given.remove("prev_leggings");
+        if (hasBoots) given.add("prev_boots"); else given.remove("prev_boots");
+
+        // Pièces enlevées → paient les dégâts en attente
+        if (prevHelmet && !hasHelmet) {
+            float pd = pendingDamage.getOrDefault(uuid, 0f);
+            float s = stored.getOrDefault("helmet", 2.0f);
+            float pay = Math.min(s, pd);
+            pendingDamage.put(uuid, pd - pay);
+            stored.put("helmet", s - pay);
+            float sub = s - pay;
+            if (sub > 0) {
+                player.setAbsorptionAmount(Math.max(0, player.getAbsorptionAmount() - sub));
+                stored.put("_last_abs", player.getAbsorptionAmount());
             }
-            // total == given → rien à faire (déjà utilisé, ne se recharge pas)
+        }
+        if (prevChestplate && !hasChestplate) {
+            float pd = pendingDamage.getOrDefault(uuid, 0f);
+            float s = stored.getOrDefault("chestplate", 10.0f);
+            float pay = Math.min(s, pd);
+            pendingDamage.put(uuid, pd - pay);
+            stored.put("chestplate", s - pay);
+            float sub = s - pay;
+            if (sub > 0) {
+                player.setAbsorptionAmount(Math.max(0, player.getAbsorptionAmount() - sub));
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+        if (prevLeggings && !hasLeggings) {
+            float pd = pendingDamage.getOrDefault(uuid, 0f);
+            float s = stored.getOrDefault("leggings", 6.0f);
+            float pay = Math.min(s, pd);
+            pendingDamage.put(uuid, pd - pay);
+            stored.put("leggings", s - pay);
+            float sub = s - pay;
+            if (sub > 0) {
+                player.setAbsorptionAmount(Math.max(0, player.getAbsorptionAmount() - sub));
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+        if (prevBoots && !hasBoots) {
+            float pd = pendingDamage.getOrDefault(uuid, 0f);
+            float s = stored.getOrDefault("boots", 2.0f);
+            float pay = Math.min(s, pd);
+            pendingDamage.put(uuid, pd - pay);
+            stored.put("boots", s - pay);
+            float sub = s - pay;
+            if (sub > 0) {
+                player.setAbsorptionAmount(Math.max(0, player.getAbsorptionAmount() - sub));
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+
+        // Pièces remises → restaurent leur stock (sans réinitialiser la valeur)
+        if (hasHelmet && !prevHelmet && given.contains("helmet")) {
+            float s = stored.getOrDefault("helmet", 0f);
+            if (s > 0) {
+                player.setAbsorptionAmount(player.getAbsorptionAmount() + s);
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+        if (hasChestplate && !prevChestplate && given.contains("chestplate")) {
+            float s = stored.getOrDefault("chestplate", 0f);
+            if (s > 0) {
+                player.setAbsorptionAmount(player.getAbsorptionAmount() + s);
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+        if (hasLeggings && !prevLeggings && given.contains("leggings")) {
+            float s = stored.getOrDefault("leggings", 0f);
+            if (s > 0) {
+                player.setAbsorptionAmount(player.getAbsorptionAmount() + s);
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+        if (hasBoots && !prevBoots && given.contains("boots")) {
+            float s = stored.getOrDefault("boots", 0f);
+            if (s > 0) {
+                player.setAbsorptionAmount(player.getAbsorptionAmount() + s);
+                stored.put("_last_abs", player.getAbsorptionAmount());
+            }
+        }
+
+        // Pièces nouvellement équipées (jamais réclamées cette vie)
+        boolean helmetNew = hasHelmet && given.add("helmet");
+        boolean chestplateNew = hasChestplate && given.add("chestplate");
+        boolean leggingsNew = hasLeggings && given.add("leggings");
+        boolean bootsNew = hasBoots && given.add("boots");
+
+        if (helmetNew || chestplateNew || leggingsNew || bootsNew) {
+            float added = 0;
+            if (helmetNew) { added += 2; stored.put("helmet", 2.0f); }
+            if (chestplateNew) { added += 10; stored.put("chestplate", 10.0f); }
+            if (leggingsNew) { added += 6; stored.put("leggings", 6.0f); }
+            if (bootsNew) { added += 2; stored.put("boots", 2.0f); }
+            player.setAbsorptionAmount(player.getAbsorptionAmount() + added);
+            stored.put("_last_abs", player.getAbsorptionAmount());
         }
     }
 
@@ -843,21 +1116,27 @@ public class DungeonMod implements ModInitializer {
             player.getHungerManager().setFoodLevel(17);
             player.getHungerManager().setSaturationLevel(5.0f);
             if (healthSet.add(uuid)) {
-                double ratio = player.getHealth() / player.getMaxHealth();
-                player.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH).setBaseValue(10.0);
-                player.setHealth((float)(ratio * 10.0));
+                var attr = player.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+                if (attr != null) {
+                    double ratio = player.getHealth() / attr.getBaseValue();
+                    attr.setBaseValue(10.0);
+                    player.setHealth((float)(ratio * 10.0));
+                }
             }
-            // Set spawn point to Depart room for respawn
-            if (lastDepartPos != null) {
+            BlockPos spawnTarget = lastAnchorSpawn.getOrDefault(uuid, lastDepartPos);
+            if (spawnTarget != null) {
                 player.setSpawnPoint(net.minecraft.registry.RegistryKey.of(
                     net.minecraft.registry.RegistryKeys.WORLD,
                     player.getWorld().getRegistryKey().getValue()),
-                    lastDepartPos, 0.0f, true, false);
+                    spawnTarget, 0.0f, true, false);
             }
         } else if (healthSet.remove(uuid)) {
-            double ratio = player.getHealth() / player.getMaxHealth();
-            player.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH).setBaseValue(20.0);
-            player.setHealth((float)(ratio * 20.0));
+            var attr = player.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+            if (attr != null) {
+                double ratio = player.getHealth() / attr.getBaseValue();
+                attr.setBaseValue(20.0);
+                player.setHealth((float)(ratio * 20.0));
+            }
         }
     }
 

@@ -136,6 +136,7 @@ public class TestGenerator {
         public Bib2Entry(int x, int y, int z, int rot) { this.worldX = x; this.worldY = y; this.worldZ = z; this.rot = rot; }
     }
     public static final List<Bib2Entry> lastBib2Positions = new ArrayList<>();
+    public static final List<BlockPos> lastPuitPositions = new ArrayList<>();
     private static int structSizeX, structSizeY, structSizeZ;
     private static boolean loaded = false;
 
@@ -222,7 +223,9 @@ public class TestGenerator {
         try {
             NbtCompound root = new NbtCompound();
             root.putLong("seed", lastSeed);
+            root.putInt("originX", lastOriginX);
             root.putInt("originY", lastOriginY);
+            root.putInt("originZ", lastOriginZ);
             root.putInt("departX", lastDepartX);
             root.putInt("departZ", lastDepartZ);
             NbtList list = new NbtList();
@@ -259,7 +262,9 @@ public class TestGenerator {
             if (!file.exists()) return false;
             NbtCompound root = NbtIo.read(file.toPath());
             long seed = root.getLong("seed");
+            int ox = root.getInt("originX");
             int oy = root.getInt("originY");
+            int oz = root.getInt("originZ");
             int dx = root.getInt("departX");
             int dz = root.getInt("departZ");
             NbtList list = root.getList("rooms", 10);
@@ -268,6 +273,8 @@ public class TestGenerator {
                 NbtCompound t = list.getCompound(i);
                 rooms.add(new int[]{t.getInt("x"), t.getInt("z"), t.getInt("type")});
             }
+            lastOriginX = ox;
+            lastOriginZ = oz;
             restoreFromSave(seed, oy, dx, dz, rooms);
 
             // Restore goblin textures
@@ -301,8 +308,12 @@ public class TestGenerator {
         lastDepartX = departX;
         lastDepartZ = departZ;
         lastSpecialRooms.clear();
+        lastPuitPositions.clear();
         for (int[] sr : specialRooms) {
             lastSpecialRooms.add(new SpecialRoomEntry(sr[0], sr[1], sr[2]));
+            if (sr[2] == 10 || sr[2] == 43 || sr[2] == 62) {
+                lastPuitPositions.add(new BlockPos(sr[0], 0, sr[1]));
+            }
         }
     }
 
@@ -364,6 +375,8 @@ public class TestGenerator {
         com.dungeonmod.DungeonMod.zombieSpawns.clear();
         lastSpecialRooms.clear();
         lastBib2Positions.clear();
+        lastPuitPositions.clear();
+        com.dungeonmod.DungeonMod.lastAnchorSpawn.clear();
         lastOriginX = ox; lastOriginZ = oz; lastDepartX = 0; lastDepartZ = 0; lastOriginY = oy;
         for (RoomCell rc : cells) {
             int wy = rc.topLevel ? oy + 10 : oy;
@@ -377,6 +390,9 @@ public class TestGenerator {
             }
             if (rc.type == BIB2) {
                 lastBib2Positions.add(new Bib2Entry(wx, wy, wz, rc.rot));
+            }
+            if (rc.type == PUITS || rc.type == PUITDJ || rc.type == PUIT_GOBELIN) {
+                lastPuitPositions.add(new BlockPos(wx, wy, wz));
             }
         }
         logDungeon(result, cells);

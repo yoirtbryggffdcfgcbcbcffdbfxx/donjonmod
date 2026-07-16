@@ -14,9 +14,13 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.Registry;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+
+import com.dungeonmod.item.SacItem;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -83,6 +87,38 @@ public class ModItems {
                 stack.set(DataComponentTypes.USE_REMAINDER, new net.minecraft.component.type.UseRemainderComponent(chopeStack.copy()));
             },
             "§7Une bière de Viking.", "§7Force 150% pendant 30s.");
+        var sacId = Identifier.of("dungeonmod", "sac");
+        var sacKey = net.minecraft.registry.RegistryKey.of(Registries.ITEM.getKey(), sacId);
+        Item sac = Registry.register(Registries.ITEM, sacKey,
+            new SacItem(new Item.Settings().registryKey(sacKey).maxCount(1)));
+        ITEMS.put("sac", new CustomItem("sac", "§6Sac", sac, null));
+        register("totem_immortalite", "§6Totem d'immortalité", Items.TOTEM_OF_UNDYING,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "totem_immortalite")),
+            "§7Vous protège de la mort.");
+        register("syrinx_oublie", "§bSyrinx oublié", Items.STICK,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "syrinx_oublie")),
+            "§7Une flûte mystérieuse.", "§7Clic droit : joue des notes aléatoires.");
+        register("tetralame_mort_subite", "§4Tétralame mort subite", Items.NETHERITE_SWORD,
+            stack -> {
+                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "tetralame_mort_subite"));
+                stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
+                    AttributeModifiersComponent.builder()
+                        .add(EntityAttributes.ATTACK_DAMAGE,
+                            new EntityAttributeModifier(Identifier.of("dungeonmod", "tetralame_damage"), 39.0, EntityAttributeModifier.Operation.ADD_VALUE),
+                            AttributeModifierSlot.MAINHAND)
+                        .add(EntityAttributes.ENTITY_INTERACTION_RANGE,
+                            new EntityAttributeModifier(Identifier.of("dungeonmod", "tetralame_range"), 0.5, EntityAttributeModifier.Operation.ADD_VALUE),
+                            AttributeModifierSlot.MAINHAND)
+                        .build()
+                        .withShowInTooltip(false));
+            },
+            "§4Attention: 0,5 coeur max tant qu'elle est en main.", "§7Inflige 20 coeurs de dégâts.", "§7Portée de 3,5 blocs.");
+        register("idole_du_bonheur", "§dIdole du bonheur", Items.ECHO_SHARD,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "idole_du_bonheur")),
+            "§740% de chance d'annuler les dégâts ennemis.", "§7Fonctionne en main droite ou gauche.");
+        register("ancre", "§6Ancre", Items.CONDUIT,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "ancre")),
+            "§7Une ancre mystique.", "§7Permet de redéfinir son point de réapparition.", "§7Clic droit : définit le point de spawn sur l'eau des puits.", "§7Clic gauche : grappin vers les murs/plafonds (≤15 blocs).");
         register("chope_biere", "§7Chope de bière", Items.GLASS_BOTTLE,
             stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chope_biere")),
             "§7Une bière déjà bue.");
@@ -114,7 +150,7 @@ public class ModItems {
                         AttributeModifierSlot.CHEST)
                     .build()
                     .withShowInTooltip(false)),
-            "§7Un plastron de chasseur.", "§7Permet au fouet d'être utilisé", "§7comme un grappin.", "§7Ralentit la chute.", "§7Protection: +7");
+            "§7Un plastron de chasseur.", "§7Ralentit la chute.", "§7Protection: +7");
         register("coeur", "§cCoeur", Items.HEART_OF_THE_SEA,
             stack -> stack.set(DataComponentTypes.ITEM_MODEL, net.minecraft.util.Identifier.of("dungeonmod", "coeur")),
             "§7Un coeur mystique.", "§7Utilisez pour gagner un coeur max supplémentaire.");
@@ -147,9 +183,6 @@ public class ModItems {
                         .add(EntityAttributes.JUMP_STRENGTH,
                             new EntityAttributeModifier(Identifier.of("dungeonmod", "casque_lourd_jump"), -0.1, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL),
                             AttributeModifierSlot.HEAD)
-                        .add(EntityAttributes.MAX_ABSORPTION,
-                            new EntityAttributeModifier(Identifier.of("dungeonmod", "casque_lourd_absorption"), 2.0, EntityAttributeModifier.Operation.ADD_VALUE),
-                            AttributeModifierSlot.HEAD)
                         .build()
                         .withShowInTooltip(false));
                 stack.set(DataComponentTypes.EQUIPPABLE,
@@ -178,9 +211,6 @@ public class ModItems {
                     .add(EntityAttributes.MOVEMENT_SPEED,
                         new EntityAttributeModifier(Identifier.of("dungeonmod", "plastron_lourd_speed"), -0.3, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL),
                         AttributeModifierSlot.CHEST)
-                    .add(EntityAttributes.MAX_ABSORPTION,
-                        new EntityAttributeModifier(Identifier.of("dungeonmod", "plastron_lourd_absorption"), 10.0, EntityAttributeModifier.Operation.ADD_VALUE),
-                        AttributeModifierSlot.CHEST)
                     .add(EntityAttributes.JUMP_STRENGTH,
                         new EntityAttributeModifier(Identifier.of("dungeonmod", "plastron_lourd_jump"), -0.3, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL),
                         AttributeModifierSlot.CHEST)
@@ -199,12 +229,21 @@ public class ModItems {
                     .add(EntityAttributes.JUMP_STRENGTH,
                         new EntityAttributeModifier(Identifier.of("dungeonmod", "jambiere_lourde_jump"), -0.2, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL),
                         AttributeModifierSlot.LEGS)
-                    .add(EntityAttributes.MAX_ABSORPTION,
-                        new EntityAttributeModifier(Identifier.of("dungeonmod", "jambiere_lourde_absorption"), 6.0, EntityAttributeModifier.Operation.ADD_VALUE),
-                        AttributeModifierSlot.LEGS)
                     .build()
                     .withShowInTooltip(false)),
             "§7Des jambières en fer renforcées.", "§7Protection: +6");
+        register("bottes_lourdes", "§9Bottes lourdes", Items.IRON_BOOTS,
+            stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
+                AttributeModifiersComponent.builder()
+                    .add(EntityAttributes.ARMOR,
+                        new EntityAttributeModifier(Identifier.of("dungeonmod", "bottes_lourdes_armor"), 6.0, EntityAttributeModifier.Operation.ADD_VALUE),
+                        AttributeModifierSlot.FEET)
+                    .add(EntityAttributes.KNOCKBACK_RESISTANCE,
+                        new EntityAttributeModifier(Identifier.of("dungeonmod", "bottes_lourdes_kb"), 1.0, EntityAttributeModifier.Operation.ADD_VALUE),
+                        AttributeModifierSlot.FEET)
+                    .build()
+                    .withShowInTooltip(false)),
+            "§7Des bottes en fer renforcées.", "§7Annule le recul.", "§7Protection: +6");
         register("plastron_heros", "§ePlastron du héros", Items.GOLDEN_CHESTPLATE,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 AttributeModifiersComponent.builder()
@@ -560,6 +599,8 @@ public class ModItems {
             for (CustomItem item : ITEMS.values()) {
                 entries.add(item.createStack());
             }
+            // Sac item
+            entries.add(Registries.ITEM.get(Identifier.of("dungeonmod", "sac")));
         });
     }
 }

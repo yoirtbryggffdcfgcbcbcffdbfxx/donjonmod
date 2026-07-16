@@ -8,6 +8,13 @@ group = project.maven_group
 
 repositories {
     maven { url "https://maven.kosmx.dev/" }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
 }
 
 dependencies {

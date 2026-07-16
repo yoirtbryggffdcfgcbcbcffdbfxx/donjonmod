@@ -137,6 +137,26 @@ public class DungeonCommand {
         BlockPos genPos = new BlockPos(genX, genY, genZ);
         try {
             TestGenerator.generateRandomCave(world, genPos, maxRooms);
+            // Nettoyer les sacs des joueurs dans le donjon
+            for (ServerPlayerEntity p : source.getServer().getPlayerManager().getPlayerList()) {
+                boolean inDungeon = false;
+                for (var d : com.dungeonmod.DungeonMod.dungeons) {
+                    if (!d.worldKey.equals(p.getWorld().getRegistryKey().getValue())) continue;
+                    int halfGrid = 320;
+                    int px = p.getBlockX(), pz = p.getBlockZ();
+                    if (px >= d.origin.getX() - halfGrid && px < d.origin.getX() + halfGrid
+                        && pz >= d.origin.getZ() - halfGrid && pz < d.origin.getZ() + halfGrid) {
+                        inDungeon = true; break;
+                    }
+                }
+                if (!inDungeon) continue;
+                var inv = p.getInventory();
+                for (int i = 0; i < inv.main.size(); i++) {
+                    if (inv.main.get(i).getItem() instanceof com.dungeonmod.item.SacItem) {
+                        inv.main.set(i, net.minecraft.item.ItemStack.EMPTY);
+                    }
+                }
+            }
             // Apply dungeon gamerules
             GameRules rules = world.getGameRules();
             rules.get(GameRules.DO_MOB_SPAWNING).set(false, null);

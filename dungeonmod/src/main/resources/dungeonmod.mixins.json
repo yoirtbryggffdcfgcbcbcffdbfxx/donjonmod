@@ -4,6 +4,10 @@
   "package": "com.dungeonmod.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "AncreGrapplingMixin",
+    "NoRespawnBlockMessageMixin",
+    "HeavyPersistenceMixin",
+    "MaxAbsorptionMixin",
     "ZombieEntityMixin",
     "ItemStackMixin",
     "DamageUtilMixin",
@@ -48,7 +52,12 @@
     "RuneApplyMixin",
     "RingOfBloodMixin",
     "GlaiveAttackMixin",
-    "GlaiveMixin"
+    "GlaiveMixin",
+    "SacKeepMixin",
+    "IdoleBonheurMixin",
+    "TetralameHealthMixin",
+    "MaxHealthPersistMixin",
+    "SyrinxMixin"
   ],
   "client": [
     "ArmorHudMixin",

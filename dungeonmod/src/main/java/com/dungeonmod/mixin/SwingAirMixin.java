@@ -1,5 +1,6 @@
 package com.dungeonmod.mixin;
 
+import com.dungeonmod.util.AncreGrappling;
 import com.dungeonmod.util.FauxDeFerHelper;
 import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
@@ -18,6 +19,11 @@ public class SwingAirMixin {
 
     @Inject(method = "onHandSwing", at = @At("HEAD"))
     private void onHandSwing(HandSwingC2SPacket packet, CallbackInfo ci) {
+        if (AncreGrappling.isAncreGrappling(player)) {
+            AncreGrappling.onSwing(player);
+            return;
+        }
+
         var stack = player.getMainHandStack();
         if (!FauxDeFerHelper.isFauxDeFer(stack)) return;
 
