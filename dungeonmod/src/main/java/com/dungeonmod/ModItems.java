@@ -125,6 +125,8 @@ public class ModItems {
         register("oeuf_zombie", "§eOeuf de zombie", Items.STICK, "§7Un oeuf étrange.", "§7Fait apparaître un zombie custom.");
         register("oeuf_gobelin_1", "§eOeuf de gobelin 1", Items.STICK, "§7Un oeuf de gobelin.", "§7Fait apparaître un gobelin 1.");
         register("oeuf_gobelin_2", "§eOeuf de gobelin 2", Items.STICK, "§7Un oeuf de gobelin.", "§7Fait apparaître un gobelin 2.");
+        register("oeuf_lanceur_gobelin", "§eOeuf de lanceur", Items.STICK, "§7Un oeuf de lanceur.", "§7Fait apparaître un gobelin lanceur de pierre.");
+        register("oeuf_ogre", "§cOeuf d'ogre", Items.STICK, "§7Un oeuf d'ogre.", "§7Fait apparaître un ogre lanceur de pierres.");
         register("casque_chasseur", "§9Casque du chasseur", Items.CHAINMAIL_HELMET,
             stack -> {
                 stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "casque_chasseur"));

@@ -1,5 +1,6 @@
 package com.dungeonmod.test;
 
+import com.dungeonmod.DungeonMod;
 import com.dungeonmod.debug.DungeonAlgo;
 import com.dungeonmod.debug.DungeonViz;
 import net.minecraft.block.Block;
@@ -416,59 +417,122 @@ public class TestGenerator {
     }
 
     private static void spawnGoblins(ServerWorld world, List<RoomCell> cells, int ox, int oy, int oz) {
-        int MOB1 = 4, MOB2 = 6;
+        int MOB1 = 4, MOB2 = 6, M3 = 37, M4 = 38;
         java.util.Random rnd = new java.util.Random();
-        int[][] offsets = {{2, 2}, {7, 2}, {4, 7}};
-        com.dungeonmod.DungeonMod dm = null;
+        // M1/M2 room offsets
+        int[][] normalOffsets = {{2, 2}, {7, 2}, {4, 7}};
+        // M3/M4 room offsets: 2 normaux en bas, 3 lanceurs sur plateforme
+        int[][] bottomOffsets = {{2, 2}, {7, 2}};
+        int[][] topOffsets = {{2, 5}, {7, 5}, {4, 8}};
 
         for (RoomCell rc : cells) {
-            if (rc.topLevel || (rc.type != MOB1 && rc.type != MOB2)) continue;
+            if (rc.topLevel) continue;
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
 
-            for (int[] off : offsets) {
-                int rx = rotateX(off[0], off[1], rc.rot);
-                int rz = rotateZ(off[0], off[1], rc.rot);
+            if (rc.type == MOB1 || rc.type == MOB2) {
+                for (int[] off : normalOffsets) {
+                    int rx = rotateX(off[0], off[1], rc.rot);
+                    int rz = rotateZ(off[0], off[1], rc.rot);
+                    double sx = wx + rx + 0.5;
+                    double sz = wz + rz + 0.5;
+                    spawnNormalGoblin(world, sx, oy + 1.0, sz, oy);
+                }
+            } else if (rc.type == OGRE) {
+                int rx = rotateX(4, 4, rc.rot);
+                int rz = rotateZ(4, 4, rc.rot);
                 double sx = wx + rx + 0.5;
                 double sz = wz + rz + 0.5;
-
-                var zombie = new net.minecraft.entity.mob.ZombieEntity(
-                    net.minecraft.entity.EntityType.ZOMBIE, world);
-                zombie.setPosition(sx, oy + 1.0, sz);
-                zombie.setPersistent();
-
-                // Set follow range to 12 blocks (limits chasing to ~1 room away)
-                // Prevent despawn
-                zombie.setPersistent();
-
-                // Custom name for death message and hide nametag
-                zombie.setCustomName(net.minecraft.text.Text.literal("§aGobelin"));
-                zombie.setCustomNameVisible(false);
-
-                var attr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE);
-                if (attr != null) attr.setBaseValue(5.0);
-
-                var hpAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
-                if (hpAttr != null) { hpAttr.setBaseValue(20.0); zombie.setHealth(20.0f); }
-
-                var dmgAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
-                if (dmgAttr != null) dmgAttr.setBaseValue(2.0);
-
-                var speedAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED);
-                if (speedAttr != null) speedAttr.setBaseValue(speedAttr.getBaseValue() * 1.4);
-
-                // Choose random gobelin texture
-                String texName = rnd.nextBoolean() ? "textures/entity/gobelin_1.png" : "textures/entity/gobelin_2.png";
-                com.dungeonmod.DungeonMod.customZombies.add(zombie.getUuid());
-                com.dungeonmod.DungeonMod.zombieTextures.put(zombie.getUuid(),
-                    net.minecraft.util.Identifier.of("dungeonmod", texName));
-                com.dungeonmod.DungeonMod.zombieSpawns.put(zombie.getUuid(),
-                    new net.minecraft.util.math.BlockPos((int)sx, oy, (int)sz));
-
-                zombie.addCommandTag("dg_" + (int)sx + "_" + oy + "_" + (int)sz);
-                world.spawnEntity(zombie);
+                var ogre = new com.dungeonmod.entity.OgreEntity(
+                    com.dungeonmod.entity.OgreEntity.TYPE, world);
+                ogre.setPosition(sx, oy + 1.0, sz);
+                ogre.setPersistent();
+                ogre.setCustomName(net.minecraft.text.Text.literal("§eCyclope"));
+                ogre.setCustomNameVisible(false);
+                ogre.roomMinX = wx;
+                ogre.roomMaxX = wx + CELL;
+                ogre.roomMinZ = wz;
+                ogre.roomMaxZ = wz + CELL;
+                // Set facing toward entrance (based on room rotation)
+                int[] ports = getWorldPorts(OGRE, rc.rot);
+                if (ports.length > 0) ogre.roomFacing = ports[0] * 90.0f;
+                world.spawnEntity(ogre);
+            } else if (rc.type == M3 || rc.type == M4) {
+                // Gobelins normaux en bas (milieu de salle, hors plateforme)
+                int[][] m34BottomOffsets = {{3, 6}, {6, 6}};
+                for (int[] off : m34BottomOffsets) {
+                    int rx = rotateX(off[0], off[1], rc.rot);
+                    int rz = rotateZ(off[0], off[1], rc.rot);
+                    double sx = wx + rx + 0.5;
+                    double sz = wz + rz + 0.5;
+                    spawnNormalGoblin(world, sx, oy + 1.0, sz, oy);
+                }
+                // Lanceurs de pierre sur la plateforme (Y=3 dans la structure)
+                int[][] platformOffsets = {{3, 2}, {6, 2}};
+                for (int[] off : platformOffsets) {
+                    int rx = rotateX(off[0], off[1], rc.rot);
+                    int rz = rotateZ(off[0], off[1], rc.rot);
+                    double sx = wx + rx + 0.5;
+                    double sz = wz + rz + 0.5;
+                    spawnStoneThrower(world, sx, oy + 4.0, sz, oy);
+                }
             }
         }
+    }
+
+    private static void spawnNormalGoblin(ServerWorld world, double x, double y, double z, int oy) {
+        var zombie = new net.minecraft.entity.mob.ZombieEntity(
+            net.minecraft.entity.EntityType.ZOMBIE, world);
+        zombie.setPosition(x, y, z);
+        zombie.setPersistent();
+        zombie.setCustomName(net.minecraft.text.Text.literal("§aGobelin"));
+        zombie.setCustomNameVisible(false);
+
+        var attr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE);
+        if (attr != null) attr.setBaseValue(5.0);
+        var hpAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+        if (hpAttr != null) { hpAttr.setBaseValue(20.0); zombie.setHealth(20.0f); }
+        var dmgAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
+        if (dmgAttr != null) dmgAttr.setBaseValue(2.0);
+        var speedAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED);
+        if (speedAttr != null) speedAttr.setBaseValue(speedAttr.getBaseValue() * 1.4);
+
+        com.dungeonmod.DungeonMod.customZombies.add(zombie.getUuid());
+        com.dungeonmod.DungeonMod.zombieTextures.put(zombie.getUuid(),
+            net.minecraft.util.Identifier.of("dungeonmod", "textures/entity/gobelin_1.png"));
+        com.dungeonmod.DungeonMod.zombieSpawns.put(zombie.getUuid(),
+            new net.minecraft.util.math.BlockPos((int)x, (int)y, (int)z));
+
+        zombie.addCommandTag("dg_" + (int)x + "_" + (int)y + "_" + (int)z);
+        world.spawnEntity(zombie);
+    }
+
+    private static void spawnStoneThrower(ServerWorld world, double x, double y, double z, int oy) {
+        DungeonMod.LOGGER.info("[spawnStoneThrower] Spawning at {},{}", x, z);
+        var goblin = new com.dungeonmod.entity.StoneThrowerGoblinEntity(
+            com.dungeonmod.entity.StoneThrowerGoblinEntity.THROWER_TYPE, world);
+        goblin.setPosition(x, y, z);
+        goblin.setPersistent();
+        goblin.setCustomName(net.minecraft.text.Text.literal("§aGobelin"));
+        goblin.setCustomNameVisible(false);
+
+        var attr = goblin.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE);
+        if (attr != null) attr.setBaseValue(8.0);
+        var hpAttr = goblin.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+        if (hpAttr != null) { hpAttr.setBaseValue(14.0); goblin.setHealth(14.0f); }
+
+        // Set platform position for AI
+        goblin.setPlatformPos(new net.minecraft.util.math.BlockPos((int)x, (int)y, (int)z));
+        DungeonMod.LOGGER.info("[spawnStoneThrower] Done UUID={}", goblin.getUuid());
+
+        com.dungeonmod.DungeonMod.customZombies.add(goblin.getUuid());
+        com.dungeonmod.DungeonMod.zombieTextures.put(goblin.getUuid(),
+            net.minecraft.util.Identifier.of("dungeonmod", "textures/entity/gobelin_2.png"));
+        com.dungeonmod.DungeonMod.zombieSpawns.put(goblin.getUuid(),
+            new net.minecraft.util.math.BlockPos((int)x, (int)y, (int)z));
+
+        goblin.addCommandTag("dg_" + (int)x + "_" + (int)y + "_" + (int)z);
+        world.spawnEntity(goblin);
     }
 
     public static int getLastDepartX() { return lastDepartX; }

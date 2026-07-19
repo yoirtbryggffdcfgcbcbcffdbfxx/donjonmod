@@ -1,0 +1,11 @@
+{
+  "comment": "Position de la pierre par rapport au cyclope",
+  "ground_stone": {
+    "distance": 2.5,
+    "height": 0.2
+  },
+  "thrown_stone": {
+    "speed_multiplier": 1.0,
+    "vertical_multiplier": 1.0
+  }
+}

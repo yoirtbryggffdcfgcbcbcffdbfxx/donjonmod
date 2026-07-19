@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.DoorBlock;
@@ -74,6 +75,12 @@ public class DungeonMod implements ModInitializer {
 
         ModItems.addToCreativeTabs();
         com.dungeonmod.screen.ModScreenHandlers.register();
+        FabricDefaultAttributeRegistry.register(com.dungeonmod.entity.StoneThrowerGoblinEntity.THROWER_TYPE,
+            net.minecraft.entity.mob.ZombieEntity.createZombieAttributes()
+                .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, 14.0)
+                .add(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE, 8.0)
+                .add(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE, 2.0));
+        com.dungeonmod.entity.OgreEntity.registerAttributes();
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             TestGenerator.loadFromDisk(server);
@@ -305,13 +312,33 @@ public class DungeonMod implements ModInitializer {
                     double x = hit.getPos().x;
                     double y = hit.getPos().y + 1;
                     double z = hit.getPos().z;
-                    var zombie = new net.minecraft.entity.mob.ZombieEntity(
-                        net.minecraft.entity.EntityType.ZOMBIE, world);
-                    zombie.setPosition(x, y, z);
                     Identifier tex = getTextureForEgg(stack);
-                    if (tex != null) zombieTextures.put(zombie.getUuid(), tex);
-                    customZombies.add(zombie.getUuid());
-                    world.spawnEntity(zombie);
+                    String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
+                    if (name.contains("ogre")) {
+                        var ogre = new com.dungeonmod.entity.OgreEntity(
+                            com.dungeonmod.entity.OgreEntity.TYPE, world);
+                        ogre.setPosition(x, y, z);
+                        ogre.setPersistent();
+                        ogre.setCustomName(net.minecraft.text.Text.literal("§eCyclope"));
+                        ogre.setCustomNameVisible(false);
+                        ogre.throwTestMode = true;
+                        world.spawnEntity(ogre);
+                    } else if (name.contains("lanceur")) {
+                        var goblin = new com.dungeonmod.entity.StoneThrowerGoblinEntity(
+                            com.dungeonmod.entity.StoneThrowerGoblinEntity.THROWER_TYPE, world);
+                        goblin.setPosition(x, y, z);
+                        goblin.setPersistent();
+                        if (tex != null) zombieTextures.put(goblin.getUuid(), tex);
+                        customZombies.add(goblin.getUuid());
+                        world.spawnEntity(goblin);
+                    } else {
+                        var zombie = new net.minecraft.entity.mob.ZombieEntity(
+                            net.minecraft.entity.EntityType.ZOMBIE, world);
+                        zombie.setPosition(x, y, z);
+                        if (tex != null) zombieTextures.put(zombie.getUuid(), tex);
+                        customZombies.add(zombie.getUuid());
+                        world.spawnEntity(zombie);
+                    }
                     if (!sp.isCreative()) stack.decrement(1);
                 }
                 return ActionResult.SUCCESS;
@@ -408,6 +435,14 @@ public class DungeonMod implements ModInitializer {
                 guideGoblinsHome(server);
             }
         });
+
+        // Register cyclops sounds
+        net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SOUND_EVENT,
+            Identifier.of("dungeonmod", "entity.cyclops.growl1"),
+            net.minecraft.sound.SoundEvent.of(Identifier.of("dungeonmod", "entity.cyclops.grognement_cyclops_1")));
+        net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.SOUND_EVENT,
+            Identifier.of("dungeonmod", "entity.cyclops.growl2"),
+            net.minecraft.sound.SoundEvent.of(Identifier.of("dungeonmod", "entity.cyclops.grognement_cyclops_2")));
 
         LOGGER.info("Dungeon Mod loaded!");
     }
@@ -670,6 +705,7 @@ public class DungeonMod implements ModInitializer {
         String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
         if (name.contains("gobelin 1")) return TEXTURE_GOBELIN_1;
         if (name.contains("gobelin 2")) return TEXTURE_GOBELIN_2;
+        if (name.contains("lanceur")) return TEXTURE_GOBELIN_2;
         return null;
     }
 

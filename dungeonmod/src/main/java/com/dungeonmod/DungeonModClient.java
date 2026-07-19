@@ -9,6 +9,8 @@ import dev.kosmx.playerAnim.api.layered.IAnimation;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
 import com.dungeonmod.client.SyrinxHandler;
+import com.dungeonmod.entity.StoneEntity;
+import com.dungeonmod.entity.StoneThrowerGoblinEntity;
 import com.dungeonmod.screen.ModScreenHandlers;
 import com.dungeonmod.screen.SacScreen;
 import net.fabricmc.api.ClientModInitializer;
@@ -21,6 +23,11 @@ public class DungeonModClient implements ClientModInitializer {
     public void onInitializeClient() {
         HandledScreens.register(ModScreenHandlers.SAC_SCREEN_HANDLER, SacScreen::new);
         EntityRendererRegistry.register(BoomerangEntity.BOOMERANG_TYPE, BoomerangEntityRenderer::new);
+        EntityRendererRegistry.register(StoneEntity.STONE_TYPE, ctx -> new net.minecraft.client.render.entity.FlyingItemEntityRenderer<>(ctx, 6.0f, false));
+        EntityRendererRegistry.register(StoneThrowerGoblinEntity.THROWER_TYPE, net.minecraft.client.render.entity.ZombieEntityRenderer::new);
+        EntityRendererRegistry.register(com.dungeonmod.entity.OgreEntity.TYPE, com.dungeonmod.entity.OgreRenderer::new);
+
+
 
         SpinCameraHandler.init();
         DentDeLoupHandler.init();

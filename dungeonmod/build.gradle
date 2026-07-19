@@ -15,6 +15,7 @@ repositories {
             includeGroup "maven.modrinth"
         }
     }
+    maven { url "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/" }
 }
 
 dependencies {
@@ -23,6 +24,7 @@ dependencies {
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	modImplementation "dev.kosmx.player-anim:player-animation-lib-fabric:2.0.5+1.21.4"
+	modImplementation "software.bernie.geckolib:geckolib-fabric-1.21.4:4.8.5"
 }
 
 processResources {

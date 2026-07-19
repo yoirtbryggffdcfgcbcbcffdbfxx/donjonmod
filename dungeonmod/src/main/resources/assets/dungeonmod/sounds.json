@@ -1,0 +1,8 @@
+{
+  "entity.cyclops.growl1": {
+    "sounds": ["dungeonmod:entity/cyclops/grognement_cyclops_1"]
+  },
+  "entity.cyclops.growl2": {
+    "sounds": ["dungeonmod:entity/cyclops/grognement_cyclops_2"]
+  }
+}

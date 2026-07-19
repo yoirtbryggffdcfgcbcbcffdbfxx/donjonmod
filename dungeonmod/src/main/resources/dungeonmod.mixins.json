@@ -57,7 +57,8 @@
     "IdoleBonheurMixin",
     "TetralameHealthMixin",
     "MaxHealthPersistMixin",
-    "SyrinxMixin"
+    "SyrinxMixin",
+    "OgreEyeMixin"
   ],
   "client": [
     "ArmorHudMixin",
