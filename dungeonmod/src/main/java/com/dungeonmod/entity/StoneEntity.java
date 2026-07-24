@@ -6,8 +6,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.projectile.thrown.SnowballEntity;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
@@ -15,7 +13,6 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.World;
 
 public class StoneEntity extends SnowballEntity {
@@ -30,11 +27,28 @@ public class StoneEntity extends SnowballEntity {
             .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), Identifier.of("dungeonmod", "stone")))
     );
 
+    public static final EntityType<StoneEntity> CYCLOPS_STONE_TYPE = Registry.register(
+        Registries.ENTITY_TYPE,
+        Identifier.of("dungeonmod", "cyclops_stone"),
+        EntityType.Builder.<StoneEntity>create(CyclopsStoneEntity::new, SpawnGroup.MISC)
+            .dimensions(0.25f, 0.25f)
+            .maxTrackingRange(64)
+            .trackingTickInterval(1)
+            .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), Identifier.of("dungeonmod", "cyclops_stone")))
+    );
+
     public static final RegistryKey<Item> STONE_ITEM_KEY = RegistryKey.of(
         Registries.ITEM.getKey(), Identifier.of("dungeonmod", "stone_projectile"));
     public static final Item STONE_ITEM = Registry.register(
         Registries.ITEM, STONE_ITEM_KEY,
         new Item(new Item.Settings().registryKey(STONE_ITEM_KEY))
+    );
+
+    public static final RegistryKey<Item> CYCLOPS_STONE_ITEM_KEY = RegistryKey.of(
+        Registries.ITEM.getKey(), Identifier.of("dungeonmod", "cyclops_stone"));
+    public static final Item CYCLOPS_STONE_ITEM = Registry.register(
+        Registries.ITEM, CYCLOPS_STONE_ITEM_KEY,
+        new Item(new Item.Settings().registryKey(CYCLOPS_STONE_ITEM_KEY))
     );
 
     private LivingEntity cachedOwner;
@@ -55,6 +69,16 @@ public class StoneEntity extends SnowballEntity {
     @Override
     public Entity getOwner() {
         return cachedOwner != null ? cachedOwner : super.getOwner();
+    }
+
+    public static class CyclopsStoneEntity extends StoneEntity {
+        public CyclopsStoneEntity(EntityType<? extends StoneEntity> entityType, World world) {
+            super(entityType, world);
+        }
+        @Override
+        protected Item getDefaultItem() {
+            return CYCLOPS_STONE_ITEM;
+        }
     }
 
     @Override

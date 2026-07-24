@@ -32,7 +32,7 @@ public class PlatformWanderGoal extends Goal {
     public boolean canStart() {
         BlockPos center = platformSupplier.get();
         if (center == null) {
-            DungeonMod.LOGGER.info("[WanderGoal] {} canStart: center=null", mob.getUuid());
+
             return false;
         }
 
@@ -40,12 +40,12 @@ public class PlatformWanderGoal extends Goal {
         double hDist = Math.sqrt(Math.pow(mob.getX() - center.getX(), 2)
             + Math.pow(mob.getZ() - center.getZ(), 2));
         if (hDist > radius + 2 || mob.getY() < center.getY() - 1.5) {
-            if (++logCounter % 20 == 0) DungeonMod.LOGGER.info("[WanderGoal] {} canStart: skip (hDist={} y={} platY={})", mob.getUuid(), String.format("%.1f", hDist), String.format("%.1f", mob.getY()), center.getY());
+
             return false;
         }
 
         this.targetPos = findValidTarget(center);
-        DungeonMod.LOGGER.info("[WanderGoal] {} canStart: hDist={} target={} success={}", mob.getUuid(), String.format("%.2f", hDist), this.targetPos, this.targetPos != null);
+
         return this.targetPos != null;
     }
 

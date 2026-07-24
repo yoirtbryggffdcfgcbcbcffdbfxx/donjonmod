@@ -39,7 +39,7 @@
     "LanceTridentMixin",
     "VoyageurMixin",
     "WeaponKnockbackMixin",
-        "AdvancementMixin",
+    "AdvancementMixin",
     "DagueDamageMixin",
     "SabreComboMixin",
     "SabreMixin",
@@ -58,7 +58,10 @@
     "TetralameHealthMixin",
     "MaxHealthPersistMixin",
     "SyrinxMixin",
-    "OgreEyeMixin"
+    "OgreEyeMixin",
+    "PlayerScreenHandlerMixin",
+    "ScreenHandlerInvoker",
+    "ScreenHandlerMixin"
   ],
   "client": [
     "ArmorHudMixin",
@@ -69,6 +72,12 @@
     "ZombieEntityRenderStateMixin",
     "ZombieBaseEntityRendererMixin",
     "AbstractZombieModelMixin",
-    "LivingEntityRendererMixin"
+    "LivingEntityRendererMixin",
+    "InventoryScreenMixin",
+    "RecipeBookMixin",
+    "DialogueHudMixin",
+    "KeyboardInputMixin",
+    "PauseMenuMixin",
+    "MerchantScreenMixin"
   ]
 }

@@ -137,6 +137,7 @@ public class DungeonCommand {
         BlockPos genPos = new BlockPos(genX, genY, genZ);
         try {
             TestGenerator.generateRandomCave(world, genPos, maxRooms);
+
             // Nettoyer les sacs des joueurs dans le donjon
             for (ServerPlayerEntity p : source.getServer().getPlayerManager().getPlayerList()) {
                 boolean inDungeon = false;

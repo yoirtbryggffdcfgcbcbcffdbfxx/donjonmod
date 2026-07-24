@@ -383,6 +383,7 @@ public class TestGenerator {
             int wy = rc.topLevel ? oy + 10 : oy;
             int wx = ox + rc.cx * CELL, wz = oz + rc.cz * CELL;
             placeRoom(world, wx, wy, wz, getData(rc.type, rc.corrIdx), rc.rot);
+            com.dungeonmod.entity.NpcSpawnHelper.scanRoom(world, wx, wy, wz, CELL, rc.type);
             if (rc.type == DEPART) { lastDepartX = wx + CELL / 2; lastDepartZ = wz + CELL / 2; }
             if (rc.type != CORRIDOR && rc.type != I2 && rc.type != I3 && rc.type != I4
                 && rc.type != CJ1 && rc.type != CJ2 && rc.type != CJ3
@@ -491,7 +492,7 @@ public class TestGenerator {
         var attr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE);
         if (attr != null) attr.setBaseValue(5.0);
         var hpAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
-        if (hpAttr != null) { hpAttr.setBaseValue(20.0); zombie.setHealth(20.0f); }
+        if (hpAttr != null) { hpAttr.setBaseValue(10.0); zombie.setHealth(10.0f); }
         var dmgAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
         if (dmgAttr != null) dmgAttr.setBaseValue(2.0);
         var speedAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED);

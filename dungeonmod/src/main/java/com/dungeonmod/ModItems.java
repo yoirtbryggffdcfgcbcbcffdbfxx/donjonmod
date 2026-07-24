@@ -115,7 +115,7 @@ public class ModItems {
             "§4Attention: 0,5 coeur max tant qu'elle est en main.", "§7Inflige 20 coeurs de dégâts.", "§7Portée de 3,5 blocs.");
         register("idole_du_bonheur", "§dIdole du bonheur", Items.ECHO_SHARD,
             stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "idole_du_bonheur")),
-            "§740% de chance d'annuler les dégâts ennemis.", "§7Fonctionne en main droite ou gauche.");
+            "§725% de chance d'annuler les dégâts ennemis.", "§7Fonctionne en main droite ou gauche.");
         register("ancre", "§6Ancre", Items.CONDUIT,
             stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "ancre")),
             "§7Une ancre mystique.", "§7Permet de redéfinir son point de réapparition.", "§7Clic droit : définit le point de spawn sur l'eau des puits.", "§7Clic gauche : grappin vers les murs/plafonds (≤15 blocs).");
@@ -574,6 +574,12 @@ public class ModItems {
                         .withShowInTooltip(false));
             },
             "§7Un glaive tranchant.", "§7Enchaînez les coups pour accelerer.", "§7Clic droit : attaque tournoyante.");
+        register("conseil", "§aConseil", Items.PAPER,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "conseil")),
+            "§7Un précieux conseil de Gaspard.");
+        register("ongle_cyclope", "§7Ongle du Cyclope", Items.BONE,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "ongle_cyclope")),
+            "§7Un ongle tranchant de cyclope.");
     }
 
     private static void register(String id, String displayName, Item vanillaItem, String... lore) {

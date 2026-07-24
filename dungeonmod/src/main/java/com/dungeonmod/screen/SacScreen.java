@@ -9,6 +9,7 @@ import net.minecraft.util.Identifier;
 
 public class SacScreen extends HandledScreen<SacScreenHandler> {
 
+    private static final Identifier SAC_BG = Identifier.of("dungeonmod", "textures/gui/sac_interface.png");
     private static final Identifier SLOT_TEXTURE = Identifier.of("container/slot");
 
     public SacScreen(SacScreenHandler handler, PlayerInventory inventory, Text title) {
@@ -30,7 +31,7 @@ public class SacScreen extends HandledScreen<SacScreenHandler> {
         int x = (this.width - this.backgroundWidth) / 2;
         int y = (this.height - this.backgroundHeight) / 2;
 
-        context.fill(x, y, x + this.backgroundWidth, y + this.backgroundHeight, 0xFFC6C6C6);
+        context.drawTexture(RenderLayer::getGuiTextured, SAC_BG, x, y, 0, 0, this.backgroundWidth, this.backgroundHeight, 176, 176);
 
         for (int c = 0; c < 4; c++) {
             context.drawGuiTexture(RenderLayer::getGuiTextured, SLOT_TEXTURE, x + 48 + c * 18, y + 18, 18, 18);

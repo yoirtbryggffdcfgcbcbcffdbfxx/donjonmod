@@ -72,10 +72,10 @@ public class GlaiveComboData {
             net.minecraft.component.type.AttributeModifierSlot.MAINHAND);
         stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, builder.build().withShowInTooltip(false));
 
-        // Sync inventaire au client (slot barre = 36 + selectedSlot)
+        // Sync inventaire au client (slot barre = 31 + selectedSlot)
         if (player instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
             sp.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket(
-                0, 0, 36 + player.getInventory().selectedSlot, stack.copy()));
+                0, 0, 31 + player.getInventory().selectedSlot, stack.copy()));
         }
 
     }

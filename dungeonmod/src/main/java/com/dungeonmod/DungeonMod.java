@@ -62,10 +62,12 @@ public class DungeonMod implements ModInitializer {
     public static final String FLASK_BLESSED_NAME = "§9Fiole d'eau bénite";
 
     public static final Map<UUID, List<ItemStack>> sacBackup = new HashMap<>();
+    public static final Map<java.util.UUID, java.util.UUID> npcShopCache = new java.util.HashMap<>();
 
     public static final Set<UUID> customZombies = new HashSet<>();
     public static final Map<UUID, Identifier> zombieTextures = new HashMap<>();
     public static final Map<UUID, BlockPos> zombieSpawns = new HashMap<>();
+    public static com.dungeonmod.entity.BoutTissuItem BOUT_TISSU;
     private static final Set<UUID> alertedGoblins = new HashSet<>(); // permanently hostile
     public static final Identifier TEXTURE_GOBELIN_1 = Identifier.of("dungeonmod", "textures/entity/gobelin_1.png");
     public static final Identifier TEXTURE_GOBELIN_2 = Identifier.of("dungeonmod", "textures/entity/gobelin_2.png");
@@ -80,9 +82,74 @@ public class DungeonMod implements ModInitializer {
                 .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, 14.0)
                 .add(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE, 8.0)
                 .add(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE, 2.0));
+        FabricDefaultAttributeRegistry.register(com.dungeonmod.entity.BarmanEntity.TYPE,
+            net.minecraft.entity.mob.ZombieEntity.createZombieAttributes()
+                .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, Float.MAX_VALUE)
+                .add(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED, 0.0));
+        FabricDefaultAttributeRegistry.register(com.dungeonmod.entity.GaspardEntity.TYPE,
+            net.minecraft.entity.mob.ZombieEntity.createZombieAttributes()
+                .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, Float.MAX_VALUE)
+                .add(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED, 0.0));
         com.dungeonmod.entity.OgreEntity.registerAttributes();
+        BOUT_TISSU = net.minecraft.registry.Registry.register(
+            net.minecraft.registry.Registries.ITEM,
+            net.minecraft.util.Identifier.of("dungeonmod", "bout_tissu"),
+            new com.dungeonmod.entity.BoutTissuItem(new Item.Settings().maxCount(1).registryKey(
+                net.minecraft.registry.RegistryKey.of(net.minecraft.registry.Registries.ITEM.getKey(),
+                net.minecraft.util.Identifier.of("dungeonmod", "bout_tissu")))));
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playS2C().register(
+            com.dungeonmod.network.SubtitlePayload.ID, com.dungeonmod.network.SubtitlePayload.CODEC);
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playS2C().register(
+            com.dungeonmod.network.CyclopsTradesPayload.ID, com.dungeonmod.network.CyclopsTradesPayload.CODEC);
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
+            com.dungeonmod.network.OpenCyclopsShopPayload.ID, com.dungeonmod.network.OpenCyclopsShopPayload.CODEC);
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
+            com.dungeonmod.network.CyclopsBuyPayload.ID, com.dungeonmod.network.CyclopsBuyPayload.CODEC);
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
+            com.dungeonmod.network.CyclopsSellPayload.ID, com.dungeonmod.network.CyclopsSellPayload.CODEC);
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
+            com.dungeonmod.network.OpenCyclopsShopPayload.ID, (payload, context) -> {
+                context.server().execute(() -> {
+                    var player = context.player();
+                    var entry = npcShopCache.get(player.getUuid());
+                    if (entry == null) return;
+                    var entity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(entry);
+                    if (entity instanceof com.dungeonmod.entity.NpcShopProvider shop) {
+                        shop.openShop(player);
+                    }
+                });
+            });
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
+            com.dungeonmod.network.CyclopsBuyPayload.ID, (payload, context) -> {
+                context.server().execute(() -> {
+                    var player = context.player();
+                    java.util.UUID targetUUID = com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid());
+                    if (targetUUID == null) return;
+                    var entity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(targetUUID);
+                    if (entity instanceof com.dungeonmod.entity.NpcShopProvider shop) {
+                        shop.processBuy(player, payload.tradeIndex(), payload.quantity());
+                    }
+                });
+            });
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
+            com.dungeonmod.network.CyclopsSellPayload.ID, (payload, context) -> {
+                context.server().execute(() -> {
+                    var player = context.player();
+                    java.util.UUID targetUUID = com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid());
+                    if (targetUUID == null) return;
+                    var entity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(targetUUID);
+                    if (entity instanceof com.dungeonmod.entity.NpcShopProvider shop) {
+                        shop.processSell(player, payload.tradeIndex());
+                    }
+                });
+            });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            com.dungeonmod.entity.NpcRegistry.init();
+            com.dungeonmod.village.SellTradeRegistry.init();
             TestGenerator.loadFromDisk(server);
             if (TestGenerator.getLastSeed() != 0) {
                 ServerWorld world = server.getOverworld();

@@ -26,7 +26,7 @@ public class IdoleBonheurMixin {
         if (!hasIdole(player)) return;
 
         if (source.getAttacker() instanceof LivingEntity attacker) {
-            if (world.getRandom().nextFloat() < 0.4f) {
+            if (world.getRandom().nextFloat() < 0.25f) {
                 // Son
                 world.playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.BLOCK_RESPAWN_ANCHOR_CHARGE, SoundCategory.PLAYERS, 0.6f, 1.2f);

@@ -631,6 +631,7 @@ public class DungeonAlgo {
                     boolean droit = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0
                         || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0;
                     if (!droit) labels.put(n, "I2");
+                    else labels.put(n, pickC(rng));
                 }
             } else if (labels.containsKey(n)) continue;
             else labels.put(n, pickC(rng));

@@ -36,6 +36,11 @@ public class DoubleJumpMixin {
 
             Vec3d vel = player.getVelocity();
             player.setVelocity(vel.x, 0.55, vel.z);
+            // Appliquer un boost horizontal comme un saut sprinté
+            if (player.isSprinting()) {
+                float yawRad = player.getYaw() * (float)Math.PI / 180.0f;
+                player.addVelocity(-Math.sin(yawRad) * 0.2, 0, Math.cos(yawRad) * 0.2);
+            }
 
             player.getWorld().playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.ENTITY_WIND_CHARGE_WIND_BURST,
