@@ -133,10 +133,10 @@ public class BarmanEntity extends BaseNpcEntity implements NpcShopProvider {
 
         var syncId = player.openHandledScreen(new SimpleNamedScreenHandlerFactory(
             (id, inv, p) -> new CyclopsTradeScreenHandler(id, inv),
-            Text.literal("§6Taverne")
+            Text.literal("§8Taverne")
         ));
         syncId.ifPresent(id ->
-            ServerPlayNetworking.send(player, new CyclopsTradesPayload(id, trades))
+            ServerPlayNetworking.send(player, new CyclopsTradesPayload(id, "barman", "Mira", true, false, trades))
         );
     }
 

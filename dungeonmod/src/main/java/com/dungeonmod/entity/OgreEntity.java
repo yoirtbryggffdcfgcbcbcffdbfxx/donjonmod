@@ -580,7 +580,7 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
             net.minecraft.text.Text.literal("§6Cyclope - Échange")
         ));
         syncId.ifPresent(id ->
-            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.CyclopsTradesPayload(id, trades))
+            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.CyclopsTradesPayload(id, "cyclope", "Cyclope", true, false, trades))
         );
         return ActionResult.SUCCESS;
     }

@@ -50,6 +50,11 @@ public class DungeonModClient implements ClientModInitializer {
                 context.client().execute(() -> {
                     var screen = context.client().currentScreen;
                     if (screen instanceof CyclopsTradeScreen cts && cts.getScreenHandler().syncId == payload.syncId()) {
+                        cts.getScreenHandler().npcId = payload.npcId();
+                        cts.getScreenHandler().npcName = payload.npcName();
+                        cts.getScreenHandler().hasBuyMode = payload.hasBuyMode();
+                        cts.getScreenHandler().hasSellMode = payload.hasSellMode();
+                        cts.applyNpcConfig();
                         cts.setTrades(payload.trades());
                     }
                 });
@@ -58,8 +63,7 @@ public class DungeonModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ClientPlayNetworking.registerReceiver(SubtitlePayload.ID, (payload, context) -> {
                 context.client().execute(() -> {
-                    SubtitleOverlay.showSubtitles(payload.speakerName(), payload.lines());
-                    SubtitleOverlay.setCanOpenShopOnEnd(payload.canOpenShop());
+                    SubtitleOverlay.showSubtitles(payload.speakerName(), payload.lines(), payload.canOpenShop());
                 });
             });
         });

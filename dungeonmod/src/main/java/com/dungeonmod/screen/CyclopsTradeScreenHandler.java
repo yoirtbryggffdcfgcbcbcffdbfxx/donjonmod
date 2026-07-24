@@ -10,16 +10,34 @@ import net.minecraft.screen.slot.Slot;
 public class CyclopsTradeScreenHandler extends ScreenHandler {
 
     public int selectedTrade = -1;
+    public boolean lockDeposit = false;
+    public String npcId = "";
+    public String npcName = "";
+    public boolean hasBuyMode = true;
+    public boolean hasSellMode = true;
     private final Inventory depositInventory;
 
     public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory) {
+        this(syncId, playerInventory, false);
+    }
+
+    public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory, boolean lockDeposit) {
+        this(syncId, playerInventory, lockDeposit, "", "");
+    }
+
+    public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory, boolean lockDeposit, String npcId, String npcName) {
         super(ModScreenHandlers.CYCLOPS_TRADE_SCREEN_HANDLER, syncId);
+        this.lockDeposit = lockDeposit;
+        this.npcId = npcId;
+        this.npcName = npcName;
 
         depositInventory = new SingleSlotInventory();
 
         this.addSlot(new Slot(depositInventory, 0, 125, 41) {
             @Override public boolean canInsert(ItemStack stack) { return true; }
+            @Override public boolean canTakeItems(PlayerEntity playerEntity) { return true; }
             @Override public int getMaxItemCount() { return 1; }
+            @Override public boolean isEnabled() { return !lockDeposit; }
         });
 
         for (int row = 0; row < 3; ++row) {
@@ -33,8 +51,22 @@ public class CyclopsTradeScreenHandler extends ScreenHandler {
     }
 
     public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory, int selectedTrade) {
-        this(syncId, playerInventory);
+        super(ModScreenHandlers.CYCLOPS_TRADE_SCREEN_HANDLER, syncId);
         this.selectedTrade = selectedTrade;
+        depositInventory = new SingleSlotInventory();
+        this.addSlot(new Slot(depositInventory, 0, 125, 41) {
+            @Override public boolean canInsert(ItemStack stack) { return true; }
+            @Override public int getMaxItemCount() { return 1; }
+            @Override public boolean isEnabled() { return true; }
+        });
+        for (int row = 0; row < 3; ++row) {
+            for (int col = 0; col < 9; ++col) {
+                this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 108 + col * 18, 84 + row * 18));
+            }
+        }
+        for (int col = 0; col < 9; ++col) {
+            this.addSlot(new Slot(playerInventory, col, 108 + col * 18, 142));
+        }
     }
 
     @Override

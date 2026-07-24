@@ -138,11 +138,40 @@ public class DungeonMod implements ModInitializer {
             com.dungeonmod.network.CyclopsSellPayload.ID, (payload, context) -> {
                 context.server().execute(() -> {
                     var player = context.player();
-                    java.util.UUID targetUUID = com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid());
-                    if (targetUUID == null) return;
-                    var entity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(targetUUID);
-                    if (entity instanceof com.dungeonmod.entity.NpcShopProvider shop) {
-                        shop.processSell(player, payload.tradeIndex());
+                    if (payload.tradeIndex() >= 0) {
+                        // Premade offer: delegate to entity
+                        java.util.UUID targetUUID = com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid());
+                        if (targetUUID == null) return;
+                        var entity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(targetUUID);
+                        if (entity instanceof com.dungeonmod.entity.NpcShopProvider shop) {
+                            shop.processSell(player, payload.tradeIndex());
+                        }
+                    } else if (payload.tradeIndex() == -2) {
+                        // Clear deposit on delete
+                        var handler = player.currentScreenHandler;
+                        if (handler instanceof com.dungeonmod.screen.CyclopsTradeScreenHandler ch) {
+                            ch.getSlot(0).setStack(net.minecraft.item.ItemStack.EMPTY);
+                        }
+                    } else {
+                        // Custom offer: process directly
+                        var handler = player.currentScreenHandler;
+                        if (handler instanceof com.dungeonmod.screen.CyclopsTradeScreenHandler ch) {
+                            var depositStack = ch.getSlot(0).getStack();
+                            if (!depositStack.isEmpty()) {
+                                ch.getSlot(0).setStack(net.minecraft.item.ItemStack.EMPTY);
+                                // Check if it's a Gaspard conseil trade
+                                var npcEntity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(
+                                    com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid()));
+                                if (npcEntity instanceof com.dungeonmod.entity.GaspardEntity) {
+                                    com.dungeonmod.entity.GaspardEntity.handleConseilTrade(player, depositStack, -1);
+                                } else {
+                                    // Generic custom sell
+                                    if (!player.getInventory().insertStack(payload.rewardItem().copy())) {
+                                        player.dropItem(payload.rewardItem().copy(), false);
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
             });

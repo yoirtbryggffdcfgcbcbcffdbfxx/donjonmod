@@ -57,15 +57,11 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
     private SellTradeRegistry.SellOffer selectedSellReward = null;
     private boolean showingRewards = false;
     private int rewardScrollOffset = 0;
-    private static final Identifier ITEM_CHOICE_OVERLAY = Identifier.of("dungeonmod", "textures/gui/2_item_overlay.png");
     private List<SellTradeRegistry.SellOffer> premadeOffers = List.of();
-    private List<SellTradeRegistry.SellOffer> customOffers = new java.util.ArrayList<>();
+    private SellTradeRegistry.SellOffer customOffer = null;
     private int selectedOfferRow = -1;
-    private int customOfferScroll = 0;
-    private boolean showingItemChoice = false;
-    private java.util.Map<Integer, ItemStack> savedDeposits = new java.util.HashMap<>();
     private boolean firstTick = true;
-    private int animTick = 0;
+    
     private int shrinkingIndex = -1;
     private int shrinkTimer = 0;
     private static final int SHRINK_DURATION = 8;
@@ -99,12 +95,16 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
         if (this.title != null && !this.title.getString().contains("Cyclope")) {
             setHasQuantitySelector(true);
         }
-        if (this.title != null && this.title.getString().contains("Gaspard")) {
-            setHasBuyMode(false);
-            setHasSellMode(true, "gaspard");
-            premadeOffers = SellTradeRegistry.getOffers("gaspard");
-            tradeMode = 1;
+        if (this.handler.npcId != null && !this.handler.npcId.isEmpty()) {
+            applyNpcConfig();
         }
+    }
+
+    public void applyNpcConfig() {
+        setHasBuyMode(this.handler.hasBuyMode);
+        setHasSellMode(this.handler.hasSellMode, this.handler.npcId);
+        premadeOffers = SellTradeRegistry.getOffers(this.handler.npcId);
+        tradeMode = this.handler.hasSellMode ? 1 : 0;
     }
 
     @Override
@@ -112,8 +112,6 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
         super.handledScreenTick();
         if (clickAnimTimer > 0) clickAnimTimer--;
         if (rowClickTimer > 0) rowClickTimer--;
-        animTick++;
-        // First tick: ensure premade offer is selected and slot filled
         if (firstTick) {
             firstTick = false;
             if (tradeMode == 1 && hasSellMode && !premadeOffers.isEmpty()) {
@@ -122,18 +120,10 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             }
         }
         // Auto-update custom offer when deposit/reward changes
-        if (tradeMode == 1 && hasSellMode && selectedOfferRow >= premadeOffers.size()) {
-            int ci = selectedOfferRow - premadeOffers.size();
-            if (ci >= 0 && ci < customOffers.size()) {
-                ItemStack dep = this.handler.getSlot(0).getStack();
-                var offer = customOffers.get(ci);
-                if (!dep.isEmpty()) {
-                    if (offer.requiredItems().isEmpty() || !ItemStack.areItemsAndComponentsEqual(dep, offer.requiredItems().get(0))) {
-                        customOffers.set(ci, new SellTradeRegistry.SellOffer(java.util.List.of(dep.copy()), 1, selectedSellReward != null ? selectedSellReward.rewardItem().copy() : ItemStack.EMPTY, 1));
-                    }
-                } else if (!offer.requiredItems().isEmpty()) {
-                    customOffers.set(ci, new SellTradeRegistry.SellOffer(java.util.List.of(), 1, selectedSellReward != null ? selectedSellReward.rewardItem().copy() : ItemStack.EMPTY, 1));
-                }
+        if (tradeMode == 1 && hasSellMode && customOffer != null && selectedOfferRow >= premadeOffers.size()) {
+            ItemStack dep = this.handler.getSlot(0).getStack();
+            if (!dep.isEmpty() || selectedSellReward != null) {
+                customOffer = new SellTradeRegistry.SellOffer(java.util.List.of(dep.copy()), 1, selectedSellReward != null ? selectedSellReward.rewardItem().copy() : ItemStack.EMPTY, 1);
             }
         }
         if (shrinkingIndex >= 0) {
@@ -186,26 +176,28 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
 
         // Mode buttons (Achat / Vente)
         int mx = x + 4, my = y + 3;
-        drawModeButton(context, mx, my, "§7Achat", 0);
-        drawModeButton(context, mx + 45, my, "§7Vente", 1);
+        drawModeButton(context, mx, my, "§0Achat", 0);
+        drawModeButton(context, mx + 45, my, "§0Troc", 1);
 
         // Mode SELL
         if (tradeMode == 1 && hasSellMode && !showingRewards) {
             int rowH2 = 22;
             int rowY = y + 20;
 
-            // First separator with "offre de Gaspard"
-            context.drawTexture(RenderLayer::getGuiTextured, SELL_ENTRE_2, x + 5, rowY, 0f, 0f, 88, 10, 88, 10);
+            // First separator with "offre de [NPC]"
+            context.drawTexture(RenderLayer::getGuiTextured, SELL_ENTRE_2, x + 5, rowY, 0, 0, 88, 10, 88, 10);
             context.getMatrices().push();
+            context.getMatrices().translate(x + 7, rowY + 1, 0);
             context.getMatrices().scale(0.75f, 0.75f, 1.0f);
-            context.drawText(this.textRenderer, "offre de Gaspard", (int)((x + 12) / 0.75f), (int)((rowY + 3) / 0.75f), 0x000000, false);
+            String npcNameSep = this.handler.npcName.isEmpty() ? "PNJ" : this.handler.npcName;
+            context.drawText(this.textRenderer, "offre de " + npcNameSep, (int)((x - 95) / 0.75f), (int)((rowY - 72) / 0.75f), 0x000000, false);
             context.getMatrices().pop();
             rowY += 12;
 
             // Premade offers
             for (int i = 0; i < premadeOffers.size(); i++) {
                 var offer = premadeOffers.get(i);
-                ItemStack in = offer.requiredItems().get((animTick / 20) % offer.requiredItems().size());
+                ItemStack in = offer.requiredItems().get(0);
                 ItemStack out = offer.rewardItem();
                 context.drawTexture(RenderLayer::getGuiTextured, TRADE_ROW_BG, x + 5, rowY, 0f, 0f, 87, 22, 87, 22);
                 if (i == selectedOfferRow) {
@@ -227,16 +219,11 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             context.getMatrices().pop();
             rowY += 14;
 
-            // Custom offers (scrollable)
-            int maxCustomVis = Math.max(1, 4 - premadeOffers.size());
-            for (int i = 0; i < customOffers.size(); i++) {
-                int idx = i - customOfferScroll;
-                if (idx < 0) continue;
-                if (idx >= maxCustomVis) break;
-                var offer = customOffers.get(i);
-                ItemStack in = offer.requiredItems().isEmpty() ? ItemStack.EMPTY : offer.requiredItems().get(0);
-                ItemStack out = offer.rewardItem();
-                int absIdx = premadeOffers.size() + i;
+            // Single custom offer (if exists)
+            if (customOffer != null) {
+                int absIdx = premadeOffers.size();
+                ItemStack in = customOffer.requiredItems().isEmpty() ? ItemStack.EMPTY : customOffer.requiredItems().get(0);
+                ItemStack out = customOffer.rewardItem();
                 context.drawTexture(RenderLayer::getGuiTextured, TRADE_ROW_BG, x + 5, rowY, 0f, 0f, 87, 22, 87, 22);
                 if (absIdx == selectedOfferRow) {
                     context.drawTexture(RenderLayer::getGuiTextured, TRADE_ROW_BG_SELECTED, x + 5, rowY, 0f, 0f, 87, 22, 87, 22);
@@ -246,38 +233,24 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 context.drawText(this.textRenderer, "\u2192", x + 35, rowY + 6, 0x3C3C3C, false);
                 context.drawItem(out, x + 55, rowY + 3);
                 context.drawStackOverlay(this.textRenderer, out, x + 55, rowY + 3);
-                // Cross button to delete custom trade
                 context.drawTexture(RenderLayer::getGuiTextured, CROIX, x + 71, rowY + 1, 0f, 0f, 20, 20, 20, 20);
-                rowY += rowH2;
+            } else {
+                int btnOffreY = rowY + 4;
+                context.drawTexture(RenderLayer::getGuiTextured, TRADE_SON_OFFRE, x + 5, btnOffreY - 4, 0f, 0f, 87, 22, 87, 22);
+                context.getMatrices().push();
+                context.getMatrices().scale(0.75f, 0.75f, 1.0f);
+                context.drawText(this.textRenderer, "créer une offre +", (int)((x + 15) / 0.75f), (int)((btnOffreY + 4) / 0.75f), 0x000000, false);
+                context.getMatrices().pop();
             }
-
-            // Scrollbar for custom offers (Minecraft scroller)
-            if (customOffers.size() > maxCustomVis) {
-                int sbX = x + 94;
-                int sbY = rowY - maxCustomVis * rowH2;
-                int sbH = maxCustomVis * rowH2;
-                int thumbH = Math.max(15, sbH * maxCustomVis / customOffers.size());
-                int thumbY = sbY + (sbH - thumbH) * customOfferScroll / (customOffers.size() - maxCustomVis);
-                context.drawGuiTexture(RenderLayer::getGuiTextured, Identifier.ofVanilla("container/villager/scroller"), sbX, sbY, 6, sbH);
-                context.drawGuiTexture(RenderLayer::getGuiTextured, Identifier.ofVanilla("container/villager/scroller"), sbX, thumbY, 6, thumbH);
-            }
-
-            // trade_son_offre button
-            int btnOffreY = rowY + 4;
-            context.drawTexture(RenderLayer::getGuiTextured, TRADE_SON_OFFRE, x + 5, btnOffreY, 0f, 0f, 87, 22, 87, 22);
-            context.getMatrices().push();
-            context.getMatrices().scale(0.75f, 0.75f, 1.0f);
-            context.drawText(this.textRenderer, "créer une offre +", (int)((x + 15) / 0.75f), (int)((btnOffreY + 8) / 0.75f), 0x000000, false);
-            context.getMatrices().pop();
 
             // Custom section (right side)
             int slotSize = 27;
             int sx = x + 125, sy = y + 41;
             int rx = sx + slotSize + 30;
 
-            context.drawText(this.textRenderer, "§7mon offre", sx + (slotSize - this.textRenderer.getWidth("mon offre")) / 2, sy - 10, 0x7C7C7C, false);
-            context.drawText(this.textRenderer, "§7\u2192", sx + slotSize + 10, sy + 6, 0x3C3C3C, false);
-            context.drawText(this.textRenderer, "§7son offre", rx + (slotSize - this.textRenderer.getWidth("son offre")) / 2, sy - 10, 0x7C7C7C, false);
+            context.drawText(this.textRenderer, "§0mon offre", sx + (slotSize - this.textRenderer.getWidth("mon offre")) / 2, sy - 10, 0x7C7C7C, false);
+            context.drawText(this.textRenderer, "§0\u2192", sx + slotSize + 10, sy + 6, 0x3C3C3C, false);
+            context.drawText(this.textRenderer, "§0son offre", rx + (slotSize - this.textRenderer.getWidth("son offre")) / 2, sy - 10, 0x7C7C7C, false);
 
             context.getMatrices().push();
             context.getMatrices().translate(rx, sy, 0);
@@ -293,7 +266,14 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             }
 
             ItemStack depositCheck = this.handler.getSlot(0).getStack();
-            boolean itemOk = !depositCheck.isEmpty() && premadeOffers.stream().anyMatch(o -> o.matches(depositCheck));
+            boolean isPremade = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+            boolean itemOk;
+            if (isPremade) {
+                var reqs = premadeOffers.get(selectedOfferRow).requiredItems();
+                itemOk = !reqs.isEmpty() && this.client.player != null && hasItemInInventory(reqs.get(0));
+            } else {
+                itemOk = !depositCheck.isEmpty() && SellTradeRegistry.isItemAccepted(this.handler.npcId, depositCheck);
+            }
             boolean canSell = itemOk && selectedSellReward != null;
             int by2 = sy + (slotSize - 11) / 2;
             int bx = rx + slotSize + 10;
@@ -304,25 +284,6 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             context.getMatrices().scale(1.5f, 1.5f, 1.0f);
             context.drawTexture(RenderLayer::getGuiTextured, btnTex, 0, 0, 0f, 0f, 20, 11, 20, 11);
             context.getMatrices().pop();
-
-            // Item choice overlay for premade offers with multiple inputs
-            if (showingItemChoice && selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size()) {
-                var offer = premadeOffers.get(selectedOfferRow);
-                if (offer.requiredItems().size() > 1) {
-                    int ox = sx - (52 - slotSize) / 2;
-                    int oy = sy - 36;
-                    context.drawTexture(RenderLayer::getGuiTextured, ITEM_CHOICE_OVERLAY, ox, oy, 0, 0, 52, 34, 52, 34);
-                    int slotW = 26;
-                    for (int ci = 0; ci < offer.requiredItems().size() && ci < 2; ci++) {
-                        ItemStack ciStack = offer.requiredItems().get(ci);
-                        context.drawGuiTexture(RenderLayer::getGuiTextured, SLOT, ox + 4 + ci * slotW, oy +3, 18, 18);
-                        if (this.client.player != null && hasItemInInventory(ciStack)) {
-                            context.drawItem(ciStack, ox + 4 + ci * slotW, oy + 3);
-                            context.drawStackOverlay(this.textRenderer, ciStack, ox + 4 + ci * slotW, oy +3);
-                        }
-                    }
-                }
-            }
 
             return;
         }
@@ -419,41 +380,14 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
 
     private void switchToOffer(int newIdx) {
         if (newIdx == selectedOfferRow) return;
-        int oldIdx = selectedOfferRow;
-        ItemStack currentDep = this.handler.getSlot(0).getStack();
-
-        if (oldIdx >= 0 && oldIdx < premadeOffers.size() && !currentDep.isEmpty()) {
-            // Premade → quelque chose : sauvegarde SANS rendre au joueur
-            savedDeposits.put(oldIdx, currentDep.copy());
-            this.handler.getSlot(0).setStack(ItemStack.EMPTY);
-            currentDep = ItemStack.EMPTY;
-        }
-        // Pour les offres custom : rendre au joueur
-        if (!currentDep.isEmpty()) {
-            returnDepositToPlayer();
-        }
 
         selectedOfferRow = newIdx;
         selectedSellReward = null;
+        this.handler.lockDeposit = (newIdx >= 0 && newIdx < premadeOffers.size());
 
         if (newIdx >= 0 && newIdx < premadeOffers.size()) {
-            // Restore saved deposit for this premade
-            if (savedDeposits.containsKey(newIdx)) {
-                this.handler.getSlot(0).setStack(savedDeposits.remove(newIdx));
-            }
             var offer = premadeOffers.get(newIdx);
             selectedSellReward = offer;
-            if (this.handler.getSlot(0).getStack().isEmpty() && this.client.player != null) {
-                var inv = this.client.player.getInventory();
-                for (int si = 0; si < inv.size(); si++) {
-                    ItemStack s = inv.getStack(si);
-                    if (!s.isEmpty() && offer.matches(s)) {
-                        this.handler.getSlot(0).setStack(s.split(1));
-                        if (s.isEmpty()) inv.setStack(si, ItemStack.EMPTY);
-                        break;
-                    }
-                }
-            }
         }
     }
 
@@ -477,15 +411,6 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
 
     @Override
     public void close() {
-        // Return saved deposits to player
-        for (ItemStack stack : savedDeposits.values()) {
-            if (!stack.isEmpty() && this.client.player != null) {
-                if (!this.client.player.getInventory().insertStack(stack)) {
-                    this.client.player.dropItem(stack, false);
-                }
-            }
-        }
-        savedDeposits.clear();
         super.close();
     }
 
@@ -504,7 +429,8 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             context.getMatrices().scale(1.5f, 1.5f, 1.0f);
             context.drawGuiTexture(RenderLayer::getGuiTextured, SLOT, 0, 0, 18, 18);
             context.getMatrices().pop();
-            ItemStack depositStack = this.handler.getSlot(0).getStack();
+            boolean isPremadeSlot = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+            ItemStack depositStack = isPremadeSlot ? premadeOffers.get(selectedOfferRow).requiredItems().get(0) : this.handler.getSlot(0).getStack();
             if (!depositStack.isEmpty()) {
                 context.getMatrices().push();
                 context.getMatrices().translate(sx + slotSize / 2, sy + slotSize / 2, 0);
@@ -520,9 +446,8 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             int oy = (this.height - 176) / 2;
             context.fill(0, 0, this.width, this.height, 0xAA000000);
             context.drawTexture(RenderLayer::getGuiTextured, OVERLAY_BG, ox, oy, 0, 0, 176, 176, 176, 176);
-            String npcName = "Gaspard";
-            context.drawText(this.textRenderer, "§6Offre de " + npcName, ox + 8, oy + 5, 0x3C3C3C, false);
-            var offers = com.dungeonmod.village.SellTradeRegistry.getOffers("gaspard");
+            context.drawText(this.textRenderer, "§0Offre de " + this.handler.npcName, ox + 8, oy + 5, 0x3C3C3C, false);
+            var offers = com.dungeonmod.village.SellTradeRegistry.getOffers(this.handler.npcId);
             int rowW = 156, rowH = 21;
             int maxVisRows = 7;
             int visibleRows = Math.min(offers.size(), maxVisRows);
@@ -571,7 +496,7 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             }
             // Sell button tooltip
             if (!hasSellMode && mouseX >= mx2 + 45 && mouseX < mx2 + 90 && mouseY >= my2 && mouseY < my2 + 14) {
-                context.drawTooltip(this.textRenderer, Text.literal(name + " ne permet pas la vente"), mouseX, mouseY);
+                context.drawTooltip(this.textRenderer, Text.literal(name + " ne permet pas le troc"), mouseX, mouseY);
                 return;
             }
         }
@@ -584,40 +509,29 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 boolean overOut = mouseX >= x + 53 && mouseX < x + 71 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
                 if (overIn || overOut) {
                     var offer = premadeOffers.get(i);
-                    ItemStack stack = overIn ? offer.requiredItems().get((animTick / 20) % offer.requiredItems().size()) : offer.rewardItem();
+                    ItemStack stack = overIn ? offer.requiredItems().get(0) : offer.rewardItem();
                     context.drawItemTooltip(this.textRenderer, stack, mouseX, mouseY);
                     return;
                 }
                 rowY2 += 22;
             }
             rowY2 += 14;
-            int maxCustomVis3 = Math.max(1, 4 - premadeOffers.size());
-            for (int i = 0; i < customOffers.size(); i++) {
-                int idx2 = i - customOfferScroll;
-                if (idx2 < 0 || idx2 >= maxCustomVis3) continue;
+            if (customOffer != null) {
                 boolean overIn = mouseX >= x + 10 && mouseX < x + 28 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
                 boolean overOut = mouseX >= x + 53 && mouseX < x + 71 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
                 if (overIn || overOut) {
-                    ItemStack stack = overIn ? (!customOffers.get(i).requiredItems().isEmpty() ? customOffers.get(i).requiredItems().get(0) : ItemStack.EMPTY) : customOffers.get(i).rewardItem();
+                    ItemStack stack = overIn ? (!customOffer.requiredItems().isEmpty() ? customOffer.requiredItems().get(0) : ItemStack.EMPTY) : customOffer.rewardItem();
                     if (!stack.isEmpty()) context.drawItemTooltip(this.textRenderer, stack, mouseX, mouseY);
                     return;
                 }
-                rowY2 += 22;
             }
-            // Tooltip for item choice overlay
-            if (showingItemChoice && selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size()) {
-                var offer = premadeOffers.get(selectedOfferRow);
-                if (offer.requiredItems().size() > 1) {
-                    int ox4 = x + 125 - (52 - 27) / 2;
-                    int oy4 = y + 41 - 35;
-                    for (int ci = 0; ci < offer.requiredItems().size() && ci < 2; ci++) {
-                        ItemStack ciStack = offer.requiredItems().get(ci);
-                        if (mouseX >= ox4 + 1 + ci * 26 && mouseX < ox4 + 1 + ci * 26 + 18 && mouseY >= oy4 + 7 && mouseY < oy4 + 7 + 18) {
-                            if (!ciStack.isEmpty()) context.drawItemTooltip(this.textRenderer, ciStack, mouseX, mouseY);
-                            return;
-                        }
-                    }
-                }
+            // Tooltip for deposit slot (slot 1 on left)
+            int depX3 = x + 125, depY3 = y + 41;
+            if (mouseX >= depX3 && mouseX < depX3 + 27 && mouseY >= depY3 && mouseY < depY3 + 27) {
+                boolean isPremadeTip2 = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+                ItemStack depStack = isPremadeTip2 ? premadeOffers.get(selectedOfferRow).requiredItems().get(0) : this.handler.getSlot(0).getStack();
+                if (!depStack.isEmpty()) context.drawItemTooltip(this.textRenderer, depStack, mouseX, mouseY);
+                return;
             }
             // Tooltip for reward slot (slot 2 on right)
             int sx3 = x + 125 + 27 + 30;
@@ -629,16 +543,31 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             // Tooltip for sell button
             int btnX = x + 209, btnY = y + 44;
             if (mouseX >= btnX && mouseX < btnX + 30 && mouseY >= btnY && mouseY < btnY + 16) {
-                ItemStack depTip = this.handler.getSlot(0).getStack();
-                boolean itemOkTip = !depTip.isEmpty() && premadeOffers.stream().anyMatch(o -> o.matches(depTip));
-                if (itemOkTip && selectedSellReward != null) {
-                    context.drawTooltip(this.textRenderer, Text.literal("§aTroc possible"), mouseX, mouseY);
-                } else if (!itemOkTip && !depTip.isEmpty()) {
-                    context.drawTooltip(this.textRenderer, Text.literal("§cItem non accepté par Gaspard"), mouseX, mouseY);
-                } else if (depTip.isEmpty()) {
-                    context.drawTooltip(this.textRenderer, Text.literal("§cDéposez un item accepté"), mouseX, mouseY);
+                boolean isPremadeTip = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+                if (isPremadeTip) {
+                    ItemStack reqItem = premadeOffers.get(selectedOfferRow).requiredItems().get(0);
+                    String itemName = reqItem.getName().getString();
+                    if (hasItemInInventory(reqItem)) {
+                        if (selectedSellReward != null) {
+                            context.drawTooltip(this.textRenderer, Text.literal("§aTroc possible"), mouseX, mouseY);
+                        } else {
+                            context.drawTooltip(this.textRenderer, Text.literal("§cSélectionnez une récompense"), mouseX, mouseY);
+                        }
+                    } else {
+                        context.drawTooltip(this.textRenderer, Text.literal("§cVous ne possédez pas de " + itemName), mouseX, mouseY);
+                    }
                 } else {
-                    context.drawTooltip(this.textRenderer, Text.literal("§cSélectionnez une récompense"), mouseX, mouseY);
+                    ItemStack depTip = this.handler.getSlot(0).getStack();
+                    boolean itemOkTip = !depTip.isEmpty() && SellTradeRegistry.isItemAccepted(this.handler.npcId, depTip);
+                    if (itemOkTip && selectedSellReward != null) {
+                        context.drawTooltip(this.textRenderer, Text.literal("§aTroc possible"), mouseX, mouseY);
+                    } else if (!itemOkTip && !depTip.isEmpty()) {
+                        context.drawTooltip(this.textRenderer, Text.literal("§cItem non accepté par " + this.handler.npcName), mouseX, mouseY);
+                    } else if (depTip.isEmpty()) {
+                        context.drawTooltip(this.textRenderer, Text.literal("§cDéposez un item accepté"), mouseX, mouseY);
+                    } else {
+                        context.drawTooltip(this.textRenderer, Text.literal("§cSélectionnez une récompense"), mouseX, mouseY);
+                    }
                 }
                 return;
             }
@@ -687,17 +616,13 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (showingRewards) {
-            var offers = com.dungeonmod.village.SellTradeRegistry.getOffers("gaspard");
+            var offers = com.dungeonmod.village.SellTradeRegistry.getOffers(this.handler.npcId);
             int maxOffset = Math.max(0, offers.size() - 7);
             if (verticalAmount > 0) rewardScrollOffset = Math.max(0, rewardScrollOffset - 1);
             else if (verticalAmount < 0) rewardScrollOffset = Math.min(maxOffset, rewardScrollOffset + 1);
             return true;
         }
         if (tradeMode == 1 && hasSellMode) {
-            int maxCustomVis = Math.max(1, 4 - premadeOffers.size());
-            int maxOff = Math.max(0, customOffers.size() - maxCustomVis);
-            if (verticalAmount > 0) customOfferScroll = Math.max(0, customOfferScroll - 1);
-            else if (verticalAmount < 0) customOfferScroll = Math.min(maxOff, customOfferScroll + 1);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -709,7 +634,7 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
         if (showingRewards) {
             int ox = (this.width - 176) / 2;
             int oy = (this.height - 176) / 2;
-            var offers = com.dungeonmod.village.SellTradeRegistry.getOffers("gaspard");
+            var offers = com.dungeonmod.village.SellTradeRegistry.getOffers(this.handler.npcId);
             int rowW = 156, rowH = 21;
             int maxVisRows = 7;
             int visibleRows = Math.min(offers.size(), maxVisRows);
@@ -759,17 +684,20 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 // Skip separator
                 rowY2 += 14;
 
-                // Custom offers click
-                int maxCustomVis2 = Math.max(1, 4 - premadeOffers.size());
-                for (int i = 0; i < customOffers.size(); i++) {
-                    int idx = i - customOfferScroll;
-                    if (idx < 0 || idx >= maxCustomVis2) continue;
-                    int absIdx = premadeOffers.size() + i;
+                // Single custom offer click
+                if (customOffer != null) {
+                    int absIdx = premadeOffers.size();
                     // Cross button click (delete)
                     if (mouseX >= x + 76 && mouseX < x + 96 && mouseY >= rowY2 + 1 && mouseY < rowY2 + 21) {
-                        customOffers.remove(i);
+                        ItemStack oldStack = this.handler.getSlot(0).getStack();
+                        if (!oldStack.isEmpty() && this.client.player != null) {
+                            this.client.player.getInventory().offerOrDrop(oldStack);
+                        }
+                        this.handler.getSlot(0).setStack(ItemStack.EMPTY);
+                        ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, -2, ItemStack.EMPTY));
+                        customOffer = null;
                         if (selectedOfferRow == absIdx) {
-                            switchToOffer(-1);
+                            switchToOffer(0);
                         }
                         return true;
                     }
@@ -777,77 +705,13 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                         switchToOffer(absIdx);
                         return true;
                     }
-                    rowY2 += rowH2;
-                }
-
-                // Scrollbar click
-                int maxCustomVis4 = Math.max(1, 4 - premadeOffers.size());
-                if (customOffers.size() > maxCustomVis4) {
-                    int sbX = x + 94;
-                    int sbY2 = y + 32 + premadeOffers.size() * 22 + 14 + (premadeOffers.size() > 0 ? 0 : 0);
-                    int sbH2 = maxCustomVis4 * 22;
-                    if (mouseX >= sbX && mouseX < sbX + 6 && mouseY >= sbY2 && mouseY < sbY2 + sbH2) {
-                        int relY = (int)(mouseY - sbY2);
-                        int maxOff2 = Math.max(0, customOffers.size() - maxCustomVis4);
-                        customOfferScroll = relY * maxOff2 / sbH2;
+                } else {
+                    // trade_son_offre button click
+                    int btnOffreY2 = rowY2 + 4;
+                    if (mouseX >= x + 5 && mouseX < x + 92 && mouseY >= btnOffreY2 && mouseY < btnOffreY2 + 22) {
+                        customOffer = new SellTradeRegistry.SellOffer(java.util.List.of(), 1, ItemStack.EMPTY, 1);
+                        switchToOffer(premadeOffers.size());
                         return true;
-                    }
-                }
-
-                // trade_son_offre button click
-                int btnOffreY2 = rowY2 + 4;
-                if (mouseX >= x + 5 && mouseX < x + 92 && mouseY >= btnOffreY2 && mouseY < btnOffreY2 + 22) {
-                    switchToOffer(-1);
-                    customOffers.add(new SellTradeRegistry.SellOffer(java.util.List.of(), 1, ItemStack.EMPTY, 1));
-                    return true;
-                }
-
-                // Item choice overlay click
-                if (showingItemChoice && selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size()) {
-                    var offer = premadeOffers.get(selectedOfferRow);
-                    if (offer.requiredItems().size() > 1) {
-                        int slotSize4 = 27;
-                        int sx4 = x + 125;
-                        int sy4 = y + 36;
-                        int ox3 = sx4 - (52 - slotSize4) / 2;
-                        int oy3 = sy4 - 35;
-                        int slotW3 = 26;
-                        for (int ci = 0; ci < offer.requiredItems().size() && ci < 2; ci++) {
-                            ItemStack ciStack = offer.requiredItems().get(ci);
-                            if (mouseX >= ox3 + 1 + ci * slotW3 && mouseX < ox3 + 1 + ci * slotW3 + 18 && mouseY >= oy3 + 7 && mouseY < oy3 + 7 + 18) {
-                                if (this.client.player != null && hasItemInInventory(ciStack)) {
-                                    ItemStack cur = this.handler.getSlot(0).getStack();
-                                    if (!cur.isEmpty()) this.client.player.getInventory().offerOrDrop(cur);
-                                    var inv = this.client.player.getInventory();
-                                    for (int si = 0; si < inv.size(); si++) {
-                                        ItemStack s = inv.getStack(si);
-                                        if (!s.isEmpty() && s.isOf(ciStack.getItem()) && s.getName().getString().equals(ciStack.getName().getString())) {
-                                            this.handler.getSlot(0).setStack(s.split(1));
-                                            if (s.isEmpty()) inv.setStack(si, ItemStack.EMPTY);
-                                            break;
-                                        }
-                                    }
-                                    savedDeposits.put(selectedOfferRow, this.handler.getSlot(0).getStack().copy());
-                                }
-                                showingItemChoice = false;
-                                return true;
-                            }
-                        }
-                    }
-                    showingItemChoice = false;
-                    return true;
-                }
-
-                // Click on deposit slot for premade → show choice overlay
-                if (selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size()) {
-                    int dvx = x + 125, dvy = y + 36;
-                    if (mouseX >= dvx && mouseX < dvx + 27 && mouseY >= dvy && mouseY < dvy + 27) {
-                        var offer = premadeOffers.get(selectedOfferRow);
-                        if (offer.requiredItems().size() > 1) {
-                            showingItemChoice = !showingItemChoice;
-                            return true;
-                        }
-                        return true; // block manual removal
                     }
                 }
 
@@ -856,23 +720,45 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
 
                 int rx = sx + slotSize + 20;
                 if (mouseX >= rx && mouseX < rx + slotSize && mouseY >= sy2 && mouseY < sy2 + slotSize) {
-                    showingRewards = true;
+                    boolean isPremadeClick = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+                    if (!isPremadeClick) {
+                        showingRewards = true;
+                    }
                     return true;
                 }
                 ItemStack depCheck = this.handler.getSlot(0).getStack();
-                boolean itemOk2 = !depCheck.isEmpty() && premadeOffers.stream().anyMatch(o -> o.matches(depCheck));
+                boolean isPremade2 = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+                boolean itemOk2 = false;
+                if (isPremade2) {
+                    var reqs = premadeOffers.get(selectedOfferRow).requiredItems();
+                    itemOk2 = !reqs.isEmpty() && this.client.player != null && hasItemInInventory(reqs.get(0));
+                } else {
+                    itemOk2 = !depCheck.isEmpty() && SellTradeRegistry.isItemAccepted(this.handler.npcId, depCheck);
+                }
                 boolean canSell2 = itemOk2 && selectedSellReward != null;
                 int bx = rx + slotSize + 10;
                 int by2 = sy2 + (slotSize - 11) / 2;
                 if (mouseX >= bx && mouseX < bx + 30 && mouseY >= by2 && mouseY < by2 + 16 && canSell2) {
                     clickAnimTimer = 3;
-                    ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, selectedOfferRow));
-                    this.handler.getSlot(0).setStack(ItemStack.EMPTY);
-                    if (selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size()) {
-                        savedDeposits.remove(selectedOfferRow);
+                    if (isPremade2) {
+                        ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, selectedOfferRow, ItemStack.EMPTY));
                         selectedOfferRow = -1;
+                    } else {
+                        ItemStack rewardStack = selectedSellReward.rewardItem().copy();
+                        ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, -1, rewardStack));
+                        if (this.client.player != null && !rewardStack.isEmpty()) {
+                            if (!this.client.player.getInventory().insertStack(rewardStack)) {
+                                this.client.player.dropItem(rewardStack, false);
+                            }
+                        }
+                        this.handler.getSlot(0).setStack(ItemStack.EMPTY);
+                        customOffer = null;
                     }
                     selectedSellReward = null;
+                    return true;
+                }
+                // Bloquer tous les clics non gérés quand lockDeposit est vrai
+                if (this.handler.lockDeposit) {
                     return true;
                 }
                 return super.mouseClicked(mouseX, mouseY, button);

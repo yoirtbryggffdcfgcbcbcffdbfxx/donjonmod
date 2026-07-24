@@ -29,6 +29,8 @@ public class SubtitleOverlay {
     private static boolean hadScreen = false;
     private static boolean canOpenShopOnEnd = true;
     private static boolean wasAttackPressed = false;
+    private static boolean dialogueActive = false;
+    private static int prevHurtTime = 0;
     private static final int TICKS_PER_LINE = 90;
 
     private static final Identifier DIALOGUE_BOX = Identifier.of("dungeonmod", "textures/gui/dialogue_box.png");
@@ -103,6 +105,18 @@ public class SubtitleOverlay {
 
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (active && client.player != null) {
+                // Interruption sur dégât
+                if (dialogueActive && client.player.hurtTime > prevHurtTime) {
+                    stop();
+                    dialogueActive = false;
+                    return;
+                }
+                prevHurtTime = client.player.hurtTime;
+            } else if (!active && dialogueActive) {
+                dialogueActive = false;
+            }
+
             if (!active || currentIndex >= currentLines.size()) return;
             String line = currentLines.get(currentIndex);
             boolean isLast = (currentIndex >= currentLines.size() - 1);
@@ -154,9 +168,10 @@ public class SubtitleOverlay {
 
     public static void setCanOpenShopOnEnd(boolean v) { canOpenShopOnEnd = v; }
 
-    public static void showSubtitles(String name, List<String> lines) {
+    public static void showSubtitles(String name, List<String> lines, boolean openShopOnEnd) {
         if (lines.isEmpty()) { active = false; currentLines = List.of(); return; }
-        canOpenShopOnEnd = true;
+        if (dialogueActive) return;
+        canOpenShopOnEnd = openShopOnEnd;
         wasAttackPressed = true;
         speakerName = name;
         currentLines = lines;
@@ -166,17 +181,16 @@ public class SubtitleOverlay {
         charIndex = 0f;
         clickCooldown = 5;
         wasEscapePressed = false;
+        prevHurtTime = 0;
         active = true;
+        dialogueActive = true;
     }
 
     public static boolean isActive() { return active; }
+    public static boolean isDialogueActive() { return dialogueActive; }
     public static void setBoxScale(float scale) { boxScale = scale; }
     public static void stop() {
-        if (active) {
-            System.out.println("[SubtitleOverlay] stop() called");
-            new Exception("STACK TRACE").printStackTrace();
-        }
-        active = false; currentLines = List.of();
+        active = false; currentLines = List.of(); dialogueActive = false;
     }
 
     private static List<String> wrapText(TextRenderer renderer, String text, int maxWidth) {
@@ -205,8 +219,7 @@ public class SubtitleOverlay {
         fadeTimer = 0;
         charIndex = 0f;
         if (currentIndex >= currentLines.size()) {
-            active = false;
-            currentLines = List.of();
+            active = false; currentLines = List.of(); dialogueActive = false;
         }
     }
 }
