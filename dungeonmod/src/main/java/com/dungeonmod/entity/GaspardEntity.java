@@ -6,6 +6,7 @@ import com.dungeonmod.network.CyclopsTradesPayload;
 import com.dungeonmod.network.SubtitlePayload;
 import com.dungeonmod.screen.CyclopsTradeScreenHandler;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
 import net.minecraft.registry.Registries;
@@ -52,6 +53,28 @@ public class GaspardEntity extends BaseNpcEntity implements NpcShopProvider {
         syncId.ifPresent(id ->
             ServerPlayNetworking.send(player, new CyclopsTradesPayload(id, "gaspard", "Gaspard", false, true, List.of()))
         );
+    }
+
+    @Override
+    protected void startDialogue(PlayerEntity player) {
+        if (!(player instanceof ServerPlayerEntity sp)) return;
+        // Check if player has any beer (viking or brune)
+        var biereV = com.dungeonmod.ModItems.get("biere_viking");
+        var biereB = com.dungeonmod.ModItems.get("biere_brune");
+        boolean hasBeer = false;
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            ItemStack s = inv.getStack(i);
+            if (!s.isEmpty()) {
+                if (biereV != null && s.isOf(biereV.createStack().getItem()) && s.getName().getString().equals(biereV.createStack().getName().getString())) { hasBeer = true; break; }
+                if (biereB != null && s.isOf(biereB.createStack().getItem()) && s.getName().getString().equals(biereB.createStack().getName().getString())) { hasBeer = true; break; }
+            }
+        }
+        if (!hasBeer) {
+            ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload(getNpcName(), com.dungeonmod.client.dialogue.GaspardDialogue.NO_BEER, false));
+            return;
+        }
+        super.startDialogue(player);
     }
 
     @Override

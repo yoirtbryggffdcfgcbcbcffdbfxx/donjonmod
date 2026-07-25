@@ -126,7 +126,12 @@ public class SubtitleOverlay {
             // Space → 2x typing speed
             boolean spaceHeld = client.options.jumpKey.isPressed();
             if ((int)charIndex < line.length()) {
-                float speed = (float)line.length() / TICKS_PER_LINE;
+                float speed;
+                if (line.length() >= 60) {
+                    speed = (float)line.length() / TICKS_PER_LINE;
+                } else {
+                    speed = 0.5f;
+                }
                 if (spaceHeld) speed *= 2;
                 charIndex += speed;
             }

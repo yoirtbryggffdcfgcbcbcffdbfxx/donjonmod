@@ -12,6 +12,10 @@ public class GaspardDialogue {
         "Si tu veux des conseils, je peux t'en donner. Mais avant ça, offre-moi une bière gamin."
     );
 
+    public static final List<String> NO_BEER = List.of(
+        "Sans bière, pas de conseil. Va-t'en."
+    );
+
     public static final List<String> REFUSAL_BIERE_PERIMEE = List.of(
         "Pour qui me prends-tu, petit idiot ?",
         "Je ne bois pas une bière qui a déjà dépassé sa propre date de survie."
@@ -22,8 +26,10 @@ public class GaspardDialogue {
             "...",
             "...",
             "... Ah !",
-            "Voilà un conseil qui pourrait t'éviter une mort ridicule. Au détour d'un couloir, tu risques de croiser le Cyclope.",
-            "Sache que ce n'est pas une créature si dangereuse. Il possède un seul œil, tandis que toi tu en possèdes deux.",
+            "Voilà un conseil qui pourrait t'éviter une mort ridicule.",
+            "Au détour d'un couloir, tu risques de croiser le Cyclope.",
+            "Sache que ce n'est pas une créature si dangereuse.",
+            "Il possède un seul œil, tandis que toi tu en possèdes deux.",
             "Cela signifie que tu as deux fois plus de chances de voir venir ses attaques.",
             "Ne me remercie pas. Ce genre de réflexion demande un certain talent.",
             "Adieu."
@@ -32,7 +38,8 @@ public class GaspardDialogue {
             "...",
             "...",
             "... Ah !",
-            "Voilà quelque chose d'intéressant. Certains aventuriers racontent que ces cavernes cachent un temple oublié dans lequel repose un ange.",
+            "Voilà quelque chose d'intéressant.",
+            "Certains aventuriers racontent que ces cavernes cachent un temple oublié dans lequel repose un ange.",
             "Si tu viens à le rencontrer, fuis.",
             "Ce qu'il garde est probablement une chose que le monde aurait mieux fait de ne jamais connaître.",
             "Ne me remercie pas, gamin.",
@@ -42,7 +49,8 @@ public class GaspardDialogue {
             "...",
             "...",
             "... Ah !",
-            "Voilà un renseignement qui pourrait t'être utile. Tu connais sûrement la légende de la Fontaine de Jouvence.",
+            "Voilà un renseignement qui pourrait t'être utile.",
+            "Tu connais sûrement la légende de la Fontaine de Jouvence.",
             "Certains prétendent que son eau coule quelque part dans ces grottes.",
             "Elle promet la jeunesse éternelle.",
             "Mais retiens bien ceci : tu n'es pas le seul à chercher ce qui possède de la valeur.",

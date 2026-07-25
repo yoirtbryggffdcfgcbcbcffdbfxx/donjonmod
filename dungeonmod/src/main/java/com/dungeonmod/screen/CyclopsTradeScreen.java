@@ -41,6 +41,13 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
     private static final Identifier SELL_ENTRE_2 = Identifier.of("dungeonmod", "textures/gui/sell_entre_2.png");
     private static final Identifier TRADE_SON_OFFRE = Identifier.of("dungeonmod", "textures/gui/trade_son_offre.png");
     private static final Identifier CROIX = Identifier.of("dungeonmod", "textures/gui/bouton_croix_sell.png");
+    private static final Identifier BTN_ESCAPE = Identifier.of("dungeonmod", "textures/gui/bouton_echap.png");
+    private static final int BTN_ECHAP_W = 38;
+    private static final int BTN_ECHAP_H = 11;
+    private static final Identifier TRADE_ARROW = Identifier.ofVanilla("container/villager/trade_arrow");
+    private static final Identifier TRADE_ARROW_MISSING = Identifier.ofVanilla("container/villager/trade_arrow_out_of_stock");
+    private static final int ARROW_W = 22;
+    private static final int ARROW_H = 15;
     private static final int BG_W = 276;
     private static final int BG_H = 168;
     private static final int SLOT_LARGE = 54;
@@ -199,15 +206,17 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 var offer = premadeOffers.get(i);
                 ItemStack in = offer.requiredItems().get(0);
                 ItemStack out = offer.rewardItem();
-                context.drawTexture(RenderLayer::getGuiTextured, TRADE_ROW_BG, x + 5, rowY, 0f, 0f, 87, 22, 87, 22);
+                boolean canPremOffer = this.client.player != null && hasItemInInventory(in);
+                Identifier premBg = canPremOffer ? TRADE_ROW_BG : TRADE_ROW_BG_DISABLED;
+                context.drawTexture(RenderLayer::getGuiTextured, premBg, x + 5, rowY, 0f, 0f, 87, 22, 87, 22);
                 if (i == selectedOfferRow) {
                     context.drawTexture(RenderLayer::getGuiTextured, TRADE_ROW_BG_SELECTED, x + 5, rowY, 0f, 0f, 87, 22, 87, 22);
                 }
-                context.drawItem(in, x + 12, rowY + 3);
-                context.drawStackOverlay(this.textRenderer, in, x + 12, rowY + 3);
-                context.drawText(this.textRenderer, "\u2192", x + 35, rowY + 6, 0x3C3C3C, false);
-                context.drawItem(out, x + 55, rowY + 3);
-                context.drawStackOverlay(this.textRenderer, out, x + 55, rowY + 3);
+                context.drawItem(in, x + 22, rowY + 3);
+                context.drawStackOverlay(this.textRenderer, in, x + 22, rowY + 3);
+                context.drawGuiTexture(RenderLayer::getGuiTextured, canPremOffer ? TRADE_ARROW : TRADE_ARROW_MISSING, x + 40, rowY + 4, ARROW_W, ARROW_H);
+                context.drawItem(out, x + 65, rowY + 3);
+                context.drawStackOverlay(this.textRenderer, out, x + 65, rowY + 3);
                 rowY += rowH2;
             }
 
@@ -230,7 +239,7 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 }
                 context.drawItem(in, x + 12, rowY + 3);
                 context.drawStackOverlay(this.textRenderer, in, x + 12, rowY + 3);
-                context.drawText(this.textRenderer, "\u2192", x + 35, rowY + 6, 0x3C3C3C, false);
+                context.drawGuiTexture(RenderLayer::getGuiTextured, TRADE_ARROW, x + 30, rowY + 4, ARROW_W, ARROW_H);
                 context.drawItem(out, x + 55, rowY + 3);
                 context.drawStackOverlay(this.textRenderer, out, x + 55, rowY + 3);
                 context.drawTexture(RenderLayer::getGuiTextured, CROIX, x + 71, rowY + 1, 0f, 0f, 20, 20, 20, 20);
@@ -249,7 +258,13 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             int rx = sx + slotSize + 30;
 
             context.drawText(this.textRenderer, "§0mon offre", sx + (slotSize - this.textRenderer.getWidth("mon offre")) / 2, sy - 10, 0x7C7C7C, false);
-            context.drawText(this.textRenderer, "§0\u2192", sx + slotSize + 10, sy + 6, 0x3C3C3C, false);
+            boolean isPremadeSection = selectedOfferRow >= 0 && selectedOfferRow < premadeOffers.size();
+            boolean canSectionArrow = true;
+            if (isPremadeSection) {
+                var reqs = premadeOffers.get(selectedOfferRow).requiredItems();
+                canSectionArrow = selectedSellReward != null && !reqs.isEmpty() && this.client.player != null && hasItemInInventory(reqs.get(0));
+            }
+            context.drawGuiTexture(RenderLayer::getGuiTextured, canSectionArrow ? TRADE_ARROW : TRADE_ARROW_MISSING, sx + slotSize + 4, sy + 6, ARROW_W, ARROW_H);
             context.drawText(this.textRenderer, "§0son offre", rx + (slotSize - this.textRenderer.getWidth("son offre")) / 2, sy - 10, 0x7C7C7C, false);
 
             context.getMatrices().push();
@@ -317,11 +332,11 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 context.fill(x + 5, ty, x + 92, ty + rh, 0x88FFFFFF);
             }
 
-            context.drawItem(td.input(), x + 12, ty + 3);
-            context.drawStackOverlay(this.textRenderer, td.input(), x + 12, ty + 3);
-            context.drawText(this.textRenderer, "\u2192", x + 35, ty + 6, 0x3C3C3C, false);
-            context.drawItem(td.output(), x + 55, ty + 3);
-            context.drawStackOverlay(this.textRenderer, td.output(), x + 55, ty + 3);
+            context.drawItem(td.input(), x + 22, ty + 3);
+            context.drawStackOverlay(this.textRenderer, td.input(), x + 22, ty + 3);
+            context.drawGuiTexture(RenderLayer::getGuiTextured, canAfford ? TRADE_ARROW : TRADE_ARROW_MISSING, x + 40, ty + 4, ARROW_W, ARROW_H);
+            context.drawItem(td.output(), x + 65, ty + 3);
+            context.drawStackOverlay(this.textRenderer, td.output(), x + 65, ty + 3);
 
             if (isShrinking) {
                 context.getMatrices().pop();
@@ -477,6 +492,9 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             }
         }
 
+        // Bouton échap (haut à droite)
+        context.drawTexture(RenderLayer::getGuiTextured, BTN_ESCAPE, 4, 4, 0, 0, BTN_ECHAP_W, BTN_ECHAP_H, BTN_ECHAP_W, BTN_ECHAP_H);
+
         this.drawMouseoverTooltip(context, mouseX, mouseY);
         renderCustomTooltips(context, mouseX, mouseY);
     }
@@ -505,8 +523,8 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
         if (tradeMode == 1 && hasSellMode) {
             int rowY2 = y + 32;
             for (int i = 0; i < premadeOffers.size(); i++) {
-                boolean overIn = mouseX >= x + 10 && mouseX < x + 28 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
-                boolean overOut = mouseX >= x + 53 && mouseX < x + 71 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
+                boolean overIn = mouseX >= x + 20 && mouseX < x + 38 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
+                boolean overOut = mouseX >= x + 63 && mouseX < x + 81 && mouseY >= rowY2 + 2 && mouseY < rowY2 + 18;
                 if (overIn || overOut) {
                     var offer = premadeOffers.get(i);
                     ItemStack stack = overIn ? offer.requiredItems().get(0) : offer.rewardItem();
@@ -580,11 +598,11 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
             if (i == shrinkingIndex) continue;
             int ty = y + 22 + i * 20;
             TradeData td = trades.get(i);
-            if (mouseX >= x + 10 && mouseX < x + 28 && mouseY >= ty + 2 && mouseY < ty + 18) {
+            if (mouseX >= x + 20 && mouseX < x + 38 && mouseY >= ty + 2 && mouseY < ty + 18) {
                 context.drawItemTooltip(this.textRenderer, td.input(), mouseX, mouseY);
                 return;
             }
-            if (mouseX >= x + 53 && mouseX < x + 71 && mouseY >= ty + 2 && mouseY < ty + 18) {
+            if (mouseX >= x + 63 && mouseX < x + 81 && mouseY >= ty + 2 && mouseY < ty + 18) {
                 context.drawItemTooltip(this.textRenderer, td.output(), mouseX, mouseY);
                 return;
             }
@@ -797,6 +815,10 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                     return true;
                 }
             }
+        }
+        if (mouseX >= 4 && mouseX < 4 + BTN_ECHAP_W && mouseY >= 4 && mouseY < 4 + BTN_ECHAP_H) {
+            this.close();
+            return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
