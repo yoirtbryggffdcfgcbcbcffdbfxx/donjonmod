@@ -9,9 +9,9 @@ import net.minecraft.util.Identifier;
 
 import java.util.List;
 
-public record CyclopsTradesPayload(int syncId, String npcId, String npcName, boolean hasBuyMode, boolean hasSellMode, List<TradeData> trades) implements CustomPayload {
-    public static final CustomPayload.Id<CyclopsTradesPayload> ID = new CustomPayload.Id<>(Identifier.of("dungeonmod", "cyclops_trades"));
-    public static final PacketCodec<PacketByteBuf, CyclopsTradesPayload> CODEC = PacketCodec.of(
+public record TradesPayload(int syncId, String npcId, String npcName, boolean hasBuyMode, boolean hasSellMode, List<TradeData> trades) implements CustomPayload {
+    public static final CustomPayload.Id<TradesPayload> ID = new CustomPayload.Id<>(Identifier.of("dungeonmod", "trades"));
+    public static final PacketCodec<PacketByteBuf, TradesPayload> CODEC = PacketCodec.of(
         (value, buf) -> {
             buf.writeVarInt(value.syncId);
             buf.writeString(value.npcId);
@@ -35,7 +35,7 @@ public record CyclopsTradesPayload(int syncId, String npcId, String npcName, boo
                 ItemStack.PACKET_CODEC.decode((RegistryByteBuf) b),
                 b.readVarInt()
             ));
-            return new CyclopsTradesPayload(syncId, npcId, npcName, hasBuyMode, hasSellMode, trades);
+            return new TradesPayload(syncId, npcId, npcName, hasBuyMode, hasSellMode, trades);
         }
     );
     @Override public CustomPayload.Id<? extends CustomPayload> getId() { return ID; }

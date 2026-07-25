@@ -2,11 +2,11 @@ package com.dungeonmod.entity;
 
 import com.dungeonmod.DungeonMod;
 import com.dungeonmod.client.dialogue.BarmanDialogue;
-import com.dungeonmod.network.CyclopsTradesPayload;
+import com.dungeonmod.network.TradesPayload;
 import com.dungeonmod.network.SubtitlePayload;
 import com.dungeonmod.network.TradeData;
 import java.util.List;
-import com.dungeonmod.screen.CyclopsTradeScreenHandler;
+import com.dungeonmod.screen.ShopScreenHandler;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.EntityType;
@@ -132,11 +132,11 @@ public class BarmanEntity extends BaseNpcEntity implements NpcShopProvider {
         var trades = List.of(new TradeData(denierStack.copy(), beer, 0));
 
         var syncId = player.openHandledScreen(new SimpleNamedScreenHandlerFactory(
-            (id, inv, p) -> new CyclopsTradeScreenHandler(id, inv),
+            (id, inv, p) -> new ShopScreenHandler(id, inv),
             Text.literal("§8Taverne")
         ));
         syncId.ifPresent(id ->
-            ServerPlayNetworking.send(player, new CyclopsTradesPayload(id, "barman", "Mira", true, false, trades))
+            ServerPlayNetworking.send(player, new TradesPayload(id, "barman", "Mira", true, false, trades))
         );
     }
 

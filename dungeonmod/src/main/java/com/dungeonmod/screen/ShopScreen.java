@@ -1,7 +1,7 @@
 package com.dungeonmod.screen;
 
-import com.dungeonmod.network.CyclopsBuyPayload;
-import com.dungeonmod.network.CyclopsSellPayload;
+import com.dungeonmod.network.BuyPayload;
+import com.dungeonmod.network.SellPayload;
 import com.dungeonmod.network.TradeData;
 import com.dungeonmod.village.SellTradeRegistry;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -17,7 +17,7 @@ import net.minecraft.util.Identifier;
 
 import java.util.List;
 
-public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler> {
+public class ShopScreen extends HandledScreen<ShopScreenHandler> {
 
     private static final Identifier BG = Identifier.ofVanilla("textures/gui/container/villager.png");
     private static final Identifier SLOT = Identifier.of("container/slot");
@@ -73,7 +73,7 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
     private int shrinkTimer = 0;
     private static final int SHRINK_DURATION = 8;
 
-    public CyclopsTradeScreen(CyclopsTradeScreenHandler handler, PlayerInventory inventory, Text title) {
+    public ShopScreen(ShopScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
         this.backgroundWidth = BG_W;
         this.backgroundHeight = BG_H;
@@ -712,7 +712,7 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                             this.client.player.getInventory().offerOrDrop(oldStack);
                         }
                         this.handler.getSlot(0).setStack(ItemStack.EMPTY);
-                        ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, -2, ItemStack.EMPTY));
+                        ClientPlayNetworking.send(new SellPayload(this.handler.syncId, -2, ItemStack.EMPTY));
                         customOffer = null;
                         if (selectedOfferRow == absIdx) {
                             switchToOffer(0);
@@ -759,11 +759,11 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                 if (mouseX >= bx && mouseX < bx + 30 && mouseY >= by2 && mouseY < by2 + 16 && canSell2) {
                     clickAnimTimer = 3;
                     if (isPremade2) {
-                        ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, selectedOfferRow, ItemStack.EMPTY));
+                        ClientPlayNetworking.send(new SellPayload(this.handler.syncId, selectedOfferRow, ItemStack.EMPTY));
                         selectedOfferRow = -1;
                     } else {
                         ItemStack rewardStack = selectedSellReward.rewardItem().copy();
-                        ClientPlayNetworking.send(new CyclopsSellPayload(this.handler.syncId, -1, rewardStack));
+                        ClientPlayNetworking.send(new SellPayload(this.handler.syncId, -1, rewardStack));
                         if (this.client.player != null && !rewardStack.isEmpty()) {
                             if (!this.client.player.getInventory().insertStack(rewardStack)) {
                                 this.client.player.dropItem(rewardStack, false);
@@ -808,7 +808,7 @@ public class CyclopsTradeScreen extends HandledScreen<CyclopsTradeScreenHandler>
                     clickAnimTimer = 3;
                     if (canAffordTrade(selectedTrade)) {
                         int origIdx = trades.get(selectedTrade).originalIndex();
-                        ClientPlayNetworking.send(new CyclopsBuyPayload(this.handler.syncId, origIdx, buyQuantity));
+                        ClientPlayNetworking.send(new BuyPayload(this.handler.syncId, origIdx, buyQuantity));
                         shrinkingIndex = selectedTrade;
                         shrinkTimer = SHRINK_DURATION;
                     }

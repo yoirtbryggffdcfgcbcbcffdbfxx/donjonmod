@@ -96,11 +96,12 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
     public int deathStage = 0;
     public int clothsGiven = 0;
     private boolean eyeHitBoosted = false;
-    private boolean hasTalked = false;
-    private int dialogueTicks = 0;
+    public boolean hasTalked = false;
+    public int dialogueTicks = 0;
     private final java.util.Set<String> givenItems = new java.util.HashSet<>();
-    private final java.util.Set<Integer> usedTradeIndices = new java.util.HashSet<>();
+    public final java.util.Set<Integer> usedTradeIndices = new java.util.HashSet<>();
     private final java.util.Set<java.util.UUID> welcomedPlayers = new java.util.HashSet<>();
+    public final CyclopsTradeManager tradeManager = new CyclopsTradeManager(this);
 
     public OgreEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
@@ -532,106 +533,19 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
     }
 
     private void startDialogue(PlayerEntity player) {
-        if (getPhase() != 4 || deathStage != 3) return;
-        if (dialogueTicks > 0) return;
-        if (player instanceof ServerPlayerEntity sp) {
-            com.dungeonmod.DungeonMod.npcShopCache.put(sp.getUuid(), this.getUuid());
-        }
-
-        if (usedTradeIndices.size() >= 4 || clothsGiven >= 4) {
-            sendSubtitles(player, com.dungeonmod.client.dialogue.CyclopsDialogue.ALL_GIVEN);
-            return;
-        }
-
-        if (!hasTalked) {
-            hasTalked = true;
-            var lines = new java.util.ArrayList<String>();
-            lines.addAll(com.dungeonmod.client.dialogue.CyclopsDialogue.FIRST_MEETING);
-            lines.addAll(com.dungeonmod.client.dialogue.CyclopsDialogue.STANDARD_PROMPT);
-            sendSubtitles(player, lines);
-            return;
-        }
-
-        sendSubtitles(player, com.dungeonmod.client.dialogue.CyclopsDialogue.STANDARD_PROMPT);
+        tradeManager.startDialogue(player);
     }
 
     public ActionResult openTradeShop(PlayerEntity player) {
-        if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
-        if (usedTradeIndices.size() >= 4 || clothsGiven >= 4) {
-            sendSubtitles(player, com.dungeonmod.client.dialogue.CyclopsDialogue.ALL_GIVEN);
-            return ActionResult.SUCCESS;
-        }
-        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload("", java.util.List.of(), false));
-
-        var cloth = new net.minecraft.item.ItemStack(com.dungeonmod.DungeonMod.BOUT_TISSU);
-        cloth.set(net.minecraft.component.DataComponentTypes.CUSTOM_NAME, net.minecraft.text.Text.literal("§7Bout de tissu"));
-
-        var allTrades = new java.util.ArrayList<com.dungeonmod.network.TradeData>();
-        String[] beerIds = {"biere_brune", "biere_viking", "biere_brune", "biere_viking"};
-        for (int idx = 0; idx < 4; idx++) {
-            if (!usedTradeIndices.contains(idx)) {
-                allTrades.add(new com.dungeonmod.network.TradeData(makeBeer(beerIds[idx]), cloth.copy(), idx));
-            }
-        }
-        var trades = java.util.List.copyOf(allTrades);
-
-        var syncId = sp.openHandledScreen(new net.minecraft.screen.SimpleNamedScreenHandlerFactory(
-            (id, inv, p) -> new com.dungeonmod.screen.CyclopsTradeScreenHandler(id, inv),
-            net.minecraft.text.Text.literal("§6Cyclope - Échange")
-        ));
-        syncId.ifPresent(id ->
-            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.CyclopsTradesPayload(id, "cyclope", "Cyclope", true, false, trades))
-        );
-        return ActionResult.SUCCESS;
-    }
-
-    private ItemStack makeBeer(String id) {
-        var custom = com.dungeonmod.ModItems.get(id);
-        return custom != null ? custom.createStack() : ItemStack.EMPTY;
+        return tradeManager.openTradeShop(player);
     }
 
     public void processBuyRequest(ServerPlayerEntity player, int originalIndex) {
-        if (originalIndex < 0 || originalIndex >= 4) return;
-        if (usedTradeIndices.contains(originalIndex)) return;
-        if (clothsGiven >= 4 || usedTradeIndices.size() >= 4) return;
-
-        String[] beerIds = {"biere_brune", "biere_viking", "biere_brune", "biere_viking"};
-        String[] expectedNames = {"§9Bière périmée", "§9Bière de Viking", "§9Bière périmée", "§9Bière de Viking"};
-        String beerId = beerIds[originalIndex];
-        String expectedName = expectedNames[originalIndex];
-        var beer = makeBeer(beerId);
-        if (beer.isEmpty()) return;
-        PlayerInventory inv = player.getInventory();
-        int slot = -1;
-        for (int i = 0; i < inv.size(); i++) {
-            var s = inv.getStack(i);
-            if (!s.isEmpty()) {
-                var cn = s.get(net.minecraft.component.DataComponentTypes.CUSTOM_NAME);
-                if (cn != null && cn.getString().equals(expectedName)) {
-                    slot = i;
-                    break;
-                }
-            }
-        }
-        if (slot < 0) return;
-
-        var inStack = inv.getStack(slot);
-        inStack.decrement(1);
-        if (inStack.isEmpty()) inv.setStack(slot, ItemStack.EMPTY);
-
-        var out = new ItemStack(com.dungeonmod.DungeonMod.BOUT_TISSU);
-        out.set(net.minecraft.component.DataComponentTypes.CUSTOM_NAME, net.minecraft.text.Text.literal("§7Bout de tissu"));
-        if (!inv.insertStack(out)) player.dropItem(out, false);
-        usedTradeIndices.add(originalIndex);
-        clothsGiven++;
+        tradeManager.processBuyRequest(player, originalIndex);
     }
 
     public void sendSubtitles(PlayerEntity player, java.util.List<String> lines) {
-        if (player instanceof ServerPlayerEntity sp) {
-            int totalTicks = (lines.size() * 60) + 20;
-            if (totalTicks > dialogueTicks) dialogueTicks = totalTicks;
-            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload("Cyclope", lines, true));
-        }
+        tradeManager.sendSubtitles(player, lines);
     }
 
     public void openShop(ServerPlayerEntity player) { openTradeShop(player); }

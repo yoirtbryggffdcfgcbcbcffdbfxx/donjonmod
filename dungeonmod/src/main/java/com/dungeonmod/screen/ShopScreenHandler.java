@@ -7,7 +7,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 
-public class CyclopsTradeScreenHandler extends ScreenHandler {
+public class ShopScreenHandler extends ScreenHandler {
 
     public int selectedTrade = -1;
     public boolean lockDeposit = false;
@@ -17,16 +17,16 @@ public class CyclopsTradeScreenHandler extends ScreenHandler {
     public boolean hasSellMode = true;
     private final Inventory depositInventory;
 
-    public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory) {
+    public ShopScreenHandler(int syncId, PlayerInventory playerInventory) {
         this(syncId, playerInventory, false);
     }
 
-    public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory, boolean lockDeposit) {
+    public ShopScreenHandler(int syncId, PlayerInventory playerInventory, boolean lockDeposit) {
         this(syncId, playerInventory, lockDeposit, "", "");
     }
 
-    public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory, boolean lockDeposit, String npcId, String npcName) {
-        super(ModScreenHandlers.CYCLOPS_TRADE_SCREEN_HANDLER, syncId);
+    public ShopScreenHandler(int syncId, PlayerInventory playerInventory, boolean lockDeposit, String npcId, String npcName) {
+        super(ModScreenHandlers.SHOP_SCREEN_HANDLER, syncId);
         this.lockDeposit = lockDeposit;
         this.npcId = npcId;
         this.npcName = npcName;
@@ -50,8 +50,8 @@ public class CyclopsTradeScreenHandler extends ScreenHandler {
         }
     }
 
-    public CyclopsTradeScreenHandler(int syncId, PlayerInventory playerInventory, int selectedTrade) {
-        super(ModScreenHandlers.CYCLOPS_TRADE_SCREEN_HANDLER, syncId);
+    public ShopScreenHandler(int syncId, PlayerInventory playerInventory, int selectedTrade) {
+        super(ModScreenHandlers.SHOP_SCREEN_HANDLER, syncId);
         this.selectedTrade = selectedTrade;
         depositInventory = new SingleSlotInventory();
         this.addSlot(new Slot(depositInventory, 0, 125, 41) {

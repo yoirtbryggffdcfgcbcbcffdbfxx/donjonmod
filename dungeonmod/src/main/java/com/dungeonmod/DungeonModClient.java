@@ -13,8 +13,8 @@ import com.dungeonmod.client.SyrinxHandler;
 import com.dungeonmod.entity.StoneEntity;
 import com.dungeonmod.entity.StoneThrowerGoblinEntity;
 import com.dungeonmod.network.SubtitlePayload;
-import com.dungeonmod.network.CyclopsTradesPayload;
-import com.dungeonmod.screen.CyclopsTradeScreen;
+import com.dungeonmod.network.TradesPayload;
+import com.dungeonmod.screen.ShopScreen;
 import com.dungeonmod.screen.ModScreenHandlers;
 import com.dungeonmod.screen.SacScreen;
 import net.fabricmc.api.ClientModInitializer;
@@ -29,7 +29,7 @@ public class DungeonModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         HandledScreens.register(ModScreenHandlers.SAC_SCREEN_HANDLER, SacScreen::new);
-        HandledScreens.register(ModScreenHandlers.CYCLOPS_TRADE_SCREEN_HANDLER, CyclopsTradeScreen::new);
+        HandledScreens.register(ModScreenHandlers.SHOP_SCREEN_HANDLER, ShopScreen::new);
         EntityRendererRegistry.register(BoomerangEntity.BOOMERANG_TYPE, BoomerangEntityRenderer::new);
         EntityRendererRegistry.register(StoneEntity.STONE_TYPE, ctx -> new net.minecraft.client.render.entity.FlyingItemEntityRenderer<>(ctx, 6.0f, false));
         EntityRendererRegistry.register(StoneEntity.CYCLOPS_STONE_TYPE, ctx -> new net.minecraft.client.render.entity.FlyingItemEntityRenderer<>(ctx, 6.0f, false));
@@ -46,10 +46,10 @@ public class DungeonModClient implements ClientModInitializer {
         SubtitleOverlay.init();
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            ClientPlayNetworking.registerReceiver(CyclopsTradesPayload.ID, (payload, context) -> {
+            ClientPlayNetworking.registerReceiver(TradesPayload.ID, (payload, context) -> {
                 context.client().execute(() -> {
                     var screen = context.client().currentScreen;
-                    if (screen instanceof CyclopsTradeScreen cts && cts.getScreenHandler().syncId == payload.syncId()) {
+                    if (screen instanceof ShopScreen cts && cts.getScreenHandler().syncId == payload.syncId()) {
                         cts.getScreenHandler().npcId = payload.npcId();
                         cts.getScreenHandler().npcName = payload.npcName();
                         cts.getScreenHandler().hasBuyMode = payload.hasBuyMode();

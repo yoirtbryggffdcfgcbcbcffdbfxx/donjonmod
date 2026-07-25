@@ -1,6 +1,6 @@
 package com.dungeonmod.client;
 
-import com.dungeonmod.network.OpenCyclopsShopPayload;
+import com.dungeonmod.network.OpenShopPayload;
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.lwjgl.glfw.GLFW;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -159,7 +159,7 @@ public class SubtitleOverlay {
                 } else {
                     if (isLast) {
                         stop();
-                        if (canOpenShopOnEnd) ClientPlayNetworking.send(new OpenCyclopsShopPayload());
+                        if (canOpenShopOnEnd) ClientPlayNetworking.send(new OpenShopPayload());
                     } else {
                         advanceLine();
                     }

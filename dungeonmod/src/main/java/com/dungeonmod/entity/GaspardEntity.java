@@ -2,9 +2,9 @@ package com.dungeonmod.entity;
 
 import com.dungeonmod.DungeonMod;
 import com.dungeonmod.client.dialogue.GaspardDialogue;
-import com.dungeonmod.network.CyclopsTradesPayload;
+import com.dungeonmod.network.TradesPayload;
 import com.dungeonmod.network.SubtitlePayload;
-import com.dungeonmod.screen.CyclopsTradeScreenHandler;
+import com.dungeonmod.screen.ShopScreenHandler;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.EntityType;
@@ -44,14 +44,14 @@ public class GaspardEntity extends BaseNpcEntity implements NpcShopProvider {
         ServerPlayNetworking.send(player, new SubtitlePayload("", List.of(), false));
         var syncId = player.openHandledScreen(new SimpleNamedScreenHandlerFactory(
             (id, inv, p) -> {
-                var h = new CyclopsTradeScreenHandler(id, inv, true, "gaspard", "Gaspard");
+                var h = new ShopScreenHandler(id, inv, true, "gaspard", "Gaspard");
                 h.hasBuyMode = false;
                 return h;
             },
             Text.literal("§8Gaspard")
         ));
         syncId.ifPresent(id ->
-            ServerPlayNetworking.send(player, new CyclopsTradesPayload(id, "gaspard", "Gaspard", false, true, List.of()))
+            ServerPlayNetworking.send(player, new TradesPayload(id, "gaspard", "Gaspard", false, true, List.of()))
         );
     }
 

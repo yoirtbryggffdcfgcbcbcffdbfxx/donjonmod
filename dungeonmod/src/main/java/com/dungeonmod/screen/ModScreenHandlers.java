@@ -16,11 +16,11 @@ public class ModScreenHandlers {
             new ScreenHandlerType<>(SacScreenHandler::new, FeatureSet.empty())
         );
 
-    public static final ScreenHandlerType<CyclopsTradeScreenHandler> CYCLOPS_TRADE_SCREEN_HANDLER =
+    public static final ScreenHandlerType<ShopScreenHandler> SHOP_SCREEN_HANDLER =
         Registry.register(
             Registries.SCREEN_HANDLER,
-            Identifier.of(DungeonMod.MOD_ID, "cyclops_trade"),
-            new ScreenHandlerType<>(CyclopsTradeScreenHandler::new, FeatureSet.empty())
+            Identifier.of(DungeonMod.MOD_ID, "shop"),
+            new ScreenHandlerType<>(ShopScreenHandler::new, FeatureSet.empty())
         );
 
     public static void register() {}

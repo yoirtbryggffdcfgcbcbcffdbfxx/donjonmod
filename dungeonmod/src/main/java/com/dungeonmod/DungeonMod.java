@@ -100,16 +100,16 @@ public class DungeonMod implements ModInitializer {
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playS2C().register(
             com.dungeonmod.network.SubtitlePayload.ID, com.dungeonmod.network.SubtitlePayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playS2C().register(
-            com.dungeonmod.network.CyclopsTradesPayload.ID, com.dungeonmod.network.CyclopsTradesPayload.CODEC);
+            com.dungeonmod.network.TradesPayload.ID, com.dungeonmod.network.TradesPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
-            com.dungeonmod.network.OpenCyclopsShopPayload.ID, com.dungeonmod.network.OpenCyclopsShopPayload.CODEC);
+            com.dungeonmod.network.OpenShopPayload.ID, com.dungeonmod.network.OpenShopPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
-            com.dungeonmod.network.CyclopsBuyPayload.ID, com.dungeonmod.network.CyclopsBuyPayload.CODEC);
+            com.dungeonmod.network.BuyPayload.ID, com.dungeonmod.network.BuyPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
-            com.dungeonmod.network.CyclopsSellPayload.ID, com.dungeonmod.network.CyclopsSellPayload.CODEC);
+            com.dungeonmod.network.SellPayload.ID, com.dungeonmod.network.SellPayload.CODEC);
 
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
-            com.dungeonmod.network.OpenCyclopsShopPayload.ID, (payload, context) -> {
+            com.dungeonmod.network.OpenShopPayload.ID, (payload, context) -> {
                 context.server().execute(() -> {
                     var player = context.player();
                     var entry = npcShopCache.get(player.getUuid());
@@ -122,7 +122,7 @@ public class DungeonMod implements ModInitializer {
             });
 
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
-            com.dungeonmod.network.CyclopsBuyPayload.ID, (payload, context) -> {
+            com.dungeonmod.network.BuyPayload.ID, (payload, context) -> {
                 context.server().execute(() -> {
                     var player = context.player();
                     java.util.UUID targetUUID = com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid());
@@ -135,7 +135,7 @@ public class DungeonMod implements ModInitializer {
             });
 
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
-            com.dungeonmod.network.CyclopsSellPayload.ID, (payload, context) -> {
+            com.dungeonmod.network.SellPayload.ID, (payload, context) -> {
                 context.server().execute(() -> {
                     var player = context.player();
                     if (payload.tradeIndex() >= 0) {
@@ -149,13 +149,13 @@ public class DungeonMod implements ModInitializer {
                     } else if (payload.tradeIndex() == -2) {
                         // Clear deposit on delete
                         var handler = player.currentScreenHandler;
-                        if (handler instanceof com.dungeonmod.screen.CyclopsTradeScreenHandler ch) {
+                        if (handler instanceof com.dungeonmod.screen.ShopScreenHandler ch) {
                             ch.getSlot(0).setStack(net.minecraft.item.ItemStack.EMPTY);
                         }
                     } else {
                         // Custom offer: process directly
                         var handler = player.currentScreenHandler;
-                        if (handler instanceof com.dungeonmod.screen.CyclopsTradeScreenHandler ch) {
+                        if (handler instanceof com.dungeonmod.screen.ShopScreenHandler ch) {
                             var depositStack = ch.getSlot(0).getStack();
                             if (!depositStack.isEmpty()) {
                                 ch.getSlot(0).setStack(net.minecraft.item.ItemStack.EMPTY);
