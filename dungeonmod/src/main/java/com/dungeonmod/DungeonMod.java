@@ -162,8 +162,8 @@ public class DungeonMod implements ModInitializer {
                                 // Check if it's a Gaspard conseil trade
                                 var npcEntity = ((net.minecraft.server.world.ServerWorld)player.getWorld()).getEntity(
                                     com.dungeonmod.DungeonMod.npcShopCache.get(player.getUuid()));
-                                if (npcEntity instanceof com.dungeonmod.entity.GaspardEntity) {
-                                    com.dungeonmod.entity.GaspardEntity.handleConseilTrade(player, depositStack, -1);
+                                if (npcEntity instanceof com.dungeonmod.entity.GaspardEntity ge) {
+                                    ge.handleConseilTrade(player, depositStack, -1);
                                 } else {
                                     // Generic custom sell
                                     if (!player.getInventory().insertStack(payload.rewardItem().copy())) {
@@ -463,6 +463,16 @@ public class DungeonMod implements ModInitializer {
                 return ActionResult.SUCCESS;
             }
 
+            if (isCaillou(stack)) {
+                if (!world.isClient() && player instanceof ServerPlayerEntity sp && canThrow(sp)) {
+                    var snowball = new net.minecraft.entity.projectile.thrown.SnowballEntity(world, sp, stack);
+                    snowball.setVelocity(sp, sp.getPitch(), sp.getYaw(), 0.0f, 1.5f, 0.0f);
+                    world.spawnEntity(snowball);
+                    if (!sp.isCreative()) stack.decrement(1);
+                }
+                return ActionResult.SUCCESS;
+            }
+
             if (isOs(stack)) {
                 if (!world.isClient() && player instanceof ServerPlayerEntity sp && canThrow(sp)) {
                     var snowball = new net.minecraft.entity.projectile.thrown.SnowballEntity(world, sp, stack);
@@ -601,6 +611,14 @@ public class DungeonMod implements ModInitializer {
         if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
         String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
         return name.contains("Bâton");
+    }
+
+    public static boolean isCaillou(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        if (!stack.isOf(Items.SNOWBALL)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
+        return name.contains("Caillou");
     }
 
     public static boolean isKey(ItemStack stack) {

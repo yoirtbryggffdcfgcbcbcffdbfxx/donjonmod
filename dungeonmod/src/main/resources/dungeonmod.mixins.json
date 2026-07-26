@@ -61,7 +61,8 @@
     "OgreEyeMixin",
     "PlayerScreenHandlerMixin",
     "ScreenHandlerInvoker",
-    "ScreenHandlerMixin"
+    "ScreenHandlerMixin",
+    "InteractionBlockerMixin"
   ],
   "client": [
     "ArmorHudMixin",

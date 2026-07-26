@@ -61,6 +61,8 @@ public class SnowballDamageMixin {
             }
             var vel = snowball.getVelocity();
             target.takeKnockback(0.1, -vel.x, -vel.z);
+        } else if (name.contains("Caillou")) {
+            target.damage(sw, owner.getDamageSources().thrown(snowball, owner), 1.0f);
         } else if (name.contains("Boule de feu")) {
             if (owner instanceof PlayerEntity p) {
                 if (!target.isOnFire()) {

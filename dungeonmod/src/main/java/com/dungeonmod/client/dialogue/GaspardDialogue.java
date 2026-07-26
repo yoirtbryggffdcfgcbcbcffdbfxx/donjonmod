@@ -1,6 +1,7 @@
 package com.dungeonmod.client.dialogue;
 
 import java.util.List;
+import java.util.ArrayList;
 
 public class GaspardDialogue {
     public static final List<String> FIRST_MEETING = List.of(
@@ -16,6 +17,10 @@ public class GaspardDialogue {
         "Sans bière, pas de conseil. Va-t'en."
     );
 
+    public static final List<String> NO_MORE_CONSEIL = List.of(
+        "Je n'ai plus rien à t'apprendre, va-t'en."
+    );
+
     public static final List<String> REFUSAL_BIERE_PERIMEE = List.of(
         "Pour qui me prends-tu, petit idiot ?",
         "Je ne bois pas une bière qui a déjà dépassé sa propre date de survie."
@@ -26,8 +31,7 @@ public class GaspardDialogue {
             "...",
             "...",
             "... Ah !",
-            "Voilà un conseil qui pourrait t'éviter une mort ridicule.",
-            "Au détour d'un couloir, tu risques de croiser le Cyclope.",
+            "Voilà un conseil qui pourrait t'éviter une mort ridicule. Au détour d'un couloir, tu risques de croiser le Cyclope.",
             "Sache que ce n'est pas une créature si dangereuse.",
             "Il possède un seul œil, tandis que toi tu en possèdes deux.",
             "Cela signifie que tu as deux fois plus de chances de voir venir ses attaques.",

@@ -45,6 +45,8 @@ public class SellTradeRegistry {
     }
 
     public static void init() {
+        NPC_SELL_OFFERS.clear();
+        NPC_ACCEPTED_INPUTS.clear();
         var conseil = com.dungeonmod.ModItems.get("conseil");
         var biereV = com.dungeonmod.ModItems.get("biere_viking");
         var biereB = com.dungeonmod.ModItems.get("biere_brune");

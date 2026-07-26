@@ -1629,6 +1629,15 @@ public class TestGenerator {
                 world.setBlockState(new BlockPos(ox + rx, oy + y, oz + rz), rotateBlockState(state, rotation), 3);
             }
         }
+        // Fill barrels with random loot
+        java.util.Random rand = new java.util.Random();
+        for (int x = 0; x < sx; x++) for (int y = 0; y < sy; y++) for (int z = 0; z < sz; z++) {
+            BlockState state = data[x][y][z];
+            if (state != null && state.isOf(net.minecraft.block.Blocks.BARREL)) {
+                int rx = rotateX(x, z, rotation, sx, sz), rz = rotateZ(x, z, rotation, sx, sz);
+                com.dungeonmod.util.DungeonLoot.fillBarrel(world, new BlockPos(ox + rx, oy + y, oz + rz), rand);
+            }
+        }
     }
 
     private static int rotateX(int x, int z, int r, int sx, int sz) { return switch (r) { case 1 -> sz - 1 - z; case 2 -> sx - 1 - x; case 3 -> z; default -> x; }; }

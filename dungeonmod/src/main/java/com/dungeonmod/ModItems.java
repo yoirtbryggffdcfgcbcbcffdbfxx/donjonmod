@@ -70,6 +70,18 @@ public class ModItems {
         register("pomme_rouge", "§aPomme rouge", Items.APPLE, "§7Une pomme rouge.", "§7Restaure un demi-coeur.");
         register("patate_douce", "§aPatate douce", Items.POISONOUS_POTATO, "§7Une patate douce.", "§7Restaure un coeur mais donne la nausée.");
         register("steack_cru", "§aSteack cru", Items.BEEF, "§7Un steack cru.", "§7Restaure trois coeurs.");
+        register("chair_gobelin_crue", "§cChair de gobelin crue", Items.BEEF,
+            stack -> {
+                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chair_gobelin_crue"));
+                stack.set(DataComponentTypes.FOOD, new net.minecraft.component.type.FoodComponent.Builder().nutrition(8).saturationModifier(0.3f).build());
+            },
+            "§7Une chair de gobelin crue.", "§7Restaure 2 coeurs.");
+        register("chair_gobelin_cuite", "§aChair de gobelin cuite", Items.COOKED_BEEF,
+            stack -> {
+                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chair_gobelin_cuite"));
+                stack.set(DataComponentTypes.FOOD, new net.minecraft.component.type.FoodComponent.Builder().nutrition(20).saturationModifier(0.6f).build());
+            },
+            "§7Une chair de gobelin cuite.", "§7Restaure 5 coeurs.");
         ItemStack chopeStack = new ItemStack(Items.GLASS_BOTTLE);
         chopeStack.set(DataComponentTypes.CUSTOM_NAME, net.minecraft.text.Text.literal("§7Chope de bière"));
         chopeStack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chope_biere"));
@@ -309,6 +321,39 @@ public class ModItems {
                     .build()
                     .withShowInTooltip(false)),
             "§7Un bâton ordinaire.", "§7Clic droit pour le lancer.");
+        register("caillou", "§8Caillou", Items.SNOWBALL,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "caillou")),
+            "§7Un petit caillou.", "§7Clic droit pour le lancer.");
+        register("web", "§7Toile d'araignée", Items.STRING,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "web")),
+            "§7Une toile d'araignée collante.");
+        register("leather", "§8Cuir", Items.LEATHER,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "leather")),
+            "§7Un morceau de cuir brut.");
+        register("montre", "§6Montre", Items.CLOCK,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "montre")),
+            "§7Une vieille montre arrêtée.");
+        register("tablette_de_pierre", "§7Tablette de pierre", Items.PAPER,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "tablette_de_pierre")),
+            "§7Une tablette couverte de runes.");
+        register("poussiere_de_pierre", "§7Poussière de pierre", Items.GUNPOWDER,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "poussiere_de_pierre")),
+            "§7Une fine poussière minérale.");
+        register("sablier", "§6Sablier", Items.CLOCK,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "sablier")),
+            "§7Un sablier dont le sable ne coule plus.");
+        register("compas_casse", "§7Compas cassé", Items.COMPASS,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "compas_casse")),
+            "§7Une aiguille qui tourne sans fin...");
+        register("anneau_basique", "§7Anneau basique", Items.IRON_NUGGET,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "anneau_basique")),
+            "§7Un simple anneau de fer.");
+        register("croix", "§7Croix", Items.STICK,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "croix")),
+            "§7Une croix en bois grossière.");
+        register("fragment_de_fer", "§7Fragment de fer", Items.IRON_NUGGET,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "fragment_de_fer")),
+            "§7Un éclat de métal rouillé.");
         register("dague", "§9Dague", Items.FLINT,
             stack -> {
                 stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "dague"));

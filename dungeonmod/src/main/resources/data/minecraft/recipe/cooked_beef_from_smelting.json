@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smelting",
+  "category": "food",
+  "ingredient": {
+    "tag": "dungeonmod:impossible"
+  },
+  "result": {
+    "id": "minecraft:cooked_beef"
+  },
+  "experience": 0.35,
+  "cookingtime": 200
+}
