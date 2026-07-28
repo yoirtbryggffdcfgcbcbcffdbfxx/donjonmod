@@ -111,6 +111,18 @@ public class DungeonMod implements ModInitializer {
             com.dungeonmod.network.BuyPayload.ID, com.dungeonmod.network.BuyPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
             com.dungeonmod.network.SellPayload.ID, com.dungeonmod.network.SellPayload.CODEC);
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
+            com.dungeonmod.network.JumpStatePayload.ID, com.dungeonmod.network.JumpStatePayload.CODEC);
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
+            com.dungeonmod.network.JumpStatePayload.ID, (payload, context) -> {
+                // Mémorise si le joueur maintient la touche espace (cape du voyageur)
+                if (payload.jumping()) capeJumpHeld.add(context.player().getUuid());
+                else capeJumpHeld.remove(context.player().getUuid());
+            });
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
+            (handler, server) -> capeJumpHeld.remove(handler.player.getUuid()));
 
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
             com.dungeonmod.network.OpenShopPayload.ID, (payload, context) -> {
@@ -1223,6 +1235,15 @@ public class DungeonMod implements ModInitializer {
         }
     }
 
+    // ===================== Cape du voyageur =====================
+
+    /** Joueurs maintenant la touche ESPACE enfoncée (signalé par JumpStatePayload). */
+    public static final java.util.Set<java.util.UUID> capeJumpHeld = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    // Vitesses de la cape (blocs/tick) — référence : la chute lente vanilla descend à ~0.8
+    private static final double CAPE_DIVE_SPEED = -3.5;   // SHIFT en l'air : plongée rapide vers le sol
+    private static final double CAPE_HOVER_SPEED = -0.05; // ESPACE maintenu : descente ultra lente
+
     private static void handleVoyageurCape(ServerPlayerEntity player) {
         var chest = player.getInventory().getArmorStack(2);
         if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return;
@@ -1241,12 +1262,12 @@ public class DungeonMod implements ModInitializer {
 
         if (player.isSneaking()) {
             // SHIFT en l'air : plongée rapide vers le sol
-            player.setVelocity(vx, -3.5, vz);
+            player.setVelocity(vx, CAPE_DIVE_SPEED, vz);
             player.velocityModified = true;
-        } else if (((com.dungeonmod.mixin.LivingEntityJumpAccessor) player).dungeonmod$isJumping()) {
+        } else if (capeJumpHeld.contains(player.getUuid())) {
             // ESPACE maintenu : descente ultra lente + léger mal de mer
-            if (vy < -0.05) {
-                player.setVelocity(vx, -0.05, vz);
+            if (vy < CAPE_HOVER_SPEED) {
+                player.setVelocity(vx, CAPE_HOVER_SPEED, vz);
                 player.velocityModified = true;
             }
             player.addStatusEffect(new StatusEffectInstance(

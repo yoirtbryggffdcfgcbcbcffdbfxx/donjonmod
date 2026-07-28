@@ -78,5 +78,17 @@ public class DungeonModClient implements ClientModInitializer {
             animStack.addAnimLayer(42, layer);
             SabreComboData.animLayers.put(client.player.getUuid(), layer);
         });
+
+        // Signale au serveur quand la touche ESPACE est pressée/relâchée (cape du voyageur)
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.world == null || client.player == null) { capeJumpSent = false; return; }
+            boolean pressed = client.options.jumpKey.isPressed();
+            if (pressed != capeJumpSent) {
+                capeJumpSent = pressed;
+                ClientPlayNetworking.send(new com.dungeonmod.network.JumpStatePayload(pressed));
+            }
+        });
     }
+
+    private static boolean capeJumpSent = false;
 }
