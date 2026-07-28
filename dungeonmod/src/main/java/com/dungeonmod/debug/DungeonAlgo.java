@@ -1619,6 +1619,31 @@ public class DungeonAlgo {
             }
         }
 
+        // RÉSERVATION DES CHAÎNES INITIALES : les 2 premiers segments (f1, f2) de chaque
+        // arbre sont posés par la croissance SANS vérifier globalOccupied — on les réserve
+        // donc AVANT qu'aucun arbre ne pousse. Sinon, un arbre construit tôt (ex. sortie
+        // sud-ouest) pouvait coloniser les cellules f1/f2 de l'arbre adjacent (sortie
+        // sud-est) pas encore bâti → cellules partagées par deux arbres, voisinages
+        // fusionnés au merge addAll, et labels calculés sur la vue PARTIELLE d'un seul
+        // arbre (les fameux faux virages à 3-4 connexions, toujours au sud).
+        Map<Point, List<Point>> reservedChains = new HashMap<>();
+        for (int ti = 0; ti < cjKeys.size(); ti++) {
+            Point cp = cjKeys.get(ti);
+            int rdx = cjDirs.get(ti)[0], rdy = cjDirs.get(ti)[1];
+            List<Point> chain = new ArrayList<>();
+            Point f1 = cp.move(rdx, rdy);
+            if (!f1.isOutOfBounds() && !globalOccupied.contains(f1)) {
+                chain.add(f1);
+                globalOccupied.add(f1);
+                Point f2 = f1.move(rdx, rdy);
+                if (!f2.isOutOfBounds() && !globalOccupied.contains(f2)) {
+                    chain.add(f2);
+                    globalOccupied.add(f2);
+                }
+            }
+            reservedChains.put(cp, chain);
+        }
+
         List<Map<Point, Set<Point>>> allTrees = new ArrayList<>();
         List<Point> allStarts = new ArrayList<>();
         for (int ti = 0; ti < 5 && ti < cjKeys.size(); ti++) {
@@ -1629,18 +1654,14 @@ public class DungeonAlgo {
             globalOccupied.add(startPoint);
             int ci3 = 0, ci4 = 0, target = 13 + rng.nextInt(5);
 
-            Point f1 = startPoint.move(adx, ady);
-            if (!f1.isOutOfBounds()) {
-                globalOccupied.add(f1);
-                tr.put(f1, new HashSet<>());
-                tr.get(startPoint).add(f1); tr.get(f1).add(startPoint);
-
-                Point f2 = f1.move(adx, ady);
-                if (!f2.isOutOfBounds()) {
-                    globalOccupied.add(f2);
-                    tr.put(f2, new HashSet<>());
-                    tr.get(f1).add(f2); tr.get(f2).add(f1);
-                }
+            // Chaîne initiale f1/f2 : déjà réservée (voir plus haut) → garantie libre,
+            // sans vérification d'occupation ici (c'est tout l'intérêt de la réservation).
+            List<Point> chain = reservedChains.getOrDefault(startPoint, List.of());
+            Point prev = startPoint;
+            for (Point f : chain) {
+                tr.put(f, new HashSet<>());
+                tr.get(prev).add(f); tr.get(f).add(prev);
+                prev = f;
             }
 
             while (tr.size() < target) {
@@ -1701,6 +1722,16 @@ public class DungeonAlgo {
             for (var e : tr.entrySet()) {
                 adj.putIfAbsent(e.getKey(), new HashSet<>());
                 adj.get(e.getKey()).addAll(e.getValue());
+            }
+        }
+
+        // Garde anti-fusion : aucune cellule ne doit appartenir à deux arbres distincts
+        // (impossible depuis la réservation des chaînes ; si un futur changement la
+        // réintroduisait, on préfère un retry propre à un graphe fusionné silencieux).
+        Set<Point> seenTreeCells = new HashSet<>();
+        for (Map<Point, Set<Point>> t : allTrees) {
+            for (Point k : t.keySet()) {
+                if (!seenTreeCells.add(k)) return false;
             }
         }
 
