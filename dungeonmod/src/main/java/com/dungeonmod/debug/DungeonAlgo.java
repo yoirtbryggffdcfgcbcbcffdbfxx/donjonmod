@@ -6,8 +6,8 @@ public class DungeonAlgo {
 
     // ===================== Constants =====================
 
-    private static final int[][] DIR_OFFSET = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
-    private static final int GRID_SIZE = 400;
+    public static final int[][] DIR_OFFSET = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+    public static final int GRID_SIZE = 400;
 
     private static final int PART1_TARGET_MIN = 20;
     private static final int PART1_TARGET_MAX = 26;
@@ -23,7 +23,111 @@ public class DungeonAlgo {
     private static final int PART3_TARGET = 45;
     private static final int PART3_MAX_IJ3 = 3;
     private static final int PART3_MAX_IJ4 = 1;
-    private static final int PART3_STRAIGHT_WEIGHT = 2;
+
+    // ===================== Room Identifiers (Anti-Typo Constants) =====================
+
+    public static class RoomIds {
+        public static final String START = "D";
+        public static final String PRISON = "Prison";
+        public static final String DOOR_1 = "porte";
+        public static final String DOOR_2 = "porte2";
+        public static final String DOOR_3 = "porte3";
+
+        public static final String TAVERN_1 = "T1";
+        public static final String TAVERN_2 = "T2";
+        public static final String TAVERN_3 = "T3";
+        public static final String TAVERN_4 = "T4";
+
+        public static final String LOOT_1 = "Loot1";
+        public static final String DEAD_END = "cul";
+        public static final String MONSTER_1 = "M1";
+        public static final String MONSTER_2 = "M2";
+        public static final String MONSTER_3 = "M3";
+        public static final String MONSTER_4 = "M4";
+        public static final String WELL = "puit";
+        public static final String FOUNTAIN = "fontaine";
+        public static final String OGRE = "Ogre";
+
+        public static final String CAMP_1 = "Ca1";
+        public static final String CAMP_2 = "Ca2";
+        public static final String CAMP_3 = "Ca3";
+        public static final String CAMP_4 = "Ca4";
+
+        public static final String BIB_1 = "Bib1";
+        public static final String BIB_2 = "Bib2";
+        public static final String SHOP = "Shop";
+
+        public static final String CORRIDOR_TURN = "I2";
+        public static final String INTERSECTION_3 = "I3";
+        public static final String INTERSECTION_4 = "I4";
+
+        public static final String CORRIDOR_TURN_J = "IJ2";
+        public static final String INTERSECTION_3_J = "IJ3";
+        public static final String INTERSECTION_4_J = "IJ4";
+
+        public static final String DEAD_END_DJ = "culDJ";
+        public static final String WELL_DJ = "PuitDJ";
+        public static final String GARDEN = "Jardin";
+        public static final String STATUE = "Statue";
+        public static final String CENTRALE = "Centrale";
+        public static final String BLACK_MARKET = "MarchandNoir";
+
+        public static final String CHAPEL_1 = "Chapelle1";
+        public static final String CHAPEL_2 = "Chapelle2";
+        public static final String CRYPT_1 = "Crypte1";
+        public static final String CRYPT_2 = "Crypte2";
+
+        public static final String PRISON_C1 = "PrisonC1";
+        public static final String PRISON_C2 = "PrisonC2";
+        public static final String PRISON_C3 = "PrisonC3";
+        public static final String PRISON_C4 = "PrisonC4";
+
+        public static final String GOBLIN_DOOR = "PorteGob";
+        public static final String GOBLIN_CORRIDOR = "CG1";
+        public static final String GOBLIN_TURN = "GI2";
+        public static final String GOBLIN_I3 = "GI3";
+        public static final String GOBLIN_I4 = "GI4";
+        public static final String GOBLIN_WELL = "PuitG";
+        public static final String GOBLIN_MARCH = "MarchG";
+        public static final String GOBLIN_TREASURE = "TresorG";
+        public static final String GOBLIN_ARMORY = "ArmG";
+        public static final String GOBLIN_DEAD_END = "CDG";
+        public static final String GOBLIN_HOUSE_1 = "MG1";
+        public static final String GOBLIN_HOUSE_2 = "MG2";
+        public static final String GOBLIN_HOUSE_3 = "MG3";
+    }
+
+    // ===================== Point Record & Helpers =====================
+
+    public record Point(int x, int y) {
+        public static Point parse(String key) {
+            int idx = key.indexOf(',');
+            return new Point(
+                Integer.parseInt(key.substring(0, idx)),
+                Integer.parseInt(key.substring(idx + 1))
+            );
+        }
+
+        public String key() {
+            return x + "," + y;
+        }
+
+        public Point move(int[] dir) {
+            return new Point(x + dir[0], y + dir[1]);
+        }
+
+        public Point move(int dx, int dy) {
+            return new Point(x + dx, y + dy);
+        }
+
+        public boolean isOutOfBounds() {
+            return x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE;
+        }
+    }
+
+    private static boolean isStraight(Point p1, Point p2) {
+        return p1.x() == p2.x() || p1.y() == p2.y();
+    }
 
     // ===================== Inner classes =====================
 
@@ -37,131 +141,153 @@ public class DungeonAlgo {
     }
 
     public static class DungeonResult {
-        public Map<String, Set<String>> adj;
-        public Map<String, String> labels;
-        public Map<String, String> topLabels;
-        public Map<String, Set<String>> p4Adj;
+        public Map<Point, Set<Point>> adj;
+        public Map<Point, String> labels;
+        public Map<Point, String> topLabels;
+        public Map<Point, Set<Point>> p4Adj;
+        public Point startPoint;
         public String startKey;
         public int startX, startY;
         public String missingLootType;
+        public long seed;
     }
 
     private static class TreeResult {
+        Point startPoint;
         String startKey;
         int startX, startY;
-        Map<String, Set<String>> adj;
+        Map<Point, Set<Point>> adj;
     }
 
     private static class TavernResult {
-        Map<String, String> tavern;
-        String exitKey;
-        Set<String> pathSet;
+        Map<String, Point> tavern;
+        Point exitPoint;
+        Set<Point> pathSet;
     }
 
     private static class CampResult {
-        String campExit;
-        Set<String> campPathSet;
-        Map<String, String> campNodes;
+        Point campExit;
+        Set<Point> campPathSet;
+        Map<String, Point> campNodes;
     }
 
-    // ===================== Config maps =====================
+    // ===================== Config maps & Pools =====================
 
     private static final Map<String, RoomConfig> ROOM_CONFIGS = new LinkedHashMap<>();
-    static {
-        ROOM_CONFIGS.put("D",        new RoomConfig("Cul de sac",    List.of("S"), false));
-        ROOM_CONFIGS.put("Prison",   new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("porte",    new RoomConfig("Couloir droit", List.of(), false));
-        ROOM_CONFIGS.put("T1",       new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("T2",       new RoomConfig("Virage",        List.of("N","E"), false));
-        ROOM_CONFIGS.put("T3",       new RoomConfig("Virage",        List.of("E","S"), false));
-        ROOM_CONFIGS.put("T4",       new RoomConfig("Virage",        List.of("S","E"), false));
-        ROOM_CONFIGS.put("Loot1",    new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("cul",      new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("M1",       new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("M2",       new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("C1",       new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("C2",       new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("C3",       new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("puit",     new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("fontaine", new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("porte2",   new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("CJ1",      new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("CJ2",      new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("CJ3",      new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("IJ2",      new RoomConfig("Virage",        List.of("N","E"), false));
-        ROOM_CONFIGS.put("IJ3",      new RoomConfig("Intersection",  List.of("E","N","S"), false));
-        ROOM_CONFIGS.put("IJ4",      new RoomConfig("Intersection",  List.of("N","E","S","W"), false));
-        ROOM_CONFIGS.put("MJ1",      new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("MJ2",      new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("Lootdj1",  new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("Lootdj2",  new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("porte3",   new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("Ca1",      new RoomConfig("Couloir droit", List.of("S","N"), false));
-        ROOM_CONFIGS.put("Ca2",      new RoomConfig("Virage",        List.of("S","W"), false));
-        ROOM_CONFIGS.put("Ca3",      new RoomConfig("Intersection",  List.of("E","N","S"), false));
-        ROOM_CONFIGS.put("Ca4",      new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("Bib1",     new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("Bib2",     new RoomConfig("Cul de sac",    List.of("S"), false));
-        ROOM_CONFIGS.put("Shop",     new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("I2",       new RoomConfig("Virage",        List.of("N","E"), false));
-        ROOM_CONFIGS.put("I3",       new RoomConfig("Intersection",  List.of("N","S","E"), false));
-        ROOM_CONFIGS.put("I4",       new RoomConfig("Intersection",  List.of("N","S","E","W"), false));
-        ROOM_CONFIGS.put("culDJ",    new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("M3",       new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("M4",       new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("Ogre",     new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("MJ3",      new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("MJ4",      new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("MJ5",      new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("PuitDJ",   new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("Jardin",   new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("Lootdj3",  new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("Statue",  new RoomConfig("Cul de sac",    List.of("N"), false));
-        ROOM_CONFIGS.put("Centrale", new RoomConfig("Cul de sac",   List.of("S"), false));
-        ROOM_CONFIGS.put("MarchandNoir", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("Chapelle1", new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("Chapelle2", new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("Crypte1", new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("Crypte2", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("PrisonC1", new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("PrisonC2", new RoomConfig("Virage", List.of("N","E"), false));
-        ROOM_CONFIGS.put("PrisonC3", new RoomConfig("Virage", List.of("N","E"), false));
-        ROOM_CONFIGS.put("PrisonC4", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("PorteGob", new RoomConfig("Couloir droit", List.of("N","S"), false));
-        ROOM_CONFIGS.put("CG1", new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("GI2", new RoomConfig("Virage", List.of("N","E"), false));
-        ROOM_CONFIGS.put("GI3", new RoomConfig("Intersection", List.of("E","N","S"), false));
-        ROOM_CONFIGS.put("GI4", new RoomConfig("Intersection", List.of("N","E","S","W"), false));
-        ROOM_CONFIGS.put("PuitG", new RoomConfig("Couloir droit", List.of("N","S"), true));
-        ROOM_CONFIGS.put("MarchG", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("TresorG", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("ArmG", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("CDG", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("MG1", new RoomConfig("Cul de sac", List.of("N"), false));
-        ROOM_CONFIGS.put("MG2", new RoomConfig("Virage", List.of("N","E"), false));
-        ROOM_CONFIGS.put("MG3", new RoomConfig("Intersection", List.of("E","N","S"), false));
+    private static void reg(String id, String type, String doors, boolean turnAfter2) {
+        List<String> doorList = new ArrayList<>();
+        for (char c : doors.toCharArray()) doorList.add(String.valueOf(c));
+        ROOM_CONFIGS.put(id, new RoomConfig(type, doorList, turnAfter2));
     }
 
-    private static final List<String> CORRIDOR_TYPES = List.of("C1", "C2", "C3");
-    private static final List<String> CJ_TYPES = List.of("CJ1", "CJ2", "CJ3");
+    static {
+        reg(RoomIds.START,          "Cul de sac",    "S",    false);
+        reg(RoomIds.PRISON,         "Cul de sac",    "N",    false);
+        reg(RoomIds.DOOR_1,         "Couloir droit", "",     false);
+        reg(RoomIds.TAVERN_1,       "Couloir droit", "NS",   false);
+        reg(RoomIds.TAVERN_2,       "Virage",        "NE",   false);
+        reg(RoomIds.TAVERN_3,       "Virage",        "ES",   false);
+        reg(RoomIds.TAVERN_4,       "Virage",        "SE",   false);
+        reg(RoomIds.LOOT_1,         "Cul de sac",    "N",    false);
+        reg(RoomIds.DEAD_END,       "Cul de sac",    "N",    false);
+        reg(RoomIds.MONSTER_1,      "Cul de sac",    "N",    false);
+        reg(RoomIds.MONSTER_2,      "Couloir droit", "NS",   true);
+        reg("C1",                   "Couloir droit", "NS",   true);
+        reg("C2",                   "Couloir droit", "NS",   true);
+        reg("C3",                   "Couloir droit", "NS",   true);
+        reg(RoomIds.WELL,           "Couloir droit", "NS",   true);
+        reg(RoomIds.FOUNTAIN,       "Cul de sac",    "N",    false);
+        reg(RoomIds.DOOR_2,         "Couloir droit", "NS",   false);
+        reg("CJ1",                  "Couloir droit", "NS",   true);
+        reg("CJ2",                  "Couloir droit", "NS",   true);
+        reg("CJ3",                  "Couloir droit", "NS",   true);
+        reg(RoomIds.CORRIDOR_TURN_J,"Virage",        "NE",   false);
+        reg(RoomIds.INTERSECTION_3_J,"Intersection", "ENS",  false);
+        reg(RoomIds.INTERSECTION_4_J,"Intersection", "NESW", false);
+        reg("MJ1",                  "Cul de sac",    "N",    false);
+        reg("MJ2",                  "Couloir droit", "NS",   true);
+        reg("Lootdj1",              "Cul de sac",    "N",    false);
+        reg("Lootdj2",              "Couloir droit", "NS",   true);
+        reg(RoomIds.DOOR_3,         "Cul de sac",    "N",    false);
+        reg(RoomIds.CAMP_1,         "Couloir droit", "SN",   false);
+        reg(RoomIds.CAMP_2,         "Virage",        "SW",   false);
+        reg(RoomIds.CAMP_3,         "Intersection",  "ENS",  false);
+        reg(RoomIds.CAMP_4,         "Cul de sac",    "N",    false);
+        reg(RoomIds.BIB_1,          "Couloir droit", "NS",   false);
+        reg(RoomIds.BIB_2,          "Cul de sac",    "S",    false);
+        reg(RoomIds.SHOP,           "Cul de sac",    "N",    false);
+        reg(RoomIds.CORRIDOR_TURN,  "Virage",        "NE",   false);
+        reg(RoomIds.INTERSECTION_3, "Intersection",  "NSE",  false);
+        reg(RoomIds.INTERSECTION_4, "Intersection",  "NSEW", false);
+        reg(RoomIds.DEAD_END_DJ,    "Cul de sac",    "N",    false);
+        reg(RoomIds.MONSTER_3,      "Cul de sac",    "N",    false);
+        reg(RoomIds.MONSTER_4,      "Couloir droit", "NS",   true);
+        reg(RoomIds.OGRE,           "Cul de sac",    "N",    false);
+        reg("MJ3",                  "Cul de sac",    "N",    false);
+        reg("MJ4",                  "Couloir droit", "NS",   true);
+        reg("MJ5",                  "Cul de sac",    "N",    false);
+        reg(RoomIds.WELL_DJ,        "Couloir droit", "NS",   true);
+        reg(RoomIds.GARDEN,         "Cul de sac",    "N",    false);
+        reg("Lootdj3",              "Cul de sac",    "N",    false);
+        reg(RoomIds.STATUE,         "Cul de sac",    "N",    false);
+        reg(RoomIds.CENTRALE,       "Cul de sac",    "S",    false);
+        reg(RoomIds.BLACK_MARKET,   "Cul de sac",    "N",    false);
+        reg(RoomIds.CHAPEL_1,       "Couloir droit", "NS",   false);
+        reg(RoomIds.CHAPEL_2,       "Couloir droit", "NS",   true);
+        reg(RoomIds.CRYPT_1,        "Couloir droit", "NS",   false);
+        reg(RoomIds.CRYPT_2,        "Cul de sac",    "N",    false);
+        reg(RoomIds.PRISON_C1,      "Couloir droit", "NS",   false);
+        reg(RoomIds.PRISON_C2,      "Virage",        "NE",   false);
+        reg(RoomIds.PRISON_C3,      "Virage",        "NE",   false);
+        reg(RoomIds.PRISON_C4,      "Cul de sac",    "N",    false);
+        reg(RoomIds.GOBLIN_DOOR,    "Couloir droit", "NS",   false);
+        reg(RoomIds.GOBLIN_CORRIDOR,"Couloir droit", "NS",   true);
+        reg(RoomIds.GOBLIN_TURN,    "Virage",        "NE",   false);
+        reg(RoomIds.GOBLIN_I3,      "Intersection",  "ENS",  false);
+        reg(RoomIds.GOBLIN_I4,      "Intersection",  "NESW", false);
+        reg(RoomIds.GOBLIN_WELL,    "Couloir droit", "NS",   true);
+        reg(RoomIds.GOBLIN_MARCH,   "Cul de sac",    "N",    false);
+        reg(RoomIds.GOBLIN_TREASURE,"Cul de sac",    "N",    false);
+        reg(RoomIds.GOBLIN_ARMORY,  "Cul de sac",    "N",    false);
+        reg(RoomIds.GOBLIN_DEAD_END,"Cul de sac",    "N",    false);
+        reg(RoomIds.GOBLIN_HOUSE_1, "Cul de sac",    "N",    false);
+        reg(RoomIds.GOBLIN_HOUSE_2, "Virage",        "NE",   false);
+        reg(RoomIds.GOBLIN_HOUSE_3, "Intersection",  "ENS",  false);
+    }
 
-    private static String pickC(Random rng) { return CORRIDOR_TYPES.get(rng.nextInt(3)); }
-    private static String pickCJ(Random rng) { return CJ_TYPES.get(rng.nextInt(3)); }
+    public static class RoomPools {
+        public static final List<String> CORRIDORS_P1_P2 = List.of("C1", "C2", "C3");
+        public static final List<String> CORRIDORS_P3_P4 = List.of("CJ1", "CJ2", "CJ3");
+        public static final List<String> LEAF_MONSTERS_P3_P4 = List.of("MJ1", "MJ3", "MJ5");
+        public static final List<String> CORRIDOR_MONSTERS_P3_P4 = List.of("MJ2", "MJ4");
+        public static final List<String> LOOT_P3_P4 = List.of("Lootdj1", "Lootdj2", "Lootdj3");
+    }
+
+    private static String pickC(Random rng) { return RoomPools.CORRIDORS_P1_P2.get(rng.nextInt(3)); }
+    private static String pickCJ(Random rng) { return RoomPools.CORRIDORS_P3_P4.get(rng.nextInt(3)); }
+
+    private static Point findPointByValue(Map<Point, String> map, String value) {
+        if (map == null || value == null) return null;
+        for (var e : map.entrySet()) if (value.equals(e.getValue())) return e.getKey();
+        return null;
+    }
 
     // ===================== Algorithm: Part 1 tree =====================
 
-    private static boolean hasPrisonCandidate(Map<String, Set<String>> adj, String startKey) {
+    private static boolean hasPrisonCandidate(Map<Point, Set<Point>> adj, Point startPoint) {
         for (var e : adj.entrySet()) {
-            if (e.getValue().size() != 1 || e.getKey().equals(startKey)) continue;
-            String leaf = e.getKey();
-            String parent = adj.get(leaf).iterator().next();
+            if (e.getValue().size() != 1 || e.getKey().equals(startPoint)) continue;
+            Point leaf = e.getKey();
+            Point parent = adj.get(leaf).iterator().next();
             if (adj.get(parent).size() == 2) {
-                Set<String> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
-                String gp = pn.iterator().next();
-                int pdx = Integer.parseInt(parent.split(",")[0]) - Integer.parseInt(gp.split(",")[0]);
-                int pdy = Integer.parseInt(parent.split(",")[1]) - Integer.parseInt(gp.split(",")[1]);
-                int cdx = Integer.parseInt(leaf.split(",")[0]) - Integer.parseInt(parent.split(",")[0]);
-                int cdy = Integer.parseInt(leaf.split(",")[1]) - Integer.parseInt(parent.split(",")[1]);
+                Set<Point> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
+                Point gp = pn.iterator().next();
+
+                int pdx = parent.x() - gp.x();
+                int pdy = parent.y() - gp.y();
+                int cdx = leaf.x() - parent.x();
+                int cdy = leaf.y() - parent.y();
+
                 if (pdx == cdx && pdy == cdy) return true;
             }
         }
@@ -169,68 +295,64 @@ public class DungeonAlgo {
     }
 
     private static TreeResult generateRawTree(int targetMin, int targetMax, int maxI3, int maxI4,
-                                               int straightWeight, Integer[] start, Set<String> blocked) {
+                                               int straightWeight, Point startPt, Set<Point> blocked) {
         if (blocked == null) blocked = new HashSet<>();
         Random rng = new Random();
-        int sx = start != null ? start[0] : GRID_SIZE / 2;
-        int sy = start != null ? start[1] : GRID_SIZE / 2;
-        String startKey = sx + "," + sy;
-        Set<String> occupied = new HashSet<>();
-        occupied.add(startKey);
-        Map<String, Set<String>> adj = new HashMap<>();
-        adj.put(startKey, new HashSet<>());
-        List<String> allNodes = new ArrayList<>();
-        allNodes.add(startKey);
-        Map<String, int[]> entryDir = new HashMap<>();
+        Point start = startPt != null ? startPt : new Point(GRID_SIZE / 2, GRID_SIZE / 2);
+
+        Set<Point> occupied = new HashSet<>();
+        occupied.add(start);
+        Map<Point, Set<Point>> adj = new HashMap<>();
+        adj.put(start, new HashSet<>());
+        List<Point> allNodes = new ArrayList<>();
+        allNodes.add(start);
+        Map<Point, int[]> entryDir = new HashMap<>();
 
         List<int[]> dirs = new ArrayList<>(Arrays.asList(DIR_OFFSET));
         Collections.shuffle(dirs, rng);
         boolean found = false;
         int fdx = 0, fdy = 0;
         for (int[] d : dirs) {
-            int tx = sx + d[0], ty = sy + d[1];
-            if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE && !blocked.contains(tx + "," + ty)) {
+            Point target = start.move(d);
+            if (!target.isOutOfBounds() && !blocked.contains(target)) {
                 fdx = d[0]; fdy = d[1]; found = true; break;
             }
         }
-        if (!found) { TreeResult tr = new TreeResult(); tr.startKey = startKey; tr.startX = sx; tr.startY = sy; tr.adj = adj; return tr; }
+        if (!found) { 
+            TreeResult tr = new TreeResult(); 
+            tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj; 
+            return tr; 
+        }
 
-        String firstKey = (sx + fdx) + "," + (sy + fdy);
-        occupied.add(firstKey); allNodes.add(firstKey);
-        adj.put(firstKey, new HashSet<>());
-        adj.get(startKey).add(firstKey); adj.get(firstKey).add(startKey);
-        entryDir.put(firstKey, new int[]{fdx, fdy});
+        Point firstPoint = start.move(fdx, fdy);
+        occupied.add(firstPoint); allNodes.add(firstPoint);
+        adj.put(firstPoint, new HashSet<>());
+        adj.get(start).add(firstPoint); adj.get(firstPoint).add(start);
+        entryDir.put(firstPoint, new int[]{fdx, fdy});
 
         int targetSize = targetMin + rng.nextInt(targetMax - targetMin + 1);
         while (allNodes.size() < targetSize) {
-            List<String[]> candidates = new ArrayList<>();
+            List<Point[]> candidates = new ArrayList<>();
             int cI3 = 0, cI4 = 0;
-            for (Set<String> nb : adj.values()) { int d = nb.size(); if (d == 3) cI3++; else if (d == 4) cI4++; }
-            for (String node : allNodes) {
-                if (node.equals(startKey)) continue;
-                int deg = adj.get(node).size();
+            for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) cI3++; else if (d == 4) cI4++; }
+            for (Point p : allNodes) {
+                if (p.equals(start)) continue;
+                int deg = adj.get(p).size();
                 if (deg == 2 && cI3 >= maxI3) continue;
                 if (deg == 3 && cI4 >= maxI4) continue;
                 if (deg >= 4) continue;
-                String[] pp = node.split(",");
-                int px = Integer.parseInt(pp[0]), py = Integer.parseInt(pp[1]);
+                
                 for (int[] d : DIR_OFFSET) {
-                    int nx = px + d[0], ny = py + d[1];
-                    if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
-                        String nk = nx + "," + ny;
-                        if (!occupied.contains(nk) && !blocked.contains(nk)) {
-                            // Eviter I3/I4 consecutifs en ligne droite
+                    Point next = p.move(d);
+                    if (!next.isOutOfBounds()) {
+                        if (!occupied.contains(next) && !blocked.contains(next)) {
                             if (deg >= 2) {
                                 boolean skip = false;
-                                for (String nb1 : adj.get(node)) {
-                                    String[] n1p = nb1.split(",");
-                                    int n1x = Integer.parseInt(n1p[0]), n1z = Integer.parseInt(n1p[1]);
-                                    for (String nb2 : adj.get(node)) {
-                                        if (nb1.equals(nb2)) continue;
-                                        String[] n2p = nb2.split(",");
-                                        int n2x = Integer.parseInt(n2p[0]), n2z = Integer.parseInt(n2p[1]);
-                                        if (px - n1x == n2x - px && py - n1z == n2z - py) {
-                                            Set<String> a1 = adj.get(nb1), a2 = adj.get(nb2);
+                                for (Point n1 : adj.get(p)) {
+                                    for (Point n2 : adj.get(p)) {
+                                        if (n1.equals(n2)) continue;
+                                        if (p.x() - n1.x() == n2.x() - p.x() && p.y() - n1.y() == n2.y() - p.y()) {
+                                            Set<Point> a1 = adj.get(n1), a2 = adj.get(n2);
                                             if ((a1 != null && a1.size() >= 3) || (a2 != null && a2.size() >= 3)) {
                                                 skip = true; break;
                                             }
@@ -240,34 +362,35 @@ public class DungeonAlgo {
                                 }
                                 if (skip) continue;
                             }
-                            candidates.add(new String[]{node, nk});
+                            candidates.add(new Point[]{p, next});
                         }
                     }
                 }
             }
-            List<String[]> weighted = new ArrayList<>();
-            for (String[] cand : candidates) {
+            List<Point[]> weighted = new ArrayList<>();
+            for (Point[] cand : candidates) {
                 int w = 1;
-                String[] pp = cand[0].split(",");
-                int px = Integer.parseInt(pp[0]), py = Integer.parseInt(pp[1]);
-                int deg = adj.get(cand[0]).size();
-                int[] ed = entryDir.get(cand[0]);
+                Point p = cand[0];
+                int deg = adj.get(p).size();
+                int[] ed = entryDir.get(p);
                 if (deg == 1 && ed != null) {
-                    String[] cp = cand[1].split(",");
-                    int cx = Integer.parseInt(cp[0]), cy = Integer.parseInt(cp[1]);
-                    if ((cx - px) == ed[0] && (cy - py) == ed[1]) w = straightWeight;
+                    Point c = cand[1];
+                    if ((c.x() - p.x()) == ed[0] && (c.y() - p.y()) == ed[1]) w = straightWeight;
                 }
                 for (int i = 0; i < w; i++) weighted.add(cand);
             }
             if (weighted.isEmpty()) break;
-            String[] choice = weighted.get(rng.nextInt(weighted.size()));
-            String parent = choice[0], child = choice[1];
+            Point[] choice = weighted.get(rng.nextInt(weighted.size()));
+            Point parent = choice[0], child = choice[1];
             occupied.add(child); allNodes.add(child);
             adj.put(child, new HashSet<>());
             adj.get(parent).add(child); adj.get(child).add(parent);
-            entryDir.put(child, new int[]{Integer.parseInt(child.split(",")[0]) - Integer.parseInt(parent.split(",")[0]), Integer.parseInt(child.split(",")[1]) - Integer.parseInt(parent.split(",")[1])});
+            
+            entryDir.put(child, new int[]{child.x() - parent.x(), child.y() - parent.y()});
         }
-        TreeResult tr = new TreeResult(); tr.startKey = startKey; tr.startX = sx; tr.startY = sy; tr.adj = adj; return tr;
+        TreeResult tr = new TreeResult(); 
+        tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj; 
+        return tr;
     }
 
     private static TreeResult generatePart1Tree() {
@@ -276,112 +399,100 @@ public class DungeonAlgo {
 
     // ===================== Algorithm: analyzePart1 =====================
 
-    private static Map<String, String> analyzePart1(String startKey, Map<String, Set<String>> adj, Random rng) {
-        Map<String, String> labels = new HashMap<>();
-        List<String> leaves = new ArrayList<>();
-        for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startKey)) leaves.add(e.getKey());
+    private static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
+        Map<Point, String> labels = new HashMap<>();
+        List<Point> leaves = new ArrayList<>();
+        for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint)) leaves.add(e.getKey());
         if (leaves.size() < 5) return null;
         Collections.shuffle(leaves, rng);
 
-        String prison = null;
-        for (String leaf : leaves) {
-            String parent = adj.get(leaf).iterator().next();
+        Point prison = null;
+        for (Point leaf : leaves) {
+            Point parent = adj.get(leaf).iterator().next();
             if (adj.get(parent).size() == 2) {
-                Set<String> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
-                String gp = pn.iterator().next();
-                int pdx = Integer.parseInt(parent.split(",")[0]) - Integer.parseInt(gp.split(",")[0]);
-                int pdy = Integer.parseInt(parent.split(",")[1]) - Integer.parseInt(gp.split(",")[1]);
-                int cdx = Integer.parseInt(leaf.split(",")[0]) - Integer.parseInt(parent.split(",")[0]);
-                int cdy = Integer.parseInt(leaf.split(",")[1]) - Integer.parseInt(parent.split(",")[1]);
-                if (pdx == cdx && pdy == cdy) { prison = leaf; break; }
+                Set<Point> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
+                Point gp = pn.iterator().next();
+
+                if ((parent.x() - gp.x() == leaf.x() - parent.x()) && (parent.y() - gp.y() == leaf.y() - parent.y())) {
+                    prison = leaf; break;
+                }
             }
         }
         if (prison == null) return null;
 
-        List<String> others = new ArrayList<>();
-        for (String l : leaves) if (!l.equals(prison)) others.add(l);
+        List<Point> others = new ArrayList<>();
+        for (Point l : leaves) if (!l.equals(prison)) others.add(l);
 
-        String porte = others.get(0);
-        labels.put(startKey, "D");
-        labels.put(porte, "porte");
-        labels.put(prison, "Prison");
-        String prisonParent = adj.get(prison).iterator().next();
-        labels.put(prisonParent, "M2");
-        labels.put(others.get(1), "Loot1");
-        labels.put(others.get(2), "M1");
+        Point porte = others.get(0);
+        labels.put(startPoint, RoomIds.START);
+        labels.put(porte, RoomIds.DOOR_1);
+        labels.put(prison, RoomIds.PRISON);
+        Point prisonParent = adj.get(prison).iterator().next();
+        labels.put(prisonParent, RoomIds.MONSTER_2);
+        labels.put(others.get(1), RoomIds.LOOT_1);
+        labels.put(others.get(2), RoomIds.MONSTER_1);
         boolean isM4 = rng.nextBoolean();
-        // Marquer les feuilles restantes comme cul pour l'instant
+        
         if (others.size() > 3) {
-            for (int i = 3; i < others.size(); i++) labels.put(others.get(i), "cul");
+            for (int i = 3; i < others.size(); i++) labels.put(others.get(i), RoomIds.DEAD_END);
         }
 
-        List<String> cNodes = new ArrayList<>(), i2Nodes = new ArrayList<>(), i3Nodes = new ArrayList<>(), i4Nodes = new ArrayList<>();
+        List<Point> cNodes = new ArrayList<>(), i2Nodes = new ArrayList<>(), i3Nodes = new ArrayList<>(), i4Nodes = new ArrayList<>();
         for (var e : adj.entrySet()) {
             if (labels.containsKey(e.getKey())) continue;
             int deg = e.getValue().size();
             if (deg == 2) {
-                List<String> nb = new ArrayList<>(e.getValue());
-                String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                if (p1[0].equals(p2[0]) || p1[1].equals(p2[1])) cNodes.add(e.getKey());
+                List<Point> nb = new ArrayList<>(e.getValue());
+                if (isStraight(nb.get(0), nb.get(1))) cNodes.add(e.getKey());
                 else i2Nodes.add(e.getKey());
             } else if (deg == 3) i3Nodes.add(e.getKey());
             else if (deg == 4) i4Nodes.add(e.getKey());
         }
 
-        // M4 sur couloir droit si possible, sinon M3 sur feuille
-        String m4Key = null;
+        Point m4Point = null;
         if (isM4) {
-            for (String n : cNodes) { if (!labels.containsKey(n)) { m4Key = n; break; } }
+            for (Point n : cNodes) { if (!labels.containsKey(n)) { m4Point = n; break; } }
         }
-        if (m4Key != null) {
-            labels.put(m4Key, "M4");
+        if (m4Point != null) {
+            labels.put(m4Point, RoomIds.MONSTER_4);
         } else if (others.size() > 3) {
-            // Fallback M3 sur la feuille others.get(3)
-            labels.put(others.get(3), "M3");
+            labels.put(others.get(3), RoomIds.MONSTER_3);
         }
 
-        // Ajouter 1 puit garanti (toujours sur couloir droit)
-        boolean puitPlaced = false;
-        for (String n : cNodes) {
-            if (!labels.containsKey(n)) { labels.put(n, "puit"); puitPlaced = true; break; }
+        for (Point n : cNodes) {
+            if (!labels.containsKey(n)) { labels.put(n, RoomIds.WELL); break; }
         }
-        // P1: puit/M2/M4 ne peuvent pas avoir de couloir a cote
-        for (String n : cNodes) {
+
+        for (Point n : cNodes) {
             if (labels.containsKey(n)) continue;
-            for (String nb : adj.get(n)) {
+            for (Point nb : adj.get(n)) {
                 String lbl = labels.get(nb);
-                if (lbl != null && (lbl.equals("M2") || lbl.equals("M4") || lbl.equals("puit"))) {
-                    List<String> nbs = new ArrayList<>(adj.get(n));
-                    if (nbs.size() == 2) {
-                        String[] p1 = nbs.get(0).split(","), p2 = nbs.get(1).split(",");
-                        boolean droit = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0
-                            || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0;
-                        if (!droit) { labels.put(n, "I2"); break; }
+                if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_4) || lbl.equals(RoomIds.WELL))) {
+                    List<Point> nbs = new ArrayList<>(adj.get(n));
+                    if (nbs.size() == 2 && !isStraight(nbs.get(0), nbs.get(1))) {
+                        labels.put(n, RoomIds.CORRIDOR_TURN); break;
                     }
                 }
             }
         }
-        for (String n : cNodes) if (!labels.containsKey(n)) labels.put(n, pickC(rng));
-        for (String n : i2Nodes) if (!labels.containsKey(n)) labels.put(n, "I2");
-        for (String n : i3Nodes) labels.put(n, "I3");
-        for (String n : i4Nodes) labels.put(n, "I4");
-        // Apres une I4, les voisins couloirs perpendiculaires deviennent I2
-        for (String n : i4Nodes) {
-            String[] ip = n.split(",");
-            int ix = Integer.parseInt(ip[0]), iz = Integer.parseInt(ip[1]);
-            for (String nb : adj.get(n)) {
+        for (Point n : cNodes) if (!labels.containsKey(n)) labels.put(n, pickC(rng));
+        for (Point n : i2Nodes) if (!labels.containsKey(n)) labels.put(n, RoomIds.CORRIDOR_TURN);
+        for (Point n : i3Nodes) labels.put(n, RoomIds.INTERSECTION_3);
+        for (Point n : i4Nodes) labels.put(n, RoomIds.INTERSECTION_4);
+
+        for (Point ip : i4Nodes) {
+            for (Point nb : adj.get(ip)) {
                 String lbl = labels.get(nb);
                 if (lbl == null || !(lbl.equals("C1") || lbl.equals("C2") || lbl.equals("C3"))) continue;
-                String[] np = nb.split(",");
-                int nx = Integer.parseInt(np[0]), nz = Integer.parseInt(np[1]);
-                List<String> nAdj = new ArrayList<>(adj.get(nb));
+                List<Point> nAdj = new ArrayList<>(adj.get(nb));
                 if (nAdj.size() != 2) continue;
-                String[] a0 = nAdj.get(0).split(","), a1 = nAdj.get(1).split(",");
-                int adx = Integer.parseInt(a1[0]) - Integer.parseInt(a0[0]);
-                int adz = Integer.parseInt(a1[1]) - Integer.parseInt(a0[1]);
-                if (adx * (nx - ix) + adz * (nz - iz) == 0) {
-                    boolean droit = adx == 0 || adz == 0;
-                    if (!droit) labels.put(nb, "I2");
+                
+                Point a0 = nAdj.get(0);
+                Point a1 = nAdj.get(1);
+                int adx = a1.x() - a0.x();
+                int adz = a1.y() - a0.y();
+                if (adx * (nb.x() - ip.x()) + adz * (nb.y() - ip.y()) == 0) {
+                    if (adx != 0 && adz != 0) labels.put(nb, RoomIds.CORRIDOR_TURN);
                 }
             }
         }
@@ -390,17 +501,14 @@ public class DungeonAlgo {
 
     // ===================== Algorithm: Tavern =====================
 
-    private static TavernResult placeTavernAndPath(Map<String, Set<String>> adj, String porteKey, Random rng) {
-        String[] pp = porteKey.split(",");
-        int px = Integer.parseInt(pp[0]), py = Integer.parseInt(pp[1]);
-        String parent = adj.get(porteKey).iterator().next();
-        String[] pap = parent.split(",");
-        int dx = px - Integer.parseInt(pap[0]), dy = py - Integer.parseInt(pap[1]);
+    private static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
+        Point parent = adj.get(porte).iterator().next();
+        int dx = porte.x() - parent.x(), dy = porte.y() - parent.y();
 
-        int maxLen = 2 + rng.nextInt(4); // 2 a 5
-        int cx = px, cy = py;
+        int maxLen = 2 + rng.nextInt(4);
+        int cx = porte.x(), cy = porte.y();
         boolean lastStraight = false;
-        List<int[]> pathCells = new ArrayList<>();
+        List<Point> pathCells = new ArrayList<>();
 
         for (int i = 0; i < maxLen; i++) {
             boolean goStraight = (i == 0) || (!lastStraight && rng.nextBoolean());
@@ -409,253 +517,236 @@ public class DungeonAlgo {
                 int[][] perp = {{dy, -dx}, {-dy, dx}};
                 int[] turn = perp[rng.nextInt(2)];
                 ndx = turn[0]; ndy = turn[1];
-                int tx = cx + ndx, ty = cy + ndy;
-                if (adj.containsKey(tx + "," + ty) || tx < 0 || tx >= GRID_SIZE || ty < 0 || ty >= GRID_SIZE) {
+                Point t = new Point(cx + ndx, cy + ndy);
+                if (adj.containsKey(t) || t.isOutOfBounds()) {
                     ndx = perp[0][0] == ndx && perp[0][1] == ndy ? perp[1][0] : perp[0][0];
                     ndy = perp[0][0] == ndx && perp[0][1] == ndy ? perp[1][1] : perp[0][1];
                 }
                 dx = ndx; dy = ndy;
             }
-            int nx = cx + ndx, ny = cy + ndy;
-            if (adj.containsKey(nx + "," + ny) || nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) break;
-            pathCells.add(new int[]{nx, ny}); cx = nx; cy = ny;
+            Point next = new Point(cx + ndx, cy + ndy);
+            if (adj.containsKey(next) || next.isOutOfBounds()) break;
+            pathCells.add(next); cx = next.x(); cy = next.y();
             lastStraight = goStraight;
         }
         if (pathCells.size() < 2) return null;
 
-        int t1x = cx + dx, t1y = cy + dy, t2x = t1x + dx, t2y = t1y + dy;
+        Point t1 = new Point(cx + dx, cy + dy);
+        Point t2 = t1.move(dx, dy);
         int pex = -dy, pey = dx;
-        int t3x = t2x + pex, t3y = t2y + pey, t4x = t1x + pex, t4y = t1y + pey;
-        int extx = t4x + pex, exty = t4y + pey;
+        Point t3 = t2.move(pex, pey);
+        Point t4 = t1.move(pex, pey);
+        Point ext = t4.move(pex, pey);
 
-        Set<String> existing = adj.keySet();
-        for (String k : Arrays.asList(t1x+","+t1y, t2x+","+t2y, t3x+","+t3y, t4x+","+t4y, extx+","+exty)) {
-            if (existing.contains(k)) return null;
-            String[] kp = k.split(","); int kx = Integer.parseInt(kp[0]), ky = Integer.parseInt(kp[1]);
-            if (kx < 0 || kx >= GRID_SIZE || ky < 0 || ky >= GRID_SIZE) return null;
+        for (Point p : Arrays.asList(t1, t2, t3, t4, ext)) {
+            if (adj.containsKey(p) || p.isOutOfBounds()) return null;
         }
 
-        Set<String> pathSet = new HashSet<>();
-        String cur = porteKey;
-        for (int[] cell : pathCells) {
-            String ck = cell[0] + "," + cell[1];
-            pathSet.add(ck); adj.put(ck, new HashSet<>()); adj.get(ck).add(cur); adj.get(cur).add(ck); cur = ck;
+        Set<Point> pathSet = new HashSet<>();
+        Point cur = porte;
+        for (Point cell : pathCells) {
+            pathSet.add(cell); adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
         }
-        String t1k = t1x+","+t1y, t2k = t2x+","+t2y, t3k = t3x+","+t3y, t4k = t4x+","+t4y, ek = extx+","+exty;
-        adj.put(t1k, new HashSet<>()); adj.get(cur).add(t1k); adj.get(t1k).add(cur);
-        adj.put(t2k, new HashSet<>()); adj.get(t1k).add(t2k); adj.get(t2k).add(t1k);
-        adj.put(t3k, new HashSet<>()); adj.get(t2k).add(t3k); adj.get(t3k).add(t2k);
-        adj.put(t4k, new HashSet<>()); adj.get(t3k).add(t4k); adj.get(t4k).add(t3k);
-        adj.put(ek, new HashSet<>()); adj.get(t4k).add(ek); adj.get(ek).add(t4k);
+        adj.put(t1, new HashSet<>()); adj.get(cur).add(t1); adj.get(t1).add(cur);
+        adj.put(t2, new HashSet<>()); adj.get(t1).add(t2); adj.get(t2).add(t1);
+        adj.put(t3, new HashSet<>()); adj.get(t2).add(t3); adj.get(t3).add(t2);
+        adj.put(t4, new HashSet<>()); adj.get(t3).add(t4); adj.get(t4).add(t3);
+        adj.put(ext, new HashSet<>()); adj.get(t4).add(ext); adj.get(ext).add(t4);
 
         TavernResult tr = new TavernResult();
-        tr.tavern = Map.of("T1", t1k, "T2", t2k, "T3", t3k, "T4", t4k);
-        tr.exitKey = ek; tr.pathSet = pathSet;
+        tr.tavern = Map.of(RoomIds.TAVERN_1, t1, RoomIds.TAVERN_2, t2, RoomIds.TAVERN_3, t3, RoomIds.TAVERN_4, t4);
+        tr.exitPoint = ext; tr.pathSet = pathSet;
         return tr;
     }
 
     // ===================== Algorithm: analyzePart2 =====================
 
-    private static Map<String, String> analyzePart2(Map<String, Set<String>> adj, String exitKey,
-                                                      Map<String, String> labels, Set<String> pathSet, Random rng) {
-        List<String> exitNb = new ArrayList<>(adj.get(exitKey));
+    private static Map<Point, String> analyzePart2(Map<Point, Set<Point>> adj, Point exitPoint,
+                                                    Map<Point, String> labels, Set<Point> pathSet, Random rng) {
+        List<Point> exitNb = new ArrayList<>(adj.get(exitPoint));
         if (exitNb.size() == 2) {
-            String[] p1 = exitNb.get(0).split(","), p2 = exitNb.get(1).split(",");
-            if (p1[0].equals(p2[0]) || p1[1].equals(p2[1])) labels.put(exitKey, pickC(rng));
+            if (isStraight(exitNb.get(0), exitNb.get(1))) labels.put(exitPoint, pickC(rng));
             else {
-                List<String> nbs = new ArrayList<>(adj.get(exitKey));
-                if (nbs.size() == 2) {
-                    String[] pp1 = nbs.get(0).split(","), pp2 = nbs.get(1).split(",");
-                    boolean droit = Integer.parseInt(pp1[0]) - Integer.parseInt(pp2[0]) == 0
-                        || Integer.parseInt(pp1[1]) - Integer.parseInt(pp2[1]) == 0;
-                    if (!droit) labels.put(exitKey, "I2");
-                }
+                List<Point> nbs = new ArrayList<>(adj.get(exitPoint));
+                if (nbs.size() == 2 && !isStraight(nbs.get(0), nbs.get(1))) labels.put(exitPoint, RoomIds.CORRIDOR_TURN);
             }
-        } else if (exitNb.size() == 1) labels.put(exitKey, "cul");
-        else labels.put(exitKey, pickC(rng));
+        } else if (exitNb.size() == 1) labels.put(exitPoint, RoomIds.DEAD_END);
+        else labels.put(exitPoint, pickC(rng));
 
-        Set<String> allLabeled = new HashSet<>(labels.keySet());
-        List<String> p2Nodes = new ArrayList<>();
-        Map<String, Integer> dist = new HashMap<>();
-        Set<String> seen = new HashSet<>(); Queue<String> q = new LinkedList<>();
-        q.add(exitKey); seen.add(exitKey); dist.put(exitKey, 0);
-        while (!q.isEmpty()) { String n = q.poll(); if (!allLabeled.contains(n)) p2Nodes.add(n); for (String nb : adj.get(n)) { if (!seen.contains(nb)) { seen.add(nb); q.add(nb); dist.put(nb, dist.get(n) + 1); } } }
+        Set<Point> allLabeled = new HashSet<>(labels.keySet());
+        List<Point> p2Nodes = new ArrayList<>();
+        Map<Point, Integer> dist = new HashMap<>();
+        Set<Point> seen = new HashSet<>(); Queue<Point> q = new LinkedList<>();
+        q.add(exitPoint); seen.add(exitPoint); dist.put(exitPoint, 0);
+        while (!q.isEmpty()) { 
+            Point n = q.poll(); 
+            if (!allLabeled.contains(n)) p2Nodes.add(n); 
+            for (Point nb : adj.get(n)) { 
+                if (!seen.contains(nb)) { 
+                    seen.add(nb); q.add(nb); dist.put(nb, dist.get(n) + 1); 
+                } 
+            } 
+        }
 
-        List<String> leaves = new ArrayList<>(), internals = new ArrayList<>();
-        for (String n : p2Nodes) { if (adj.get(n).size() == 1) leaves.add(n); else internals.add(n); }
+        List<Point> leaves = new ArrayList<>(), internals = new ArrayList<>();
+        for (Point n : p2Nodes) { if (adj.get(n).size() == 1) leaves.add(n); else internals.add(n); }
 
-        List<String> cList = new ArrayList<>(), i2List = new ArrayList<>(), i3List = new ArrayList<>(), i4List = new ArrayList<>();
-        for (String node : internals) {
+        List<Point> cList = new ArrayList<>(), i2List = new ArrayList<>(), i3List = new ArrayList<>(), i4List = new ArrayList<>();
+        for (Point node : internals) {
             int deg = adj.get(node).size();
             if (deg == 2) {
-                List<String> nb = new ArrayList<>(adj.get(node));
-                String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                if (p1[0].equals(p2[0]) || p1[1].equals(p2[1])) cList.add(node); else i2List.add(node);
+                List<Point> nb = new ArrayList<>(adj.get(node));
+                if (isStraight(nb.get(0), nb.get(1))) cList.add(node); else i2List.add(node);
             } else if (deg == 3) i3List.add(node);
             else if (deg == 4) i4List.add(node);
         }
         Collections.shuffle(cList, rng);
 
-        // P2: 3 salles monstre (M3 obligatoire + M4 obligatoire + M1 ou M2 aleatoire)
         if (leaves.size() < 6) return null;
         long availCorr = cList.stream().filter(n -> !pathSet.contains(n)).count();
         if (availCorr < 2) return null;
 
-        Set<String> monsterSet = new HashSet<>();
+        Set<Point> monsterSet = new HashSet<>();
 
-        // Ogre: feuille la plus eloignee de la taverne
-        String ogreLeaf = null; int maxDist = -1;
-        for (String n : leaves) { int d = dist.getOrDefault(n, 0); if (d > maxDist) { maxDist = d; ogreLeaf = n; } }
-        labels.put(ogreLeaf, "Ogre"); monsterSet.add(ogreLeaf);
-        List<String> remain = new ArrayList<>(leaves);
+        Point ogreLeaf = null; int maxDist = -1;
+        for (Point n : leaves) { int d = dist.getOrDefault(n, 0); if (d > maxDist) { maxDist = d; ogreLeaf = n; } }
+        labels.put(ogreLeaf, RoomIds.OGRE); monsterSet.add(ogreLeaf);
+        List<Point> remain = new ArrayList<>(leaves);
         remain.remove(ogreLeaf);
         Collections.shuffle(remain, rng);
 
-        labels.put(remain.get(0), "fontaine");
-        labels.put(remain.get(1), "porte2");
+        labels.put(remain.get(0), RoomIds.FOUNTAIN);
+        labels.put(remain.get(1), RoomIds.DOOR_2);
 
-        // M3 sur une feuille, pas adjacente a Ogre
-        String m3Leaf = null;
-        for (String n : remain) {
+        Point m3Leaf = null;
+        for (Point n : remain) {
             if (labels.containsKey(n)) continue;
-            boolean hasAdj = false; for (String nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
+            boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
             if (!hasAdj) { m3Leaf = n; break; }
         }
-        if (m3Leaf == null) { for (String n : remain) { if (!labels.containsKey(n)) { m3Leaf = n; break; } } }
-        labels.put(m3Leaf, "M3"); monsterSet.add(m3Leaf);
+        if (m3Leaf == null) { for (Point n : remain) { if (!labels.containsKey(n)) { m3Leaf = n; break; } } }
+        labels.put(m3Leaf, RoomIds.MONSTER_3); monsterSet.add(m3Leaf);
 
-        // 1 seul Loot sur une feuille
-        String lootLeaf = null;
-        for (String n : remain) {
+        Point lootLeaf = null;
+        for (Point n : remain) {
             if (labels.containsKey(n)) continue;
-            boolean hasAdj = false; for (String nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
+            boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
             if (!hasAdj) { lootLeaf = n; break; }
         }
-        if (lootLeaf == null) { for (String n : remain) { if (!labels.containsKey(n)) { lootLeaf = n; break; } } }
-        labels.put(lootLeaf, "Loot1");
+        if (lootLeaf == null) { for (Point n : remain) { if (!labels.containsKey(n)) { lootLeaf = n; break; } } }
+        labels.put(lootLeaf, RoomIds.LOOT_1);
 
-        // Reste des feuilles en cul
-        for (String n : remain) { if (!labels.containsKey(n)) labels.put(n, "cul"); }
+        for (Point n : remain) { if (!labels.containsKey(n)) labels.put(n, RoomIds.DEAD_END); }
 
-        // M4 sur un couloir droit, pas adjacent a un monstre
-        String m4Corr = null;
-        for (String n : cList) {
+        Point m4Corr = null;
+        for (Point n : cList) {
             if (!pathSet.contains(n) && !labels.containsKey(n)) {
-                boolean hasAdj = false; for (String nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
+                boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
                 if (!hasAdj) { m4Corr = n; break; }
             }
         }
-        if (m4Corr == null) { for (String n : cList) { if (!pathSet.contains(n) && !labels.containsKey(n)) { m4Corr = n; break; } } }
-        if (m4Corr != null) { labels.put(m4Corr, "M4"); monsterSet.add(m4Corr); }
+        if (m4Corr == null) { for (Point n : cList) { if (!pathSet.contains(n) && !labels.containsKey(n)) { m4Corr = n; break; } } }
+        if (m4Corr != null) { labels.put(m4Corr, RoomIds.MONSTER_4); monsterSet.add(m4Corr); }
 
-        // M1 ou M2 aleatoire
         boolean useM1 = rng.nextBoolean();
-        String extraMonster = null;
+        Point extraMonster = null;
         if (useM1) {
-            for (String n : remain) {
+            for (Point n : remain) {
                 if (!labels.containsKey(n)) {
-                    boolean hasAdj = false; for (String nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
+                    boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
                     if (!hasAdj) { extraMonster = n; break; }
                 }
             }
-            if (extraMonster == null) { for (String n : remain) { if (!labels.containsKey(n)) { extraMonster = n; break; } } }
-            if (extraMonster != null) labels.put(extraMonster, "M1");
+            if (extraMonster == null) { for (Point n : remain) { if (!labels.containsKey(n)) { extraMonster = n; break; } } }
+            if (extraMonster != null) labels.put(extraMonster, RoomIds.MONSTER_1);
         } else {
-            for (String n : cList) {
+            for (Point n : cList) {
                 if (n.equals(m4Corr) || pathSet.contains(n) || labels.containsKey(n)) continue;
-                boolean hasAdj = false; for (String nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
+                boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
                 if (!hasAdj) { extraMonster = n; break; }
             }
-            if (extraMonster == null) { for (String n : cList) { if (!pathSet.contains(n) && !labels.containsKey(n)) { extraMonster = n; break; } } }
-            if (extraMonster != null) labels.put(extraMonster, "M2");
+            if (extraMonster == null) { for (Point n : cList) { if (!pathSet.contains(n) && !labels.containsKey(n)) { extraMonster = n; break; } } }
+            if (extraMonster != null) labels.put(extraMonster, RoomIds.MONSTER_2);
         }
 
-        // Puit sur un couloir droit restant, pas adjacent a une salle speciale
-        List<String> remC = new ArrayList<>();
-        for (String n : cList) { if (!labels.containsKey(n)) remC.add(n); }
+        List<Point> remC = new ArrayList<>();
+        for (Point n : cList) { if (!labels.containsKey(n)) remC.add(n); }
         if (!remC.isEmpty()) {
-            String pn = null;
-            for (String n : remC) {
+            Point pn = null;
+            for (Point n : remC) {
                 if (!pathSet.contains(n)) {
                     boolean adjSpecial = false;
-                    for (String nb : adj.get(n)) {
+                    for (Point nb : adj.get(n)) {
                         String lbl = labels.get(nb);
-                        if (lbl != null && (lbl.equals("Ogre") || lbl.equals("fontaine") || lbl.equals("Loot1")
-                            || lbl.equals("M1") || lbl.equals("M2") || lbl.equals("M3") || lbl.equals("M4"))) {
+                        if (lbl != null && (lbl.equals(RoomIds.OGRE) || lbl.equals(RoomIds.FOUNTAIN) || lbl.equals(RoomIds.LOOT_1)
+                            || lbl.equals(RoomIds.MONSTER_1) || lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_3) || lbl.equals(RoomIds.MONSTER_4))) {
                             adjSpecial = true; break;
                         }
                     }
                     if (!adjSpecial) { pn = n; break; }
                 }
             }
-            if (pn == null) { for (String n : remC) { if (!pathSet.contains(n)) { pn = n; break; } } }
+            if (pn == null) { for (Point n : remC) { if (!pathSet.contains(n)) { pn = n; break; } } }
             if (pn == null) pn = remC.get(0);
-            labels.put(pn, "puit");
+            labels.put(pn, RoomIds.WELL);
             remC.remove(pn);
         }
-        // P2: puit/M2/M4 ne peuvent pas avoir de couloir a cote
-        Set<String> toI2 = new HashSet<>();
-        for (String n : remC) {
+
+        Set<Point> toI2 = new HashSet<>();
+        for (Point n : remC) {
             if (labels.containsKey(n)) continue;
-            for (String nb : adj.get(n)) {
+            for (Point nb : adj.get(n)) {
                 String lbl = labels.get(nb);
-                if (lbl != null && (lbl.equals("M2") || lbl.equals("M4") || lbl.equals("puit"))) {
+                if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_4) || lbl.equals(RoomIds.WELL))) {
                     toI2.add(n); break;
                 }
             }
         }
-        // P2: max 1 couloir consecutif (comme P1)
-        Map<String, String> remCDirs = new HashMap<>();
-        for (String n : remC) {
+
+        Map<Point, String> remCDirs = new HashMap<>();
+        for (Point n : remC) {
             if (toI2.contains(n)) continue;
-            List<String> nb = new ArrayList<>(adj.get(n));
-            int dx = Integer.parseInt(nb.get(1).split(",")[0]) - Integer.parseInt(nb.get(0).split(",")[0]);
-            int dz = Integer.parseInt(nb.get(1).split(",")[1]) - Integer.parseInt(nb.get(0).split(",")[1]);
+            List<Point> nb = new ArrayList<>(adj.get(n));
+            Point p0 = nb.get(0);
+            Point p1 = nb.get(1);
+            int dx = p1.x() - p0.x(), dz = p1.y() - p0.y();
             if (dx < 0 || (dx == 0 && dz < 0)) { dx = -dx; dz = -dz; }
             remCDirs.put(n, dx + "," + dz);
         }
-        Set<String> cSkip = new HashSet<>();
-        for (String n : remC) {
+        Set<Point> cSkip = new HashSet<>();
+        for (Point n : remC) {
             if (cSkip.contains(n) || labels.containsKey(n) || toI2.contains(n)) continue;
             String dir = remCDirs.get(n);
-            for (String nb : adj.get(n)) {
+            for (Point nb : adj.get(n)) {
                 if (!remC.contains(nb) || cSkip.contains(nb) || labels.containsKey(nb) || toI2.contains(nb)) continue;
                 if (dir.equals(remCDirs.get(nb))) { cSkip.add(nb); break; }
             }
         }
-        for (String n : remC) {
+        for (Point n : remC) {
             if (toI2.contains(n)) {
-                List<String> nbs = new ArrayList<>(adj.get(n));
+                List<Point> nbs = new ArrayList<>(adj.get(n));
                 if (nbs.size() == 2) {
-                    String[] p1 = nbs.get(0).split(","), p2 = nbs.get(1).split(",");
-                    boolean droit = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0
-                        || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0;
-                    if (!droit) labels.put(n, "I2");
+                    if (!isStraight(nbs.get(0), nbs.get(1))) labels.put(n, RoomIds.CORRIDOR_TURN);
                     else labels.put(n, pickC(rng));
                 }
             } else if (labels.containsKey(n)) continue;
             else labels.put(n, pickC(rng));
         }
-        for (String n : i2List) labels.put(n, "I2");
-        for (String n : i3List) labels.put(n, "I3");
-        for (String n : i4List) labels.put(n, "I4");
-        // Apres une I4, les voisins couloirs perpendiculaires deviennent I2
-        for (String n : i4List) {
-            String[] ip = n.split(",");
-            int ix = Integer.parseInt(ip[0]), iz = Integer.parseInt(ip[1]);
-            for (String nb : adj.get(n)) {
+        for (Point n : i2List) labels.put(n, RoomIds.CORRIDOR_TURN);
+        for (Point n : i3List) labels.put(n, RoomIds.INTERSECTION_3);
+        for (Point n : i4List) labels.put(n, RoomIds.INTERSECTION_4);
+
+        for (Point ip : i4List) {
+            for (Point nb : adj.get(ip)) {
                 String lbl = labels.get(nb);
                 if (lbl == null || !(lbl.equals("C1") || lbl.equals("C2") || lbl.equals("C3"))) continue;
-                String[] np = nb.split(",");
-                int nx = Integer.parseInt(np[0]), nz = Integer.parseInt(np[1]);
-                List<String> nAdj = new ArrayList<>(adj.get(nb));
+                List<Point> nAdj = new ArrayList<>(adj.get(nb));
                 if (nAdj.size() != 2) continue;
-                String[] a0 = nAdj.get(0).split(","), a1 = nAdj.get(1).split(",");
-                int adx = Integer.parseInt(a1[0]) - Integer.parseInt(a0[0]);
-                int adz = Integer.parseInt(a1[1]) - Integer.parseInt(a0[1]);
-                if (adx * (nx - ix) + adz * (nz - iz) == 0) {
-                    boolean droit = adx == 0 || adz == 0;
-                    if (!droit) labels.put(nb, "I2");
+                Point a0 = nAdj.get(0);
+                Point a1 = nAdj.get(1);
+                int adx = a1.x() - a0.x(), adz = a1.y() - a0.y();
+                if (adx * (nb.x() - ip.x()) + adz * (nb.y() - ip.y()) == 0) {
+                    if (adx != 0 && adz != 0) labels.put(nb, RoomIds.CORRIDOR_TURN);
                 }
             }
         }
@@ -664,16 +755,14 @@ public class DungeonAlgo {
 
     // ===================== Algorithm: Camp =====================
 
-    private static CampResult placeCampAndPath(Map<String, Set<String>> adj, String porte2Key, Random rng) {
-        String[] pp = porte2Key.split(",");
-        int px = Integer.parseInt(pp[0]), py = Integer.parseInt(pp[1]);
-        String parent = adj.get(porte2Key).iterator().next();
-        String[] pap = parent.split(",");
-        int dx = px - Integer.parseInt(pap[0]), dy = py - Integer.parseInt(pap[1]);
+    private static CampResult placeCampAndPath(Map<Point, Set<Point>> adj, Point porte2, Random rng) {
+        Point parent = adj.get(porte2).iterator().next();
+        int dx = porte2.x() - parent.x(), dy = porte2.y() - parent.y();
+
         int maxLen = 2 + rng.nextInt(4);
-        int cx = px, cy = py;
+        int cx = porte2.x(), cy = porte2.y();
         boolean lastStraight = false;
-        List<int[]> pathCells = new ArrayList<>();
+        List<Point> pathCells = new ArrayList<>();
 
         for (int i = 0; i < maxLen; i++) {
             boolean goStraight = (i == 0) || (!lastStraight && rng.nextBoolean());
@@ -682,894 +771,52 @@ public class DungeonAlgo {
                 int[][] perp = {{dy, -dx}, {-dy, dx}};
                 int[] turn = perp[rng.nextInt(2)];
                 ndx = turn[0]; ndy = turn[1];
-                int tx = cx + ndx, ty = cy + ndy;
-                if (adj.containsKey(tx+","+ty) || tx < 0 || tx >= GRID_SIZE || ty < 0 || ty >= GRID_SIZE) {
+                Point t = new Point(cx + ndx, cy + ndy);
+                if (adj.containsKey(t) || t.isOutOfBounds()) {
                     ndx = perp[0][0] == ndx && perp[0][1] == ndy ? perp[1][0] : perp[0][0];
                     ndy = perp[0][0] == ndx && perp[0][1] == ndy ? perp[1][1] : perp[0][1];
                 }
                 dx = ndx; dy = ndy;
             }
-            int nx = cx + ndx, ny = cy + ndy;
-            if (adj.containsKey(nx+","+ny) || nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) break;
-            pathCells.add(new int[]{nx, ny}); cx = nx; cy = ny;
+            Point next = new Point(cx + ndx, cy + ndy);
+            if (adj.containsKey(next) || next.isOutOfBounds()) break;
+            pathCells.add(next); cx = next.x(); cy = next.y();
             lastStraight = goStraight;
         }
         if (pathCells.size() < 2) return null;
 
-        int c1x = cx + dx, c1y = cy + dy, c2x = c1x + dx, c2y = c1y + dy;
+        Point c1 = new Point(cx + dx, cy + dy);
+        Point c2 = c1.move(dx, dy);
         int pex = dy, pey = -dx;
-        int c3x = c2x + pex, c3y = c2y + pey, c4x = c3x - dx, c4y = c3y - dy;
-        int cex = c3x + dx, cey = c3y + dy;
+        Point c3 = c2.move(pex, pey);
+        Point c4 = c3.move(-dx, -dy);
+        Point cex = c3.move(dx, dy);
 
-        Set<String> existing = adj.keySet();
-        for (String k : Arrays.asList(c1x+","+c1y, c2x+","+c2y, c3x+","+c3y, c4x+","+c4y, cex+","+cey)) {
-            if (existing.contains(k)) return null;
-            String[] kp = k.split(","); int kx = Integer.parseInt(kp[0]), ky = Integer.parseInt(kp[1]);
-            if (kx < 0 || kx >= GRID_SIZE || ky < 0 || ky >= GRID_SIZE) return null;
+        for (Point k : Arrays.asList(c1, c2, c3, c4, cex)) {
+            if (adj.containsKey(k) || k.isOutOfBounds()) return null;
         }
 
-        Set<String> campPathSet = new HashSet<>();
-        String cur = porte2Key;
-        for (int[] cell : pathCells) {
-            String ck = cell[0]+","+cell[1]; campPathSet.add(ck);
-            adj.put(ck, new HashSet<>()); adj.get(ck).add(cur); adj.get(cur).add(ck); cur = ck;
+        Set<Point> campPathSet = new HashSet<>();
+        Point cur = porte2;
+        for (Point cell : pathCells) {
+            campPathSet.add(cell);
+            adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
         }
-        String c1k = c1x+","+c1y, c2k = c2x+","+c2y, c3k = c3x+","+c3y, c4k = c4x+","+c4y, cek = cex+","+cey;
-        adj.put(c1k, new HashSet<>()); adj.get(cur).add(c1k); adj.get(c1k).add(cur);
-        adj.put(c2k, new HashSet<>()); adj.get(c1k).add(c2k); adj.get(c2k).add(c1k);
-        adj.put(c3k, new HashSet<>()); adj.get(c2k).add(c3k); adj.get(c3k).add(c2k);
-        adj.put(c4k, new HashSet<>()); adj.get(c3k).add(c4k); adj.get(c4k).add(c3k);
-        adj.put(cek, new HashSet<>()); adj.get(c3k).add(cek); adj.get(cek).add(c3k);
+        adj.put(c1, new HashSet<>()); adj.get(cur).add(c1); adj.get(c1).add(cur);
+        adj.put(c2, new HashSet<>()); adj.get(c1).add(c2); adj.get(c2).add(c1);
+        adj.put(c3, new HashSet<>()); adj.get(c2).add(c3); adj.get(c3).add(c2);
+        adj.put(c4, new HashSet<>()); adj.get(c3).add(c4); adj.get(c4).add(c3);
+        adj.put(cex, new HashSet<>()); adj.get(c3).add(cex); adj.get(cex).add(c3);
 
         CampResult cr = new CampResult();
-        cr.campExit = cek; cr.campPathSet = campPathSet;
-        cr.campNodes = Map.of("Ca1", c1k, "Ca2", c2k, "Ca3", c3k, "Ca4", c4k);
+        cr.campExit = cex; cr.campPathSet = campPathSet;
+        cr.campNodes = Map.of(RoomIds.CAMP_1, c1, RoomIds.CAMP_2, c2, RoomIds.CAMP_3, c3, RoomIds.CAMP_4, c4);
         return cr;
     }
 
-    // ===================== Algorithm: analyzePart3 =====================
+    // ===================== Part 3 Trunk Tree & Mini-Trees =====================
 
-    private static Map<String, String> analyzePart3(Map<String, Set<String>> adj, String campExit,
-                                                      Map<String, String> labels, Random rng) {
-        List<String> campExitNb = new ArrayList<>(adj.get(campExit));
-        if (campExitNb.size() == 2) {
-            String[] p1 = campExitNb.get(0).split(","), p2 = campExitNb.get(1).split(",");
-            if (p1[0].equals(p2[0]) || p1[1].equals(p2[1])) labels.put(campExit, pickCJ(rng));
-            else labels.put(campExit, "IJ2");
-        } else if (campExitNb.size() == 1) labels.put(campExit, "culDJ");
-        else labels.put(campExit, pickCJ(rng));
-
-        Set<String> allLabeled = new HashSet<>(labels.keySet());
-        List<String> bfsP3 = new ArrayList<>();
-        Set<String> seen = new HashSet<>(); Queue<String> q = new LinkedList<>();
-        q.add(campExit); seen.add(campExit);
-        while (!q.isEmpty()) { String n = q.poll(); if (!allLabeled.contains(n)) bfsP3.add(n); for (String nb : adj.get(n)) { if (!seen.contains(nb)) { seen.add(nb); q.add(nb); } } }
-
-        String[] bibNodes = null;
-        List<String> shuffled = new ArrayList<>(bfsP3); Collections.shuffle(shuffled, rng);
-        for (String src : shuffled) {
-            for (int[] d : DIR_OFFSET) {
-                String[] pp = src.split(","); int sx = Integer.parseInt(pp[0]), sy = Integer.parseInt(pp[1]);
-                String[] chainKeys = new String[2];
-                boolean chainOk = true;
-                int cx = sx, cy = sy;
-                for (int i = 0; i < 2; i++) {
-                    int nx = cx + d[0], ny = cy + d[1];
-                    String nk = nx+","+ny;
-                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE || adj.containsKey(nk)) { chainOk = false; break; }
-                    chainKeys[i] = nk; cx = nx; cy = ny;
-                }
-                if (chainOk) {
-                    adj.put(chainKeys[0], new HashSet<>()); adj.get(src).add(chainKeys[0]); adj.get(chainKeys[0]).add(src);
-                    adj.put(chainKeys[1], new HashSet<>()); adj.get(chainKeys[0]).add(chainKeys[1]); adj.get(chainKeys[1]).add(chainKeys[0]);
-                    bibNodes = chainKeys; break;
-                }
-            }
-            if (bibNodes != null) break;
-        }
-        if (bibNodes == null) return null;
-
-        String shopNode = null;
-        shuffled = new ArrayList<>(bfsP3); Collections.shuffle(shuffled, rng);
-        for (String src : shuffled) {
-            String[] pp = src.split(",");
-            for (int[] d : DIR_OFFSET) {
-                int nx = Integer.parseInt(pp[0]) + d[0], ny = Integer.parseInt(pp[1]) + d[1];
-                String nk = nx+","+ny;
-                if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && !adj.containsKey(nk)) {
-                    adj.put(nk, new HashSet<>()); adj.get(src).add(nk); adj.get(nk).add(src);
-                    shopNode = nk; break;
-                }
-            }
-            if (shopNode != null) break;
-        }
-
-        Set<String> allNodes = new HashSet<>(adj.keySet());
-        List<String> leaves = new ArrayList<>(), internals = new ArrayList<>();
-        for (String n : allNodes) { if (adj.get(n).size() == 1 && !labels.containsKey(n)) leaves.add(n); else if (adj.get(n).size() >= 2 && !labels.containsKey(n)) internals.add(n); }
-
-        List<String> cjList = new ArrayList<>(), ij2List = new ArrayList<>(), ij3List = new ArrayList<>(), ij4List = new ArrayList<>();
-        for (String node : internals) {
-            int deg = adj.get(node).size();
-            if (deg == 2) {
-                List<String> nb = new ArrayList<>(adj.get(node));
-                String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                if (p1[0].equals(p2[0]) || p1[1].equals(p2[1])) cjList.add(node); else ij2List.add(node);
-            } else if (deg == 3) ij3List.add(node);
-            else if (deg == 4) ij4List.add(node);
-        }
-
-        labels.put(bibNodes[0], "Bib1"); labels.put(bibNodes[1], "Bib2");
-        // Chemin Bib2 -> Centrale (type Python)
-        String bib2k = bibNodes[1], bib1k = bibNodes[0];
-        String[] bp = bib2k.split(",");
-        int bx = Integer.parseInt(bp[0]), bz = Integer.parseInt(bp[1]);
-        String[] b1p = bib1k.split(",");
-        int ddx = bx - Integer.parseInt(b1p[0]), ddz = bz - Integer.parseInt(b1p[1]);
-        int cdx, cdz;
-        if (ddx == 1 && ddz == 0) { cdx = 0; cdz = 1; }      // Est → Sud
-        else if (ddx == -1 && ddz == 0) { cdx = 0; cdz = -1; } // Ouest → Nord
-        else if (ddx == 0 && ddz == 1) { cdx = -1; cdz = 0; }  // Sud → Ouest
-        else if (ddx == 0 && ddz == -1) { cdx = 1; cdz = 0; }  // Nord → Est
-        else { cdx = 0; cdz = 1; }
-        // Chemin Bib2 -> Centrale (direct, sans hub)
-        boolean hubOk = false;
-        for (int corridorLen : new int[]{5, 6, 7}) {
-            if (hubOk) break;
-            int cx = bx, cz = bz;
-            String prev = bib2k;
-            List<String> corrNodes = new ArrayList<>();
-            boolean ok = true;
-            int mid = corridorLen / 2;
-            for (int i = 0; i < corridorLen && ok; i++) {
-                if (i == mid) {
-                    int[][] perp = {{ddx, ddz}, {-ddx, -ddz}};
-                    int ti = rng.nextInt(2);
-                    int tx = cx + perp[ti][0], ty = cz + perp[ti][1];
-                    if (adj.containsKey(tx+","+ty) || tx < 0 || tx >= GRID_SIZE || ty < 0 || ty >= GRID_SIZE) { ti = ti==0?1:0; tx = cx + perp[ti][0]; ty = cz + perp[ti][1]; }
-                    if (!adj.containsKey(tx+","+ty) && tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE) {
-                        corrNodes.add(tx+","+ty); adj.put(tx+","+ty, new HashSet<>());
-                        adj.get(tx+","+ty).add(prev); adj.get(prev).add(tx+","+ty); cx = tx; cz = ty; prev = tx+","+ty;
-                    } else { ok = false; break; }
-                }
-                int nx = cx + cdx, ny = cz + cdz;
-                if (adj.containsKey(nx+","+ny) || nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) { ok = false; break; }
-                corrNodes.add(nx+","+ny); adj.put(nx+","+ny, new HashSet<>());
-                adj.get(nx+","+ny).add(prev); adj.get(prev).add(nx+","+ny); cx = nx; cz = ny; prev = nx+","+ny;
-            }
-            if (!ok || corrNodes.size() < 3) { for (String n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
-            // Ajouter un virage vers l'est pour aligner avec l'entree (x=11..18)
-            int wX = cx + 1, wZ = cz;
-            String wKey = wX + "," + wZ;
-            if (adj.containsKey(wKey) || wX >= GRID_SIZE) { for (String n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
-            adj.put(wKey, new HashSet<>()); adj.get(wKey).add(prev); adj.get(prev).add(wKey);
-            corrNodes.add(wKey);
-            // Hub a (hx2, hz2) avec connexion alignee sur l'entree
-            int hx2 = cx, hz2 = cz + 1;
-            if (hz2 + 1 >= GRID_SIZE) { for (String n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
-            String[] hubCells = {hx2+","+hz2, (hx2+1)+","+hz2, hx2+","+(hz2+1), (hx2+1)+","+(hz2+1)};
-            boolean hubFree = true;
-            for (String c : hubCells) { if (adj.containsKey(c) || hx2+1 >= GRID_SIZE) { hubFree = false; break; } }
-            if (!hubFree) { for (String n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
-            // Connecter le hub
-            String hubKey = hx2 + "," + hz2;
-            adj.put(hubKey, new HashSet<>()); adj.get(hubKey).add(wKey); adj.get(wKey).add(hubKey);
-            // Etiqueter le corridor (maintenant la derniere cellule wKey a 2 voisins)
-            for (String n : corrNodes) {
-                List<String> nb = new ArrayList<>(adj.get(n));
-                if (nb.size() == 2) {
-                    String[] na = nb.get(0).split(","), nb2 = nb.get(1).split(",");
-                    String[] kp = n.split(",");
-                    int kx = Integer.parseInt(kp[0]), kz = Integer.parseInt(kp[1]);
-                    boolean coll = (kx - Integer.parseInt(na[0])) == (Integer.parseInt(nb2[0]) - kx) && (kz - Integer.parseInt(na[1])) == (Integer.parseInt(nb2[1]) - kz);
-                    labels.put(n, coll ? pickC(rng) : "I2");
-                }
-            }
-            labels.put(hubKey, "Centrale");
-            // P4 + hub sur l'etage 1
-            Map<String, String> topLbls = new HashMap<>();
-            topLbls.put(hubKey, "Centrale");
-            int[] exOff = {-1, 2, 1, 1, 0};
-            int[] ezOff = {0, 0, -1, 2, 2};
-            for (int ei = 0; ei < 5; ei++) {
-                int ex = hx2 + exOff[ei], ez = hz2 + ezOff[ei];
-                String ek = ex + "," + ez;
-                if (ex >= 0 && ex < GRID_SIZE && ez >= 0 && ez < GRID_SIZE) {
-                    topLbls.put(ek, pickCJ(rng));
-                }
-            }
-            lastTopLabels = topLbls;
-            hubOk = true;
-        }
-        if (!hubOk) { bibNodes = null; return null; }
-        cjList.remove(bibNodes[0]);
-        if (shopNode != null) { labels.put(shopNode, "Shop"); leaves.remove(shopNode); }
-        leaves.remove(bibNodes[1]); leaves.remove(bibNodes[0]);
-
-        // P3: 2 loot obligatoires (types aleatoires parmi les 3, toujours differents)
-        String[] lootTypes = {"Lootdj1", "Lootdj2", "Lootdj3"};
-        List<String> p3LootList = new ArrayList<>(Arrays.asList(lootTypes));
-        Collections.shuffle(p3LootList, rng);
-        String p3LootA = p3LootList.get(0), p3LootB = p3LootList.get(1);
-        int leafLoot, corrLoot;
-        if (p3LootA.equals("Lootdj2") || p3LootB.equals("Lootdj2")) {
-            leafLoot = 1; corrLoot = 1; // Lootdj2 sur couloir, l'autre sur feuille
-        } else {
-            leafLoot = 2; corrLoot = 0; // Lootdj1+Lootdj3 sur feuilles
-        }
-        // P3: 4 a 6 salles monstre (MJ1 a MJ5 aleatoire)
-        int targetM3 = 4 + rng.nextInt(3);
-        int availLeafM = Math.max(0, leaves.size() - leafLoot - 2); // leafLoot + Jardin + Statue
-        if (availLeafM + cjList.size() < targetM3 || leaves.size() < leafLoot + 2) return null;
-        int leafM3 = Math.min(targetM3, availLeafM);
-        int corrM3 = targetM3 - leafM3;
-        if (corrM3 > cjList.size()) { corrM3 = cjList.size(); leafM3 = targetM3 - corrM3; }
-
-        Collections.shuffle(leaves, rng);
-        int li = leafLoot;
-        // Placer les 2 loots P3 avec les types choisis aleatoirement
-        java.util.Map<String, String> p3LootAssign = new HashMap<>();
-        if (leafLoot == 2) {
-            p3LootAssign.put(leaves.get(0), p3LootA);
-            p3LootAssign.put(leaves.get(1), p3LootB);
-        } else { // leafLoot == 1
-            String leafType = p3LootA.equals("Lootdj2") ? p3LootB : p3LootA;
-            p3LootAssign.put(leaves.get(0), leafType);
-        }
-        for (var e : p3LootAssign.entrySet()) labels.put(e.getKey(), e.getValue());
-        String[] leafMTypes = {"MJ1", "MJ3", "MJ5"};
-        for (int i = 0; i < leafM3 && li < leaves.size(); i++) { labels.put(leaves.get(li), leafMTypes[rng.nextInt(3)]); li++; }
-        // Jardin + Statue: 2 feuilles les plus eloignees du campExit
-        String[] cp = campExit.split(",");
-        int cex = Integer.parseInt(cp[0]), cez = Integer.parseInt(cp[1]);
-        List<String> sortedLeaves = new ArrayList<>();
-        for (int i = li; i < leaves.size(); i++) sortedLeaves.add(leaves.get(i));
-        sortedLeaves.sort(Comparator.comparingInt(n -> {
-            String[] lp = n.split(",");
-            return -Math.abs(Integer.parseInt(lp[0]) - cex) - Math.abs(Integer.parseInt(lp[1]) - cez);
-        }));
-        for (int i = li; i < leaves.size(); i++) {
-            String n = leaves.get(i);
-            labels.put(n, n.equals(sortedLeaves.get(0)) ? "Jardin" : (sortedLeaves.size() > 1 && n.equals(sortedLeaves.get(1)) ? "Statue" : "culDJ"));
-        }
-
-        if (cjList.size() < corrM3 + corrLoot + 1) return null;
-        Collections.shuffle(cjList, rng);
-        Set<String> monsterSet = new HashSet<>();
-        String[] corrMTypes = {"MJ2", "MJ4"};
-        int mjPlaced = 0; List<String> remCJ = new ArrayList<>();
-        for (String n : cjList) {
-            if (mjPlaced < corrM3) {
-                boolean adjM = adj.get(n).stream().anyMatch(nb -> monsterSet.contains(nb) || labels.getOrDefault(nb, "").startsWith("MJ"));
-                if (!adjM) { labels.put(n, corrMTypes[rng.nextInt(2)]); monsterSet.add(n); mjPlaced++; } else remCJ.add(n);
-            } else remCJ.add(n);
-        }
-        int lc = 0;
-        if (corrLoot == 1 && lc < remCJ.size()) {
-            String corrType = p3LootA.equals("Lootdj2") ? p3LootA : p3LootB;
-            labels.put(remCJ.get(lc), corrType); lc++;
-        }
-        if (remCJ.size() > lc) labels.put(remCJ.get(lc), "PuitDJ"); else lc--;
-        for (int i = lc + 1; i < remCJ.size(); i++) labels.put(remCJ.get(i), pickCJ(rng));
-        for (String n : ij2List) labels.put(n, "IJ2");
-        for (String n : ij3List) labels.put(n, "IJ3");
-        for (String n : ij4List) labels.put(n, "IJ4");
-        for (String n : ij4List) {
-            String[] ip = n.split(",");
-            int ix = Integer.parseInt(ip[0]), iz = Integer.parseInt(ip[1]);
-            for (String nb : adj.get(n)) {
-                String lbl = labels.get(nb);
-                if (lbl == null || !(lbl.equals("CJ1") || lbl.equals("CJ2") || lbl.equals("CJ3"))) continue;
-                String[] np = nb.split(",");
-                int nx = Integer.parseInt(np[0]), nz = Integer.parseInt(np[1]);
-                List<String> nAdj = new ArrayList<>(adj.get(nb));
-                if (nAdj.size() != 2) continue;
-                String[] a0 = nAdj.get(0).split(","), a1 = nAdj.get(1).split(",");
-                int adx = Integer.parseInt(a1[0]) - Integer.parseInt(a0[0]);
-                int adz = Integer.parseInt(a1[1]) - Integer.parseInt(a0[1]);
-                if (adx * (nx - ix) + adz * (nz - iz) == 0) {
-                    boolean droit = adx == 0 || adz == 0;
-                    if (!droit) labels.put(nb, "IJ2");
-                }
-            }
-        }
-        return labels;
-    }
-
-    // ===================== Part 4: 5 P4 trees (Etage 1, un par sortie du hub) =====================
-
-    private static final int P4_TREE_TARGET = 15;
-    private static final int P4_MAX_IJ3 = 2;
-    private static final int P4_MAX_IJ4 = 1;
-
-    private static boolean generatePart4Tree(Map<String, Set<String>> adj,
-                                              Map<String, String> topLabels,
-                                              int hx, int hz, String missingLootType, Random rng) {
-        String[][] p4Info = {
-            {hx + "," + (hz+2),       "0,1"},
-            {(hx+1) + "," + (hz+2),   "0,1"},
-            {(hx-1) + "," + hz,       "-1,0"},
-            {(hx+2) + "," + hz,       "1,0"},
-            {(hx+1) + "," + (hz-1),   "0,-1"}
-        };
-        List<String[]> p4List = new ArrayList<>(Arrays.asList(p4Info));
-        Collections.shuffle(p4List, rng);
-        p4Info = p4List.toArray(new String[0][]);
-        Set<String> globalOccupied = new HashSet<>();
-        for (int x = hx; x <= hx + 1; x++) for (int z = hz; z <= hz + 1; z++) globalOccupied.add(x + "," + z);
-        // Ajouter les 4 cellules du hub dans adj
-        for (int hx2 = hx; hx2 <= hx + 1; hx2++) for (int hz2 = hz; hz2 <= hz + 1; hz2++) adj.putIfAbsent(hx2 + "," + hz2, new HashSet<>());
-        // 5 CJ fixes pour les 5 sorties, en determinant direction et hub par les coordonnees
-        List<String> cjKeys = new ArrayList<>(), exitKeys = new ArrayList<>();
-        List<int[]> cjDirs = new ArrayList<>();
-        for (int ei = 0; ei < 5; ei++) {
-            String ek = p4Info[ei][0];
-            int[] pp = {Integer.parseInt(ek.split(",")[0]), Integer.parseInt(ek.split(",")[1])};
-            // Determiner la direction d'eloignement et le hub selon la position
-            int adx = 0, ady = 0; String hk = null;
-            if (pp[0] == hx && pp[1] == hz+2) { adx = 0; ady = 1; hk = hx+","+(hz+1); }       // SUD-left
-            else if (pp[0] == hx+1 && pp[1] == hz+2) { adx = 0; ady = 1; hk = (hx+1)+","+(hz+1); } // SUD-right
-            else if (pp[0] == hx-1 && pp[1] == hz) { adx = -1; ady = 0; hk = hx+","+hz; }         // OUEST
-            else if (pp[0] == hx+2 && pp[1] == hz) { adx = 1; ady = 0; hk = (hx+1)+","+hz; }      // EST
-            else if (pp[0] == hx+1 && pp[1] == hz-1) { adx = 0; ady = -1; hk = (hx+1)+","+hz; }   // NORD
-            if (hk == null) continue;
-            int cjx = pp[0] + adx, cjz = pp[1] + ady;
-            String cjk = cjx + "," + cjz;
-            if (cjx >= 0 && cjx < GRID_SIZE && cjz >= 0 && cjz < GRID_SIZE && !globalOccupied.contains(cjk)) {
-                adj.putIfAbsent(ek, new HashSet<>()); adj.putIfAbsent(cjk, new HashSet<>());
-                adj.get(ek).add(hk); adj.get(hk).add(ek);
-                adj.get(ek).add(cjk); adj.get(cjk).add(ek);
-                globalOccupied.add(ek); globalOccupied.add(cjk);
-                cjKeys.add(cjk); cjDirs.add(new int[]{adx, ady}); exitKeys.add(ek);
-            }
-        }
-        // Faire partir les arbres des CJ
-        List<Map<String, Set<String>>> allTrees = new ArrayList<>();
-        List<String> allStarts = new ArrayList<>();
-        for (int ti = 0; ti < 5 && ti < cjKeys.size(); ti++) {
-            String startKey = cjKeys.get(ti);
-            int adx = cjDirs.get(ti)[0], ady = cjDirs.get(ti)[1];
-            Map<String, Set<String>> tr = new HashMap<>();
-            tr.put(startKey, new HashSet<>());
-            globalOccupied.add(startKey);
-            int ci3 = 0, ci4 = 0, target = 13 + rng.nextInt(5);
-            // Pas forces : 2 cellules dans la direction d'eloignement
-            String[] skp = startKey.split(",");
-            int skx = Integer.parseInt(skp[0]), sky = Integer.parseInt(skp[1]);
-            int f1x = skx + adx, f1y = sky + ady;
-            String f1k = f1x + "," + f1y;
-            if (f1x >= 0 && f1x < GRID_SIZE && f1y >= 0 && f1y < GRID_SIZE) {
-                if (!globalOccupied.contains(f1k)) globalOccupied.add(f1k);
-                tr.put(f1k, new HashSet<>());
-                tr.get(startKey).add(f1k); tr.get(f1k).add(startKey);
-                int f2x = f1x + adx, f2y = f1y + ady;
-                String f2k = f2x + "," + f2y;
-                if (f2x >= 0 && f2x < GRID_SIZE && f2y >= 0 && f2y < GRID_SIZE) {
-                    if (!globalOccupied.contains(f2k)) globalOccupied.add(f2k);
-                    tr.put(f2k, new HashSet<>());
-                    tr.get(f1k).add(f2k); tr.get(f2k).add(f1k);
-                }
-            }
-            while (tr.size() < target) {
-                List<String[]> cands = new ArrayList<>();
-                for (String node : tr.keySet()) {
-                    int d = tr.get(node).size(); if (d >= 4) continue;
-                    if (d == 2 && ci3 >= P4_MAX_IJ3) continue;
-                    if (d == 3 && ci4 >= P4_MAX_IJ4) continue;
-                    String[] pp = node.split(",");
-                    int px = Integer.parseInt(pp[0]), py = Integer.parseInt(pp[1]);
-                    for (int[] dir : DIR_OFFSET) {
-                        int nx = px + dir[0], ny = py + dir[1];
-                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
-                        String nk = nx + "," + ny;
-                        if (!globalOccupied.contains(nk)) {
-                            if (d >= 2) {
-                                boolean sk = false;
-                                for (String n1 : tr.get(node)) {
-                                    String[] m1 = n1.split(",");
-                                    int mx = Integer.parseInt(m1[0]), mz = Integer.parseInt(m1[1]);
-                                    for (String n2 : tr.get(node)) {
-                                        if (n1.equals(n2)) continue;
-                                        String[] m2 = n2.split(",");
-                                        if (px - mx == Integer.parseInt(m2[0]) - px && py - mz == Integer.parseInt(m2[1]) - py) {
-                                            Set<String> a1 = tr.get(n1), a2 = tr.get(n2);
-                                            if ((a1 != null && a1.size() >= 3) || (a2 != null && a2.size() >= 3)) { sk = true; break; }
-                                        }
-                                    }
-                                    if (sk) break;
-                                }
-                                if (sk) continue;
-                            }
-                            if (d == 1) {
-                                String on = tr.get(node).iterator().next();
-                                String[] op = on.split(",");
-                                if (px - Integer.parseInt(op[0]) == Integer.parseInt(nk.split(",")[0]) - px
-                                    && py - Integer.parseInt(op[1]) == Integer.parseInt(nk.split(",")[1]) - py) {
-                                    int bx = Integer.parseInt(op[0]) - (px - Integer.parseInt(op[0]));
-                                    String bk = bx + "," + (Integer.parseInt(op[1]) - (py - Integer.parseInt(op[1])));
-                                    if (tr.containsKey(bk) && tr.get(bk).contains(on)) continue;
-                                }
-                            }
-                            cands.add(new String[]{node, nk, dir[0] + "," + dir[1]});
-                        }
-                    }
-                }
-                if (cands.isEmpty()) break;
-                List<String[]> w = new ArrayList<>();
-                for (String[] c : cands) {
-                    String[] cd = c[2].split(",");
-                    int wt = (Integer.parseInt(cd[0]) == adx && Integer.parseInt(cd[1]) == ady) ? 20 : 1;
-                    for (int i = 0; i < wt; i++) w.add(c);
-                }
-                if (w.isEmpty()) break;
-                String[] ch = w.get(rng.nextInt(w.size()));
-                globalOccupied.add(ch[1]); tr.put(ch[1], new HashSet<>());
-                tr.get(ch[0]).add(ch[1]); tr.get(ch[1]).add(ch[0]);
-                int nd = tr.get(ch[0]).size(); if (nd == 3) ci3++; else if (nd == 4) ci4++;
-            }
-            if (tr.size() < 6) continue;
-            allTrees.add(tr); allStarts.add(startKey);
-            // Labelisation
-            List<String> lf = new ArrayList<>(), co = new ArrayList<>(), i3 = new ArrayList<>(), i4 = new ArrayList<>();
-            for (String k : tr.keySet()) {
-                int d = tr.get(k).size();
-                if (d == 1) lf.add(k); else if (d == 2) co.add(k); else if (d == 3) i3.add(k); else if (d == 4) i4.add(k);
-            }
-            // Labeliser startKey selon son degre et alignement
-            int skDeg = tr.get(startKey).size();
-            if (skDeg == 1) topLabels.put(startKey, pickCJ(rng));
-            else if (skDeg == 2) {
-                List<String> nb = new ArrayList<>(tr.get(startKey));
-                String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                topLabels.put(startKey, (Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0 || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0) ? pickCJ(rng) : "IJ2");
-            } else if (skDeg == 3) topLabels.put(startKey, "IJ3");
-            else if (skDeg == 4) topLabels.put(startKey, "IJ4");
-            for (String k : i3) if (!topLabels.containsKey(k)) topLabels.put(k, "IJ3");
-            for (String k : i4) if (!topLabels.containsKey(k)) topLabels.put(k, "IJ4");
-            for (String k : co) {
-                if (topLabels.containsKey(k)) continue;
-                List<String> nb = new ArrayList<>(tr.get(k));
-                if (nb.size() == 2) {
-                    String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                    topLabels.put(k, (Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0 || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0) ? pickCJ(rng) : "IJ2");
-                }
-            }
-            for (String k : lf) if (!topLabels.containsKey(k)) topLabels.put(k, "culDJ");
-            for (String k : i4) {
-                String[] ip = k.split(","); int ix = Integer.parseInt(ip[0]), iz = Integer.parseInt(ip[1]);
-                for (String nb : tr.get(k)) {
-                    String lbl = topLabels.get(nb);
-                    if (lbl == null || !(lbl.equals("CJ1") || lbl.equals("CJ2") || lbl.equals("CJ3"))) continue;
-                    String[] np = nb.split(","); int nx = Integer.parseInt(np[0]), nz = Integer.parseInt(np[1]);
-                    List<String> nAd = new ArrayList<>(tr.get(nb));
-                    if (nAd.size() != 2) continue;
-                    String[] a0 = nAd.get(0).split(","), a1 = nAd.get(1).split(",");
-                    if ((Integer.parseInt(a1[0]) - Integer.parseInt(a0[0])) * (nx - ix) + (Integer.parseInt(a1[1]) - Integer.parseInt(a0[1])) * (nz - iz) == 0) topLabels.put(nb, "IJ2");
-                }
-            }
-            for (var e : tr.entrySet()) {
-                adj.putIfAbsent(e.getKey(), new HashSet<>());
-                adj.get(e.getKey()).addAll(e.getValue());
-            }
-        }
-        // Labeliser les 5 sorties selon leur adjacence reelle dans adj
-        for (String ek : exitKeys) {
-            if (topLabels.containsKey(ek)) continue;
-            Set<String> skn = adj.get(ek);
-            if (skn == null) continue;
-            int deg = skn.size();
-            if (deg == 1) topLabels.put(ek, "culDJ");
-            else if (deg == 2) {
-                List<String> nb = new ArrayList<>(skn);
-                String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                boolean straight = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0
-                    || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0;
-                topLabels.put(ek, straight ? pickCJ(rng) : "IJ2");
-            } else if (deg == 3) topLabels.put(ek, "IJ3");
-            else if (deg == 4) topLabels.put(ek, "IJ4");
-        }
-        // Labeliser les CJ keys (startKeys des arbres) selon leur adjacence dans adj (apres fusion hub+tree)
-        for (String cjk : cjKeys) {
-            Set<String> cn = adj.get(cjk);
-            if (cn == null) continue;
-            int deg = cn.size();
-            if (deg == 1) topLabels.put(cjk, "culDJ");
-            else if (deg == 2) {
-                List<String> nb = new ArrayList<>(cn);
-                String[] p1 = nb.get(0).split(","), p2 = nb.get(1).split(",");
-                boolean straight = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0
-                    || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0;
-                topLabels.put(cjk, straight ? pickCJ(rng) : "IJ2");
-            } else if (deg == 3) topLabels.put(cjk, "IJ3");
-            else if (deg == 4) topLabels.put(cjk, "IJ4");
-        }
-        if (allTrees.size() < 5) return false;
-        // Assigner roles: gobelin, chapelle, prison sur 3 arbres distincts
-        List<Integer> idxs = new ArrayList<>(Arrays.asList(0,1,2,3,4));
-        Collections.shuffle(idxs, rng);
-        int gIdx = idxs.get(0), cIdx = idxs.get(1), pIdx = idxs.get(2);
-        Set<String> goblinCells = new HashSet<>();
-        // Gobelin sur une feuille
-        Map<String, Set<String>> gt = allTrees.get(gIdx);
-        String gLeaf = null; Map<String, Set<String>> ga = null;
-        String firstGob = null; String parent = null;
-        // Essayer chaque culDJ jusqu'a en trouver un qui permet une ligne droite
-        for (String testLeaf : new ArrayList<>(gt.keySet())) {
-            if (topLabels.get(testLeaf) == null || !topLabels.get(testLeaf).equals("culDJ")) continue;
-            parent = gt.get(testLeaf).iterator().next();
-            String[] tp = parent.split(",");
-            String[] lp = testLeaf.split(",");
-            int tlx = Integer.parseInt(lp[0]), tly = Integer.parseInt(lp[1]);
-            int gdx = tlx - Integer.parseInt(tp[0]), gdy = tly - Integer.parseInt(tp[1]);
-            int[][] tryDirs = {{gdx, gdy}};
-            firstGob = null;
-            for (int[] td : tryDirs) {
-                int tx = tlx + td[0], ty = tly + td[1];
-                if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE && !globalOccupied.contains(tx+","+ty)) {
-                    firstGob = tx+","+ty; break;
-                }
-            }
-            if (firstGob != null) { gLeaf = testLeaf; break; }
-        }
-        if (gLeaf != null && firstGob != null) {
-            topLabels.put(gLeaf, "PorteGob");
-            ga = new HashMap<>();
-            ga.put(gLeaf, new HashSet<>());
-            globalOccupied.add(firstGob); ga.put(firstGob, new HashSet<>());
-            ga.get(gLeaf).add(firstGob); ga.get(firstGob).add(gLeaf);
-            Integer[] gobStart = {Integer.parseInt(firstGob.split(",")[0]), Integer.parseInt(firstGob.split(",")[1])};
-            TreeResult gobRaw = generateRawTree(20, 25, 3, 1, 2, gobStart, new HashSet<>(globalOccupied));
-            if (gobRaw.adj.size() < 6) { gLeaf = null; firstGob = null; ga = null; }
-            if (gLeaf != null) for (var e : gobRaw.adj.entrySet()) {
-                ga.putIfAbsent(e.getKey(), new HashSet<>());
-                ga.get(e.getKey()).addAll(e.getValue());
-            }
-                // Forcer PorteGob a max 2 voisins (parent + 1 tree)
-                if (ga.get(gLeaf).size() > 2) {
-                    String keepNb = null;
-                    for (String nb : ga.get(gLeaf)) { if (!nb.equals(parent)) { keepNb = nb; break; } }
-                    for (String nb : new ArrayList<>(ga.get(gLeaf))) {
-                        if (!nb.equals(parent) && !nb.equals(keepNb)) { ga.get(nb).remove(gLeaf); ga.get(gLeaf).remove(nb); }
-                    }
-                }
-                for (String nk : ga.keySet()) globalOccupied.add(nk);
-                // Labeliser: deg 1 = CDG, deg 2 droit = CG1, deg 2 virage = GI2, deg 3 = GI3, deg 4 = GI4
-                List<String> gl = new ArrayList<>(), gco = new ArrayList<>(), gi3 = new ArrayList<>(), gi4 = new ArrayList<>();
-                for (String k : ga.keySet()) {
-                    if (k.equals(gLeaf)) continue;
-                    int d = ga.get(k).size();
-                    if (d == 1) gl.add(k); else if (d == 2) gco.add(k); else if (d == 3) gi3.add(k); else if (d == 4) gi4.add(k);
-                }
-                for (String k : gi3) if (!topLabels.containsKey(k)) topLabels.put(k, "GI3");
-                for (String k : gi4) if (!topLabels.containsKey(k)) topLabels.put(k, "GI4");
-                // PuitG sur un couloir droit
-                for (String k : gco) {
-                    List<String> nb2 = new ArrayList<>(ga.get(k));
-                    String[] p1 = nb2.get(0).split(","), p2 = nb2.get(1).split(",");
-                    if (Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0 || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0) { topLabels.put(k, "PuitG"); break; }
-                }
-                // MarchG, ArmG sur feuilles
-                Collections.shuffle(gl, rng);
-                int gli = 0;
-                if (gli < gl.size()) { topLabels.put(gl.get(gli), "MarchG"); gli++; }
-                if (gli < gl.size()) { topLabels.put(gl.get(gli), "ArmG"); gli++; }
-                if (gli < gl.size()) { topLabels.put(gl.get(gli), "TresorG"); gli++; }
-                // Corridors restants: CG1 (droit) ou GI2 (virage)
-                for (String k : gco) if (!topLabels.containsKey(k)) {
-                    List<String> nb2 = new ArrayList<>(ga.get(k));
-                    String[] p1 = nb2.get(0).split(","), p2 = nb2.get(1).split(",");
-                    boolean st = Integer.parseInt(p1[0])-Integer.parseInt(p2[0])==0 || Integer.parseInt(p1[1])-Integer.parseInt(p2[1])==0;
-                    topLabels.put(k, st ? "CG1" : "GI2");
-                }
-                for (String k : gl) if (!topLabels.containsKey(k)) topLabels.put(k, "CDG");
-                // Maisons: 3-5, remplacent des CG1/GI2/CDG, pas adjacentes entre elles
-                List<String> hl = new ArrayList<>();
-                for (String k : ga.keySet()) {
-                    if (k.equals(gLeaf)) continue;
-                    String v = topLabels.get(k);
-                    if (v != null && (v.equals("CG1") || v.equals("GI2") || v.equals("CDG") || v.equals("GI3") || v.equals("GI4"))) hl.add(k);
-                }
-                Collections.shuffle(hl, rng);
-                Set<String> hs = new HashSet<>();
-                int hMax = 3 + rng.nextInt(3);
-                for (String k : hl) {
-                    if (hs.size() >= hMax) break;
-                    int dk = ga.get(k).size();
-                    // Seulement les cellules qui peuvent devenir une maison (deg1, deg3, ou deg2 virage)
-                    if (dk == 2) {
-                        List<String> nb2 = new ArrayList<>(ga.get(k));
-                        String[] p1 = nb2.get(0).split(","), p2 = nb2.get(1).split(",");
-                        boolean straight = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) == 0
-                            || Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) == 0;
-                        if (straight) continue; // CG1, pas une maison
-                    }
-                    boolean treeAdj = false; for (String nb : ga.getOrDefault(k, Set.of())) if (hs.contains(nb)) { treeAdj = true; break; }
-                    if (treeAdj) continue;
-                    boolean adjSpecial = false; for (String nb : ga.getOrDefault(k, Set.of())) { String vl = topLabels.get(nb); if (vl != null && (vl.equals("PuitG") || vl.equals("MarchG") || vl.equals("ArmG") || vl.equals("TresorG"))) { adjSpecial = true; break; } }
-                    if (adjSpecial) continue;
-                    hs.add(k);
-                }
-                for (String k : hs) {
-                    int d = ga.get(k).size();
-                    if (d == 3) topLabels.put(k, "MG3");
-                    else if (d == 2) {
-                        List<String> nb2 = new ArrayList<>(ga.get(k));
-                        String[] p1 = nb2.get(0).split(","), p2 = nb2.get(1).split(",");
-                        boolean turn = Integer.parseInt(p1[0]) - Integer.parseInt(p2[0]) != 0
-                            && Integer.parseInt(p1[1]) - Integer.parseInt(p2[1]) != 0;
-                        if (turn) topLabels.put(k, "MG2");
-                    } else if (d == 1) topLabels.put(k, "MG1");
-                }
-                for (var e : ga.entrySet()) { adj.putIfAbsent(e.getKey(), new HashSet<>()); adj.get(e.getKey()).addAll(e.getValue()); goblinCells.add(e.getKey()); }
-                goblinCells.add(gLeaf);
-            }
-        // Chapelle + Crypte
-        Map<String, Set<String>> ct = allTrees.get(cIdx);
-        String cs = allStarts.get(cIdx);
-        for (String k : ct.keySet()) {
-            String vl = topLabels.get(k);
-            if (ct.get(k).size() != 1 || k.equals(cs) || vl == null || !vl.equals("culDJ")) continue;
-            String mb = ct.get(k).iterator().next();
-            String[] kp = k.split(","), mp = mb.split(",");
-            int ex = Integer.parseInt(kp[0]) + (Integer.parseInt(kp[0]) - Integer.parseInt(mp[0]));
-            int ez = Integer.parseInt(kp[1]) + (Integer.parseInt(kp[1]) - Integer.parseInt(mp[1]));
-            if (ex < 0 || ex >= GRID_SIZE || ez < 0 || ez >= GRID_SIZE || globalOccupied.contains(ex+","+ez)) continue;
-            globalOccupied.add(ex+","+ez);
-            adj.put(ex+","+ez, new HashSet<>());
-            adj.get(k).add(ex+","+ez); adj.get(ex+","+ez).add(k);
-            topLabels.put(k, "Chapelle1"); topLabels.put(ex+","+ez, "Chapelle2");
-            int dir = (Integer.parseInt(kp[0])-Integer.parseInt(mp[0])==1)?0:(Integer.parseInt(kp[0])-Integer.parseInt(mp[0])==-1)?2:(Integer.parseInt(kp[1])-Integer.parseInt(mp[1])==1)?1:3;
-            int pathLen = 3 + rng.nextInt(3);
-            int turnAt = 1 + rng.nextInt(pathLen - 1);
-            int turnDir = rng.nextBoolean() ? 1 : -1;
-            String pv = ex+","+ez; int cx = ex, cz = ez;
-            for (int s = 0; s < pathLen; s++) {
-                if (s == turnAt) dir = (dir + turnDir + 4) % 4;
-                int ncx = cx + DIR_OFFSET[dir][0], ncz = cz + DIR_OFFSET[dir][1];
-                if (ncx < 0 || ncx >= GRID_SIZE || ncz < 0 || ncz >= GRID_SIZE || globalOccupied.contains(ncx+","+ncz)) break;
-                globalOccupied.add(ncx+","+ncz); adj.put(ncx+","+ncz, new HashSet<>());
-                adj.get(pv).add(ncx+","+ncz); adj.get(ncx+","+ncz).add(pv);
-                topLabels.put(ncx+","+ncz, s == turnAt - 1 ? "I2" : pickC(rng)); pv = ncx+","+ncz; cx = ncx; cz = ncz;
-            }
-            for (int s = 0; s < 2; s++) {
-                int ncx = cx + DIR_OFFSET[dir][0], ncz = cz + DIR_OFFSET[dir][1];
-                if (ncx < 0 || ncx >= GRID_SIZE || ncz < 0 || ncz >= GRID_SIZE || globalOccupied.contains(ncx+","+ncz)) break;
-                globalOccupied.add(ncx+","+ncz); adj.put(ncx+","+ncz, new HashSet<>());
-                adj.get(pv).add(ncx+","+ncz); adj.get(ncx+","+ncz).add(pv);
-                topLabels.put(ncx+","+ncz, s == 0 ? "Crypte1" : "Crypte2"); pv = ncx+","+ncz; cx = ncx; cz = ncz;
-            }
-            break;
-        }
-        // Prison
-        Map<String, Set<String>> pt = allTrees.get(pIdx);
-        String ps = allStarts.get(pIdx);
-        for (String pk : pt.keySet()) {
-            String vp = topLabels.get(pk);
-            if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || !vp.equals("culDJ")) continue;
-            String nb = pt.get(pk).iterator().next();
-            String[] kp = pk.split(","), np = nb.split(",");
-            int dx = Integer.parseInt(kp[0]) - Integer.parseInt(np[0]), dy = Integer.parseInt(kp[1]) - Integer.parseInt(np[1]);
-            int d = dx == 1 ? 0 : dx == -1 ? 2 : dy == 1 ? 1 : 3;
-            int x2 = Integer.parseInt(kp[0]) + dx, z2 = Integer.parseInt(kp[1]) + dy;
-            int r1 = (d+1)%4, x3 = x2 + DIR_OFFSET[r1][0], z3 = z2 + DIR_OFFSET[r1][1];
-            int r2 = (r1+1)%4, x4 = x3 + DIR_OFFSET[r2][0], z4 = z3 + DIR_OFFSET[r2][1];
-            if (x2 < 0 || x2 >= GRID_SIZE || z2 < 0 || z2 >= GRID_SIZE || x3 < 0 || x3 >= GRID_SIZE || z3 < 0 || z3 >= GRID_SIZE || x4 < 0 || x4 >= GRID_SIZE || z4 < 0 || z4 >= GRID_SIZE) continue;
-            if (globalOccupied.contains(x2+","+z2) || globalOccupied.contains(x3+","+z3) || globalOccupied.contains(x4+","+z4)) continue;
-            topLabels.put(pk, "PrisonC1");
-            String[] prisonCells = {x2+","+z2, x3+","+z3, x4+","+z4};
-            String[] prisonLabels = {"PrisonC2", "PrisonC3", "PrisonC4"};
-            String pv2 = pk;
-            for (int pi = 0; pi < prisonCells.length; pi++) {
-                globalOccupied.add(prisonCells[pi]);
-                adj.put(prisonCells[pi], new HashSet<>());
-                adj.get(pv2).add(prisonCells[pi]); adj.get(prisonCells[pi]).add(pv2);
-                topLabels.put(prisonCells[pi], prisonLabels[pi]); pv2 = prisonCells[pi];
-            }
-            break;
-        }
-        // Helper: verifier si une cellule est une sortie du hub
-        java.util.function.Predicate<String> isHubExit = k -> {
-            String[] kp = k.split(",");
-            int kx = Integer.parseInt(kp[0]), kz = Integer.parseInt(kp[1]);
-            return (kx == hx-1 && kz == hz) || (kx == hx+2 && kz == hz) || (kx == hx+1 && kz == hz-1) || (kx == hx && kz == hz+2) || (kx == hx+1 && kz == hz+2);
-        };
-        // MJ 5-10 : MJ1/3/5 sur culDJ, MJ2/4 sur CJ, jamais adjacents entre eux, jamais 2 memes types sur le meme arbre
-        // Exclure les cellules gobelin du pool MJ
-        int mjT = 5 + rng.nextInt(6);
-        Map<String, Integer> treeForNode = new HashMap<>();
-        for (int ti = 0; ti < allTrees.size(); ti++) for (String k : allTrees.get(ti).keySet()) treeForNode.put(k, ti);
-        Set<String> mjPlacedKeys = new HashSet<>();
-        Map<Integer, Set<String>> mjTypesOnTree = new HashMap<>();
-        for (int ti = 0; ti < allTrees.size(); ti++) mjTypesOnTree.put(ti, new HashSet<>());
-        String[] leafMj = {"MJ1", "MJ3", "MJ5"}, corrMj = {"MJ2", "MJ4"};
-        for (int attempt = 0; attempt < 50 && mjPlacedKeys.size() < mjT; attempt++) {
-            // Chercher une feuille culDJ ou un couloir CJ non adjacent a un MJ deja place
-            String best = null; boolean bestIsLeaf = false; String bestType = null;
-            for (String k : topLabels.keySet()) {
-                if (mjPlacedKeys.contains(k)) continue;
-                if (goblinCells.contains(k)) continue;
-                if (isHubExit.test(k)) continue;
-                if (mjPlacedKeys.size() >= mjT) break;
-                String v = topLabels.get(k);
-                if (v == null) continue;
-                boolean isLeaf = v.equals("culDJ");
-                boolean isCorr = v.startsWith("CJ") || v.startsWith("CG");
-                if (!isLeaf && !isCorr) continue;
-                // Verifier adjacence avec un MJ deja place
-                boolean adjMj = false;
-                for (String nb : adj.getOrDefault(k, Set.of())) if (mjPlacedKeys.contains(nb)) { adjMj = true; break; }
-                if (adjMj) continue;
-                // Verifier qu'il reste un type non utilise sur cet arbre
-                int ti = treeForNode.getOrDefault(k, -1);
-                Set<String> usedOnTree = mjTypesOnTree.getOrDefault(ti, new HashSet<>());
-                String[] pool = isLeaf ? leafMj : corrMj;
-                String availType = null;
-                for (String t : pool) if (!usedOnTree.contains(t)) { availType = t; break; }
-                if (availType == null) continue;
-                best = k; bestIsLeaf = isLeaf; bestType = availType; break;
-            }
-            if (best != null) {
-                topLabels.put(best, bestType);
-                mjPlacedKeys.add(best);
-                int ti = treeForNode.getOrDefault(best, -1);
-                if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
-            }
-        }
-        // MarchandNoir: uniquement sur culDJ, pas sur sortie hub
-        for (var e : new ArrayList<>(topLabels.entrySet())) {
-            if (e.getValue() != null && e.getValue().equals("culDJ") && !isHubExit.test(e.getKey())) {
-                topLabels.put(e.getKey(), "MarchandNoir"); break;
-            }
-        }
-        // Loot manquant: Lootdj2 sur CJ, Lootdj1/3 sur culDJ, pas dans le tree gobelin
-        if (missingLootType != null) {
-            boolean lootCorr = missingLootType.equals("Lootdj2");
-            String lk = null;
-            for (var e : topLabels.entrySet()) {
-                String v = e.getValue(), k = e.getKey(); if (v == null || goblinCells.contains(k) || isHubExit.test(k)) continue;
-                if (lootCorr && (v.startsWith("CJ") || v.startsWith("CG"))) { lk = k; break; }
-                if (!lootCorr && v.equals("culDJ")) { lk = k; break; }
-            }
-            if (lk != null) topLabels.put(lk, missingLootType);
-        }
-        // PuitDJ: 1 sur couloir CJ, pas dans le tree gobelin, pas sur sortie hub
-        String puitDJKey = null;
-        for (var e : topLabels.entrySet()) {
-            String v = e.getValue(), k = e.getKey(); if (v == null || goblinCells.contains(k) || isHubExit.test(k)) continue;
-            if (v.startsWith("CJ") || v.startsWith("CG")) { puitDJKey = k; break; }
-        }
-        if (puitDJKey != null) topLabels.put(puitDJKey, "PuitDJ");
-        // Validation
-        boolean hc1 = topLabels.containsValue("Chapelle1") && topLabels.containsValue("Crypte1");
-        boolean hpr = false; for (var e : topLabels.entrySet()) if (e.getValue() != null && e.getValue().startsWith("PrisonC")) hpr = true;
-        boolean hpg = topLabels.containsValue("PorteGob");
-        boolean hmn = topLabels.containsValue("MarchandNoir");
-        boolean hlt = topLabels.containsValue("Lootdj1") || topLabels.containsValue("Lootdj2") || topLabels.containsValue("Lootdj3");
-        boolean hPuitDJ = topLabels.containsValue("PuitDJ");
-        int gbc = 0; for (var e : topLabels.entrySet()) { String v = e.getValue(); if (v != null && (v.equals("PuitG") || v.equals("MarchG") || v.equals("ArmG") || v.equals("TresorG"))) gbc++; }
-        boolean hmg = false; for (var e : topLabels.entrySet()) { String v = e.getValue(); if (v != null && v.startsWith("MG")) { hmg = true; break; } }
-        if (!hc1 || !hpr || !hpg || !hmn || !hlt || !hPuitDJ || !hmg || gbc < 2 || mjPlacedKeys.size() < 5) return false;
-        return true;
-    }
-
-    private static long lastSeed = 0;
-    private static Map<String, String> lastTopLabels = null;
-
-    public static long getLastSeed() { return lastSeed; }
-    public static Map<String, String> getLastTopLabels() { return lastTopLabels; }
-
-    public static DungeonResult generateDungeon(long seed) {
-        int maxAttempts = seed != 0 ? 20 : 100;
-        lastTopLabels = null;
-        for (int outer = 0; outer < maxAttempts; outer++) {
-            long actualSeed = seed != 0 && outer < 1 ? seed : System.nanoTime() + outer;
-            Random rng = new Random(actualSeed);
-            lastSeed = actualSeed;
-
-            TreeResult sp1 = null;
-            Map<String, String> labels = null;
-            for (int inner = 0; inner < 50; inner++) {
-                TreeResult try1 = generatePart1Tree();
-                if (try1.adj.size() < 10) continue;
-                List<String> leaves = new ArrayList<>();
-                for (var e : try1.adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(try1.startKey)) leaves.add(e.getKey());
-                if (leaves.size() < 4) continue;
-                if (!hasPrisonCandidate(try1.adj, try1.startKey)) continue;
-                Map<String, String> tryLabels = analyzePart1(try1.startKey, try1.adj, rng);
-                if (tryLabels == null) continue;
-                sp1 = try1; labels = tryLabels; break;
-            }
-            if (sp1 == null) continue;
-
-            String porteKey = findKeyByValue(labels, "porte");
-            if (porteKey == null) continue;
-
-            TavernResult tavern = placeTavernAndPath(sp1.adj, porteKey, rng);
-            if (tavern == null) continue;
-            for (var e : tavern.tavern.entrySet()) labels.put(e.getValue(), e.getKey());
-
-            TreeResult sp2 = generatePart2Tree(tavern.exitKey, new HashSet<>(sp1.adj.keySet()));
-            if (sp2.adj.size() < 5) continue;
-            for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
-
-            int p1Loot = 0; for (String v : labels.values()) if (v.equals("Loot1")) p1Loot++;
-            int totalTarget = 1 + rng.nextInt(2);
-            if (p1Loot > totalTarget) {
-                List<String> lootNodes = new ArrayList<>();
-                for (var e : labels.entrySet()) if (e.getValue().equals("Loot1") && !e.getKey().equals(sp1.startKey)) lootNodes.add(e.getKey());
-                Collections.shuffle(lootNodes, rng);
-                for (int i = 0; i < p1Loot - totalTarget && i < lootNodes.size(); i++) labels.put(lootNodes.get(i), "cul");
-            }
-
-            labels = analyzePart2(sp1.adj, tavern.exitKey, labels, tavern.pathSet, rng);
-            if (labels == null) continue;
-
-            String porte2Key = findKeyByValue(labels, "porte2");
-            if (porte2Key == null) continue;
-
-            CampResult camp = placeCampAndPath(sp1.adj, porte2Key, rng);
-            if (camp == null) continue;
-            for (String e : camp.campPathSet) {
-                int deg = sp1.adj.get(e).size();
-                if (deg == 2) {
-                    List<String> nb = new ArrayList<>(sp1.adj.get(e));
-                    String[] p1nb = nb.get(0).split(","), p2nb = nb.get(1).split(",");
-                    labels.put(e, (p1nb[0].equals(p2nb[0]) || p1nb[1].equals(p2nb[1])) ? pickC(rng) : "I2");
-                }
-            }
-            for (var e : camp.campNodes.entrySet()) labels.put(e.getValue(), e.getKey());
-
-            TreeResult sp3 = generatePart3Tree(camp.campExit, new HashSet<>(sp1.adj.keySet()), rng);
-            if (sp3.adj.size() < 10) continue;
-            if (sp3.adj.get(sp3.startKey).isEmpty()) continue;
-            for (var e : sp3.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
-
-            labels = analyzePart3(sp1.adj, camp.campExit, labels, rng);
-            if (labels != null) {
-                // Trouver le type Lootdj manquant en P3 pour le placer en P4
-                String missingLoot = null;
-                Set<String> p3LootTypes = new HashSet<>();
-                for (String v : labels.values()) {
-                    if (v.startsWith("Lootdj")) p3LootTypes.add(v);
-                }
-                String[] allLootTypes = {"Lootdj1", "Lootdj2", "Lootdj3"};
-                for (String lt : allLootTypes) {
-                    if (!p3LootTypes.contains(lt)) { missingLoot = lt; break; }
-                }
-
-                Map<String, Set<String>> p4Adj = new HashMap<>();
-                if (lastTopLabels != null) {
-                    String hubKey = null;
-                    for (var e : lastTopLabels.entrySet()) {
-                        if (e.getValue().equals("Centrale")) { hubKey = e.getKey(); break; }
-                    }
-                    if (hubKey != null) {
-                        String[] hp = hubKey.split(",");
-                        int hx = Integer.parseInt(hp[0]), hz = Integer.parseInt(hp[1]);
-                        if (!generatePart4Tree(p4Adj, lastTopLabels, hx, hz, missingLoot, rng)) { continue; }
-                    }
-                }
-                DungeonResult dr = new DungeonResult();
-                dr.adj = sp1.adj; dr.labels = labels; dr.startKey = sp1.startKey;
-                dr.startX = sp1.startX; dr.startY = sp1.startY;
-                dr.topLabels = lastTopLabels;
-                dr.p4Adj = p4Adj.isEmpty() ? null : p4Adj;
-                dr.missingLootType = missingLoot;
-                return dr;
-            }
-        }
-        return null;
-    }
-
-    private static TreeResult generatePart2Tree(String startKey, Set<String> blocked) {
-        String[] s = startKey.split(",");
-        return generateRawTree(PART2_TARGET_MIN, PART2_TARGET_MAX, PART2_MAX_I3, 1, PART2_STRAIGHT_WEIGHT,
-            new Integer[]{Integer.parseInt(s[0]), Integer.parseInt(s[1])}, blocked);
-    }
-
-    // ===================== Part 3: Trunk tree =====================
-
-    private static void addEdge(Map<String, Set<String>> adj, Set<String> occupied, String a, String b) {
+    private static void addEdge(Map<Point, Set<Point>> adj, Set<Point> occupied, Point a, Point b) {
         adj.putIfAbsent(a, new HashSet<>());
         adj.putIfAbsent(b, new HashSet<>());
         adj.get(a).add(b);
@@ -1578,15 +825,13 @@ public class DungeonAlgo {
         occupied.add(b);
     }
 
-    private static void growMiniTree(String rootKey, int pDir, Map<String, Set<String>> adj,
-                                     Set<String> occupied, Random rng) {
-        String[] rp = rootKey.split(",");
-        int rx = Integer.parseInt(rp[0]), ry = Integer.parseInt(rp[1]);
-        int nx = rx + DIR_OFFSET[pDir][0], ny = ry + DIR_OFFSET[pDir][1];
-        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE || occupied.contains(nx+","+ny)) return;
+    private static void growMiniTree(Point root, int pDir, Map<Point, Set<Point>> adj,
+                                     Set<Point> occupied, Random rng) {
+        Point n = root.move(DIR_OFFSET[pDir]);
+        if (n.isOutOfBounds() || occupied.contains(n)) return;
 
-        addEdge(adj, occupied, rootKey, nx+","+ny);
-        int cDir = pDir, cx = nx, cy = ny;
+        addEdge(adj, occupied, root, n);
+        int cDir = pDir; Point c = n;
         int branchLen = 1 + rng.nextInt(3);
         int st = 0;
 
@@ -1596,34 +841,28 @@ public class DungeonAlgo {
                 cDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
                 st = 0;
             }
-            int nnx = cx + DIR_OFFSET[cDir][0], nny = cy + DIR_OFFSET[cDir][1];
-            if (nnx < 0 || nnx >= GRID_SIZE || nny < 0 || nny >= GRID_SIZE || occupied.contains(nnx+","+nny)) break;
-            addEdge(adj, occupied, cx+","+cy, nnx+","+nny);
-            cx = nnx; cy = nny;
+            Point nn = c.move(DIR_OFFSET[cDir]);
+            if (nn.isOutOfBounds() || occupied.contains(nn)) break;
+            addEdge(adj, occupied, c, nn);
+            c = nn;
 
             if (rng.nextFloat() < 0.25) {
                 int sDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                int snx = cx + DIR_OFFSET[sDir][0], sny = cy + DIR_OFFSET[sDir][1];
-                if (snx >= 0 && snx < GRID_SIZE && sny >= 0 && sny < GRID_SIZE && !occupied.contains(snx+","+sny)) {
-                    addEdge(adj, occupied, cx+","+cy, snx+","+sny);
+                Point sn = c.move(DIR_OFFSET[sDir]);
+                if (!sn.isOutOfBounds() && !occupied.contains(sn)) {
+                    addEdge(adj, occupied, c, sn);
                 }
             }
         }
     }
 
-    private static void growSplitBranches(String endKey, Map<String, Set<String>> adj,
-                                          Set<String> occupied, Random rng) {
-        String[] ep = endKey.split(",");
-        int ex = Integer.parseInt(ep[0]), ey = Integer.parseInt(ep[1]);
-
+    private static void growSplitBranches(Point e, Map<Point, Set<Point>> adj,
+                                          Set<Point> occupied, Random rng) {
         List<Integer> ad = new ArrayList<>();
         for (int d = 0; d < 4; d++) {
-            int nx = ex + DIR_OFFSET[d][0], ny = ey + DIR_OFFSET[d][1];
-            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && !occupied.contains(nx+","+ny)) {
-                boolean isBack = adj.get(endKey).stream().anyMatch(nb -> {
-                    String[] np = nb.split(",");
-                    return Integer.parseInt(np[0]) == nx && Integer.parseInt(np[1]) == ny;
-                });
+            Point n = e.move(DIR_OFFSET[d]);
+            if (!n.isOutOfBounds() && !occupied.contains(n)) {
+                boolean isBack = adj.get(e).stream().anyMatch(nb -> nb.equals(n));
                 if (!isBack) ad.add(d);
             }
         }
@@ -1631,56 +870,57 @@ public class DungeonAlgo {
 
         for (int b = 0; b < Math.min(2, ad.size()); b++) {
             int bDir = ad.get(b);
-            int bx = ex + DIR_OFFSET[bDir][0], by = ey + DIR_OFFSET[bDir][1];
-            addEdge(adj, occupied, endKey, bx+","+by);
+            Point bk = e.move(DIR_OFFSET[bDir]);
+            addEdge(adj, occupied, e, bk);
 
             int bl = 3 + rng.nextInt(4);
-            int cDir = bDir, cx = bx, cy = by, st = 0;
+            int cDir = bDir; Point c = bk; int st = 0;
             for (int s = 0; s < bl; s++) {
                 st++;
                 if (st >= 2 && rng.nextFloat() < 0.3) {
                     cDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
                     st = 0;
                 }
-                int nnx = cx + DIR_OFFSET[cDir][0], nny = cy + DIR_OFFSET[cDir][1];
-                if (nnx < 0 || nnx >= GRID_SIZE || nny < 0 || nny >= GRID_SIZE || occupied.contains(nnx+","+nny)) break;
-                addEdge(adj, occupied, cx+","+cy, nnx+","+nny);
-                cx = nnx; cy = nny;
+                Point nn = c.move(DIR_OFFSET[cDir]);
+                if (nn.isOutOfBounds() || occupied.contains(nn)) break;
+                addEdge(adj, occupied, c, nn);
+                c = nn;
             }
         }
     }
 
     private static TreeResult generateTrunkTree(int targetMin, int targetMax,
-                                                 Integer[] start, Set<String> blocked, int maxI3, int maxI4, Random rng) {
-        Map<String, Set<String>> adj = new HashMap<>();
-        Set<String> occupied = new HashSet<>(blocked != null ? blocked : new HashSet<>());
+                                                 Point startPt, Set<Point> blocked, int maxI3, int maxI4, Random rng) {
+        Map<Point, Set<Point>> adj = new HashMap<>();
+        Set<Point> occupied = new HashSet<>(blocked != null ? blocked : new HashSet<>());
 
-        int sx = start != null ? start[0] : GRID_SIZE / 2;
-        int sy = start != null ? start[1] : GRID_SIZE / 2;
-        String startKey = sx + "," + sy;
-        adj.put(startKey, new HashSet<>());
-        occupied.add(startKey);
+        Point start = startPt != null ? startPt : new Point(GRID_SIZE / 2, GRID_SIZE / 2);
+        adj.put(start, new HashSet<>());
+        occupied.add(start);
 
-        // Phase 1: Find first direction and build trunk
         List<int[]> dirs = new ArrayList<>(Arrays.asList(DIR_OFFSET));
         Collections.shuffle(dirs, rng);
         int dir = -1;
         for (int[] d : dirs) {
-            int tx = sx + d[0], ty = sy + d[1];
-            if (tx >= 0 && tx < GRID_SIZE && ty >= 0 && ty < GRID_SIZE && !occupied.contains(tx + "," + ty)) {
+            Point target = start.move(d);
+            if (!target.isOutOfBounds() && !occupied.contains(target)) {
                 for (int i = 0; i < 4; i++) {
                     if (DIR_OFFSET[i][0] == d[0] && DIR_OFFSET[i][1] == d[1]) { dir = i; break; }
                 }
                 break;
             }
         }
-        if (dir < 0) { TreeResult tr = new TreeResult(); tr.startKey = startKey; tr.startX = sx; tr.startY = sy; tr.adj = adj; return tr; }
+        if (dir < 0) { 
+            TreeResult tr = new TreeResult(); 
+            tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj; 
+            return tr; 
+        }
 
-        int cx = sx + DIR_OFFSET[dir][0], cy = sy + DIR_OFFSET[dir][1];
-        addEdge(adj, occupied, startKey, cx+","+cy);
+        Point c = start.move(DIR_OFFSET[dir]);
+        addEdge(adj, occupied, start, c);
 
-        List<String> trunkCells = new ArrayList<>();
-        trunkCells.add(cx+","+cy);
+        List<Point> trunkCells = new ArrayList<>();
+        trunkCells.add(c);
 
         int trunkTarget = 8 + rng.nextInt(5);
         int stepsSinceTurn = 1;
@@ -1692,64 +932,54 @@ public class DungeonAlgo {
                 stepsSinceTurn = 0;
             }
 
-            int nx = cx + DIR_OFFSET[dir][0], ny = cy + DIR_OFFSET[dir][1];
-            if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE || occupied.contains(nx+","+ny)) {
+            Point n = c.move(DIR_OFFSET[dir]);
+            if (n.isOutOfBounds() || occupied.contains(n)) {
                 int od = dir;
                 for (int a = 0; a < 4; a++) {
                     dir = (od + a) % 4;
-                    nx = cx + DIR_OFFSET[dir][0]; ny = cy + DIR_OFFSET[dir][1];
-                    if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE && !occupied.contains(nx+","+ny)) break;
+                    n = c.move(DIR_OFFSET[dir]);
+                    if (!n.isOutOfBounds() && !occupied.contains(n)) break;
                 }
-                if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE || occupied.contains(nx+","+ny)) break;
+                if (n.isOutOfBounds() || occupied.contains(n)) break;
                 stepsSinceTurn = 0;
             }
 
-            String nk = nx + "," + ny;
-            addEdge(adj, occupied, cx+","+cy, nk);
-            trunkCells.add(nk);
-            cx = nx; cy = ny;
+            addEdge(adj, occupied, c, n);
+            trunkCells.add(n);
+            c = n;
 
-            // Side branch from this trunk cell
             if (t < trunkTarget - 1 && rng.nextFloat() < 0.5) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                growMiniTree(nk, pDir, adj, occupied, rng);
+                growMiniTree(n, pDir, adj, occupied, rng);
             }
         }
 
-        // Phase 2: Split at end
-        String endKey = trunkCells.get(trunkCells.size() - 1);
-        growSplitBranches(endKey, adj, occupied, rng);
+        Point endPoint = trunkCells.get(trunkCells.size() - 1);
+        growSplitBranches(endPoint, adj, occupied, rng);
 
-        // Phase 3: Fill remaining cells with random growth
         int targetSize = targetMin + rng.nextInt(targetMax - targetMin + 1);
         int ci3 = 0, ci4 = 0;
-        for (Set<String> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
+        for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
 
         while (adj.size() < targetSize) {
-            List<String[]> candidates = new ArrayList<>();
-            for (String node : adj.keySet()) {
-                if (node.equals(startKey)) continue;
+            List<Point[]> candidates = new ArrayList<>();
+            for (Point node : adj.keySet()) {
+                if (node.equals(start)) continue;
                 int deg = adj.get(node).size();
                 if (deg >= 4) continue;
                 if (deg == 2 && ci3 >= maxI3) continue;
                 if (deg == 3 && ci4 >= maxI4) continue;
 
-                String[] pp = node.split(",");
-                int px = Integer.parseInt(pp[0]), py = Integer.parseInt(pp[1]);
                 for (int[] d : DIR_OFFSET) {
-                    int nx = px + d[0], ny = py + d[1];
-                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE || occupied.contains(nx+","+ny)) continue;
+                    Point next = node.move(d);
+                    if (next.isOutOfBounds() || occupied.contains(next)) continue;
                     if (deg >= 2) {
                         boolean skip = false;
-                        for (String nb1 : adj.get(node)) {
-                            String[] n1p = nb1.split(",");
-                            int n1x = Integer.parseInt(n1p[0]), n1z = Integer.parseInt(n1p[1]);
-                            for (String nb2 : adj.get(node)) {
-                                if (nb1.equals(nb2)) continue;
-                                String[] n2p = nb2.split(",");
-                                int n2x = Integer.parseInt(n2p[0]), n2z = Integer.parseInt(n2p[1]);
-                                if (px - n1x == n2x - px && py - n1z == n2z - py) {
-                                    Set<String> a1 = adj.get(nb1), a2 = adj.get(nb2);
+                        for (Point n1 : adj.get(node)) {
+                            for (Point n2 : adj.get(node)) {
+                                if (n1.equals(n2)) continue;
+                                if (node.x() - n1.x() == n2.x() - node.x() && node.y() - n1.y() == n2.y() - node.y()) {
+                                    Set<Point> a1 = adj.get(n1), a2 = adj.get(n2);
                                     if ((a1 != null && a1.size() >= 3) || (a2 != null && a2.size() >= 3)) {
                                         skip = true; break;
                                     }
@@ -1759,35 +989,843 @@ public class DungeonAlgo {
                         }
                         if (skip) continue;
                     }
-                    // Weight toward trunk cells for more side branches
                     int w = trunkCells.contains(node) ? 3 : 1;
-                    for (int wi = 0; wi < w; wi++) candidates.add(new String[]{node, nx+","+ny});
+                    for (int wi = 0; wi < w; wi++) candidates.add(new Point[]{node, next});
                 }
             }
             if (candidates.isEmpty()) break;
-            String[] choice = candidates.get(rng.nextInt(candidates.size()));
+            Point[] choice = candidates.get(rng.nextInt(candidates.size()));
             addEdge(adj, occupied, choice[0], choice[1]);
             int nd = adj.get(choice[0]).size();
             if (nd == 3) ci3++; else if (nd == 4) ci4++;
         }
 
         TreeResult tr = new TreeResult();
-        tr.startKey = startKey;
-        tr.startX = sx;
-        tr.startY = sy;
-        tr.adj = adj;
+        tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj;
         return tr;
     }
 
-    private static TreeResult generatePart3Tree(String startKey, Set<String> blocked, Random rng) {
-        String[] s = startKey.split(",");
-        return generateTrunkTree(35, 45,
-            new Integer[]{Integer.parseInt(s[0]), Integer.parseInt(s[1])}, blocked,
-            PART3_MAX_IJ3, PART3_MAX_IJ4, rng);
+    private static TreeResult generatePart3Tree(Point startPoint, Set<Point> blocked, Random rng) {
+        return generateTrunkTree(35, 45, startPoint, blocked, PART3_MAX_IJ3, PART3_MAX_IJ4, rng);
     }
 
-    private static String findKeyByValue(Map<String, String> map, String value) {
-        for (var e : map.entrySet()) if (e.getValue().equals(value)) return e.getKey();
+    // ===================== Algorithm: analyzePart3 =====================
+
+    private static Map<Point, String> analyzePart3(Map<Point, Set<Point>> adj, Point campExit,
+                                                     Map<Point, String> labels, Random rng) {
+        List<Point> campExitNb = new ArrayList<>(adj.get(campExit));
+        if (campExitNb.size() == 2) {
+            if (isStraight(campExitNb.get(0), campExitNb.get(1))) labels.put(campExit, pickCJ(rng));
+            else labels.put(campExit, RoomIds.CORRIDOR_TURN_J);
+        } else if (campExitNb.size() == 1) labels.put(campExit, RoomIds.DEAD_END_DJ);
+        else labels.put(campExit, pickCJ(rng));
+
+        Set<Point> allLabeled = new HashSet<>(labels.keySet());
+        List<Point> bfsP3 = new ArrayList<>();
+        Set<Point> seen = new HashSet<>(); Queue<Point> q = new LinkedList<>();
+        q.add(campExit); seen.add(campExit);
+        while (!q.isEmpty()) { 
+            Point n = q.poll(); 
+            if (!allLabeled.contains(n)) bfsP3.add(n); 
+            for (Point nb : adj.get(n)) { 
+                if (!seen.contains(nb)) { seen.add(nb); q.add(nb); } 
+            } 
+        }
+
+        Point[] bibNodes = null;
+        List<Point> shuffled = new ArrayList<>(bfsP3); Collections.shuffle(shuffled, rng);
+        for (Point src : shuffled) {
+            for (int[] d : DIR_OFFSET) {
+                Point[] chainKeys = new Point[2];
+                boolean chainOk = true;
+                Point curr = src;
+                for (int i = 0; i < 2; i++) {
+                    Point next = curr.move(d);
+                    if (next.isOutOfBounds() || adj.containsKey(next)) { chainOk = false; break; }
+                    chainKeys[i] = next; curr = next;
+                }
+                if (chainOk) {
+                    adj.put(chainKeys[0], new HashSet<>()); adj.get(src).add(chainKeys[0]); adj.get(chainKeys[0]).add(src);
+                    adj.put(chainKeys[1], new HashSet<>()); adj.get(chainKeys[0]).add(chainKeys[1]); adj.get(chainKeys[1]).add(chainKeys[0]);
+                    bibNodes = chainKeys; break;
+                }
+            }
+            if (bibNodes != null) break;
+        }
+        if (bibNodes == null) return null;
+
+        Point shopNode = null;
+        shuffled = new ArrayList<>(bfsP3); Collections.shuffle(shuffled, rng);
+        for (Point p : shuffled) {
+            for (int[] d : DIR_OFFSET) {
+                Point next = p.move(d);
+                if (!next.isOutOfBounds() && !adj.containsKey(next)) {
+                    adj.put(next, new HashSet<>()); adj.get(p).add(next); adj.get(next).add(p);
+                    shopNode = next; break;
+                }
+            }
+            if (shopNode != null) break;
+        }
+
+        Set<Point> allNodes = new HashSet<>(adj.keySet());
+        List<Point> leaves = new ArrayList<>(), internals = new ArrayList<>();
+        for (Point n : allNodes) { 
+            if (adj.get(n).size() == 1 && !labels.containsKey(n)) leaves.add(n); 
+            else if (adj.get(n).size() >= 2 && !labels.containsKey(n)) internals.add(n); 
+        }
+
+        List<Point> cjList = new ArrayList<>(), ij2List = new ArrayList<>(), ij3List = new ArrayList<>(), ij4List = new ArrayList<>();
+        for (Point node : internals) {
+            int deg = adj.get(node).size();
+            if (deg == 2) {
+                List<Point> nb = new ArrayList<>(adj.get(node));
+                if (isStraight(nb.get(0), nb.get(1))) cjList.add(node); else ij2List.add(node);
+            } else if (deg == 3) ij3List.add(node);
+            else if (deg == 4) ij4List.add(node);
+        }
+
+        labels.put(bibNodes[0], RoomIds.BIB_1); labels.put(bibNodes[1], RoomIds.BIB_2);
+        
+        Point b2 = bibNodes[1];
+        Point b1 = bibNodes[0];
+        int ddx = b2.x() - b1.x(), ddz = b2.y() - b1.y();
+        int cdx, cdz;
+        if (ddx == 1 && ddz == 0) { cdx = 0; cdz = 1; }
+        else if (ddx == -1 && ddz == 0) { cdx = 0; cdz = -1; }
+        else if (ddx == 0 && ddz == 1) { cdx = -1; cdz = 0; }
+        else if (ddx == 0 && ddz == -1) { cdx = 1; cdz = 0; }
+        else { cdx = 0; cdz = 1; }
+
+        boolean hubOk = false;
+        Map<Point, String> topLbls = new HashMap<>();
+
+        for (int corridorLen : new int[]{5, 6, 7}) {
+            if (hubOk) break;
+            int cx = b2.x(), cz = b2.y();
+            Point prev = bibNodes[1];
+            List<Point> corrNodes = new ArrayList<>();
+            boolean ok = true;
+            int mid = corridorLen / 2;
+            for (int i = 0; i < corridorLen && ok; i++) {
+                if (i == mid) {
+                    int[][] perp = {{ddx, ddz}, {-ddx, -ddz}};
+                    int ti = rng.nextInt(2);
+                    Point t = new Point(cx + perp[ti][0], cz + perp[ti][1]);
+                    if (adj.containsKey(t) || t.isOutOfBounds()) { 
+                        ti = ti == 0 ? 1 : 0; 
+                        t = new Point(cx + perp[ti][0], cz + perp[ti][1]); 
+                    }
+                    if (!adj.containsKey(t) && !t.isOutOfBounds()) {
+                        corrNodes.add(t); adj.put(t, new HashSet<>());
+                        adj.get(t).add(prev); adj.get(prev).add(t); cx = t.x(); cz = t.y(); prev = t;
+                    } else { ok = false; break; }
+                }
+                Point next = new Point(cx + cdx, cz + cdz);
+                if (adj.containsKey(next) || next.isOutOfBounds()) { ok = false; break; }
+                corrNodes.add(next); adj.put(next, new HashSet<>());
+                adj.get(next).add(prev); adj.get(prev).add(next); cx = next.x(); cz = next.y(); prev = next;
+            }
+            if (!ok || corrNodes.size() < 3) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+
+            Point wKey = new Point(cx + 1, cz);
+            if (adj.containsKey(wKey) || wKey.isOutOfBounds()) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+            adj.put(wKey, new HashSet<>()); adj.get(wKey).add(prev); adj.get(prev).add(wKey);
+            corrNodes.add(wKey);
+
+            int hx2 = cx, hz2 = cz + 1;
+            if (hz2 + 1 >= GRID_SIZE) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+            Point[] hubCells = {new Point(hx2, hz2), new Point(hx2+1, hz2), new Point(hx2, hz2+1), new Point(hx2+1, hz2+1)};
+            boolean hubFree = true;
+            for (Point c : hubCells) { if (adj.containsKey(c) || c.isOutOfBounds()) { hubFree = false; break; } }
+            if (!hubFree) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+
+            Point hubKey = new Point(hx2, hz2);
+            adj.put(hubKey, new HashSet<>()); adj.get(hubKey).add(wKey); adj.get(wKey).add(hubKey);
+
+            for (Point n : corrNodes) {
+                List<Point> nb = new ArrayList<>(adj.get(n));
+                if (nb.size() == 2) {
+                    Point na = nb.get(0);
+                    Point nb2 = nb.get(1);
+                    boolean coll = (n.x() - na.x()) == (nb2.x() - n.x()) && (n.y() - na.y()) == (nb2.y() - n.y());
+                    labels.put(n, coll ? pickC(rng) : RoomIds.CORRIDOR_TURN);
+                }
+            }
+            labels.put(hubKey, RoomIds.CENTRALE);
+
+            topLbls.put(hubKey, RoomIds.CENTRALE);
+            int[] exOff = {-1, 2, 1, 1, 0};
+            int[] ezOff = {0, 0, -1, 2, 2};
+            for (int ei = 0; ei < 5; ei++) {
+                Point ePt = new Point(hx2 + exOff[ei], hz2 + ezOff[ei]);
+                if (!ePt.isOutOfBounds()) {
+                    topLbls.put(ePt, pickCJ(rng));
+                }
+            }
+            hubOk = true;
+        }
+        if (!hubOk) { bibNodes = null; return null; }
+        cjList.remove(bibNodes[0]);
+        if (shopNode != null) { labels.put(shopNode, RoomIds.SHOP); leaves.remove(shopNode); }
+        leaves.remove(bibNodes[1]); leaves.remove(bibNodes[0]);
+
+        List<String> p3LootList = new ArrayList<>(RoomPools.LOOT_P3_P4);
+        Collections.shuffle(p3LootList, rng);
+        String p3LootA = p3LootList.get(0), p3LootB = p3LootList.get(1);
+        int leafLoot, corrLoot;
+        if (p3LootA.equals("Lootdj2") || p3LootB.equals("Lootdj2")) {
+            leafLoot = 1; corrLoot = 1;
+        } else {
+            leafLoot = 2; corrLoot = 0;
+        }
+
+        int targetM3 = 4 + rng.nextInt(3);
+        int availLeafM = Math.max(0, leaves.size() - leafLoot - 2);
+        if (availLeafM + cjList.size() < targetM3 || leaves.size() < leafLoot + 2) return null;
+        int leafM3 = Math.min(targetM3, availLeafM);
+        int corrM3 = targetM3 - leafM3;
+        if (corrM3 > cjList.size()) { corrM3 = cjList.size(); leafM3 = targetM3 - corrM3; }
+
+        Collections.shuffle(leaves, rng);
+        int li = leafLoot;
+        Map<Point, String> p3LootAssign = new HashMap<>();
+        if (leafLoot == 2) {
+            p3LootAssign.put(leaves.get(0), p3LootA);
+            p3LootAssign.put(leaves.get(1), p3LootB);
+        } else {
+            String leafType = p3LootA.equals("Lootdj2") ? p3LootB : p3LootA;
+            p3LootAssign.put(leaves.get(0), leafType);
+        }
+        for (var e : p3LootAssign.entrySet()) labels.put(e.getKey(), e.getValue());
+        for (int i = 0; i < leafM3 && li < leaves.size(); i++) { labels.put(leaves.get(li), RoomPools.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3))); li++; }
+
+        List<Point> sortedLeaves = new ArrayList<>();
+        for (int i = li; i < leaves.size(); i++) sortedLeaves.add(leaves.get(i));
+        sortedLeaves.sort(Comparator.comparingInt(lp -> -Math.abs(lp.x() - campExit.x()) - Math.abs(lp.y() - campExit.y())));
+        for (int i = li; i < leaves.size(); i++) {
+            Point n = leaves.get(i);
+            labels.put(n, n.equals(sortedLeaves.get(0)) ? RoomIds.GARDEN : (sortedLeaves.size() > 1 && n.equals(sortedLeaves.get(1)) ? RoomIds.STATUE : RoomIds.DEAD_END_DJ));
+        }
+
+        if (cjList.size() < corrM3 + corrLoot + 1) return null;
+        Collections.shuffle(cjList, rng);
+        Set<Point> monsterSet = new HashSet<>();
+        int mjPlaced = 0; List<Point> remCJ = new ArrayList<>();
+        for (Point n : cjList) {
+            if (mjPlaced < corrM3) {
+                boolean adjM = adj.get(n).stream().anyMatch(nb -> monsterSet.contains(nb) || (labels.get(nb) != null && labels.get(nb).startsWith("MJ")));
+                if (!adjM) { labels.put(n, RoomPools.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2))); monsterSet.add(n); mjPlaced++; } else remCJ.add(n);
+            } else remCJ.add(n);
+        }
+        int lc = 0;
+        if (corrLoot == 1 && lc < remCJ.size()) {
+            String corrType = p3LootA.equals("Lootdj2") ? p3LootA : p3LootB;
+            labels.put(remCJ.get(lc), corrType); lc++;
+        }
+        if (remCJ.size() > lc) labels.put(remCJ.get(lc), RoomIds.WELL_DJ); else lc--;
+        for (int i = lc + 1; i < remCJ.size(); i++) labels.put(remCJ.get(i), pickCJ(rng));
+        for (Point n : ij2List) labels.put(n, RoomIds.CORRIDOR_TURN_J);
+        for (Point n : ij3List) labels.put(n, RoomIds.INTERSECTION_3_J);
+        for (Point n : ij4List) labels.put(n, RoomIds.INTERSECTION_4_J);
+        for (Point ip : ij4List) {
+            for (Point nb : adj.get(ip)) {
+                String lbl = labels.get(nb);
+                if (lbl == null || !(lbl.equals("CJ1") || lbl.equals("CJ2") || lbl.equals("CJ3"))) continue;
+                List<Point> nAdj = new ArrayList<>(adj.get(nb));
+                if (nAdj.size() != 2) continue;
+                Point a0 = nAdj.get(0);
+                Point a1 = nAdj.get(1);
+                int adx = a1.x() - a0.x(), adz = a1.y() - a0.y();
+                if (adx * (nb.x() - ip.x()) + adz * (nb.y() - ip.y()) == 0) {
+                    if (adx != 0 && adz != 0) labels.put(nb, RoomIds.CORRIDOR_TURN_J);
+                }
+            }
+        }
+        
+        return labels;
+    }
+
+    // ===================== Part 4 Sub-methods (Modular Refactoring) =====================
+
+    private static final int P4_MAX_IJ3 = 2;
+    private static final int P4_MAX_IJ4 = 1;
+
+    private static void labelTreeNodes(Map<Point, Set<Point>> tr, Map<Point, String> topLabels, Point startPoint, Random rng) {
+        List<Point> lf = new ArrayList<>(), co = new ArrayList<>(), i3 = new ArrayList<>(), i4 = new ArrayList<>();
+        for (Point k : tr.keySet()) {
+            int d = tr.get(k).size();
+            if (d == 1) lf.add(k); else if (d == 2) co.add(k); else if (d == 3) i3.add(k); else if (d == 4) i4.add(k);
+        }
+        int skDeg = tr.get(startPoint).size();
+        if (skDeg == 1) topLabels.put(startPoint, pickCJ(rng));
+        else if (skDeg == 2) {
+            List<Point> nb = new ArrayList<>(tr.get(startPoint));
+            topLabels.put(startPoint, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
+        } else if (skDeg == 3) topLabels.put(startPoint, RoomIds.INTERSECTION_3_J);
+        else if (skDeg == 4) topLabels.put(startPoint, RoomIds.INTERSECTION_4_J);
+        for (Point k : i3) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.INTERSECTION_3_J);
+        for (Point k : i4) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.INTERSECTION_4_J);
+        for (Point k : co) {
+            if (topLabels.containsKey(k)) continue;
+            List<Point> nb = new ArrayList<>(tr.get(k));
+            if (nb.size() == 2) {
+                topLabels.put(k, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
+            }
+        }
+        for (Point k : lf) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.DEAD_END_DJ);
+        for (Point ip : i4) {
+            for (Point nb : tr.get(ip)) {
+                String lbl = topLabels.get(nb);
+                if (lbl == null || !(lbl.equals("CJ1") || lbl.equals("CJ2") || lbl.equals("CJ3"))) continue;
+                List<Point> nAd = new ArrayList<>(tr.get(nb));
+                if (nAd.size() != 2) continue;
+                Point a0 = nAd.get(0);
+                Point a1 = nAd.get(1);
+                if ((a1.x() - a0.x()) * (nb.x() - ip.x()) + (a1.y() - a0.y()) * (nb.y() - ip.y()) == 0) topLabels.put(nb, RoomIds.CORRIDOR_TURN_J);
+            }
+        }
+    }
+
+    private static boolean placeGoblinVillage(Map<Point, Set<Point>> adj, Map<Point, String> topLabels, 
+                                               Map<Point, Set<Point>> gt, Set<Point> globalOccupied, 
+                                               Set<Point> goblinCells, Random rng) {
+        Point gLeaf = null; Point firstGob = null; Point parent = null;
+        for (Point testLeaf : new ArrayList<>(gt.keySet())) {
+            if (topLabels.get(testLeaf) == null || !topLabels.get(testLeaf).equals(RoomIds.DEAD_END_DJ)) continue;
+            parent = gt.get(testLeaf).iterator().next();
+            int gdx = testLeaf.x() - parent.x(), gdy = testLeaf.y() - parent.y();
+            Point target = testLeaf.move(gdx, gdy);
+            if (!target.isOutOfBounds() && !globalOccupied.contains(target)) {
+                firstGob = target; gLeaf = testLeaf; break;
+            }
+        }
+        if (gLeaf == null || firstGob == null) return false;
+
+        topLabels.put(gLeaf, RoomIds.GOBLIN_DOOR);
+        Map<Point, Set<Point>> ga = new HashMap<>();
+        ga.put(gLeaf, new HashSet<>());
+        globalOccupied.add(firstGob); ga.put(firstGob, new HashSet<>());
+        ga.get(gLeaf).add(firstGob); ga.get(firstGob).add(gLeaf);
+
+        TreeResult gobRaw = generateRawTree(20, 25, 3, 1, 2, firstGob, new HashSet<>(globalOccupied));
+        if (gobRaw.adj.size() < 6) return false;
+
+        for (var e : gobRaw.adj.entrySet()) {
+            ga.putIfAbsent(e.getKey(), new HashSet<>());
+            ga.get(e.getKey()).addAll(e.getValue());
+        }
+
+        if (ga.get(gLeaf).size() > 2) {
+            Point keepNb = null;
+            for (Point nb : ga.get(gLeaf)) { if (!nb.equals(parent)) { keepNb = nb; break; } }
+            for (Point nb : new ArrayList<>(ga.get(gLeaf))) {
+                if (!nb.equals(parent) && !nb.equals(keepNb)) { ga.get(nb).remove(gLeaf); ga.get(gLeaf).remove(nb); }
+            }
+        }
+        globalOccupied.addAll(ga.keySet());
+
+        List<Point> gl = new ArrayList<>(), gco = new ArrayList<>(), gi3 = new ArrayList<>(), gi4 = new ArrayList<>();
+        for (Point k : ga.keySet()) {
+            if (k.equals(gLeaf)) continue;
+            int d = ga.get(k).size();
+            if (d == 1) gl.add(k); else if (d == 2) gco.add(k); else if (d == 3) gi3.add(k); else if (d == 4) gi4.add(k);
+        }
+        for (Point k : gi3) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.GOBLIN_I3);
+        for (Point k : gi4) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.GOBLIN_I4);
+
+        for (Point k : gco) {
+            List<Point> nb2 = new ArrayList<>(ga.get(k));
+            if (isStraight(nb2.get(0), nb2.get(1))) { topLabels.put(k, RoomIds.GOBLIN_WELL); break; }
+        }
+
+        Collections.shuffle(gl, rng);
+        int gli = 0;
+        if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_MARCH); gli++; }
+        if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_ARMORY); gli++; }
+        if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_TREASURE); gli++; }
+
+        for (Point k : gco) if (!topLabels.containsKey(k)) {
+            List<Point> nb2 = new ArrayList<>(ga.get(k));
+            topLabels.put(k, isStraight(nb2.get(0), nb2.get(1)) ? RoomIds.GOBLIN_CORRIDOR : RoomIds.GOBLIN_TURN);
+        }
+        for (Point k : gl) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.GOBLIN_DEAD_END);
+
+        List<Point> hl = new ArrayList<>();
+        for (Point k : ga.keySet()) {
+            if (k.equals(gLeaf)) continue;
+            String v = topLabels.get(k);
+            if (v != null && (v.equals(RoomIds.GOBLIN_CORRIDOR) || v.equals(RoomIds.GOBLIN_TURN) || v.equals(RoomIds.GOBLIN_DEAD_END) || v.equals(RoomIds.GOBLIN_I3) || v.equals(RoomIds.GOBLIN_I4))) hl.add(k);
+        }
+        Collections.shuffle(hl, rng);
+        Set<Point> hs = new HashSet<>();
+        int hMax = 3 + rng.nextInt(3);
+        for (Point k : hl) {
+            if (hs.size() >= hMax) break;
+            int dk = ga.get(k).size();
+            if (dk == 2) {
+                List<Point> nb2 = new ArrayList<>(ga.get(k));
+                if (isStraight(nb2.get(0), nb2.get(1))) continue;
+            }
+            boolean treeAdj = ga.getOrDefault(k, Set.of()).stream().anyMatch(hs::contains);
+            if (treeAdj) continue;
+            boolean adjSpecial = ga.getOrDefault(k, Set.of()).stream().anyMatch(nb -> {
+                String vl = topLabels.get(nb);
+                return vl != null && (vl.equals(RoomIds.GOBLIN_WELL) || vl.equals(RoomIds.GOBLIN_MARCH) || vl.equals(RoomIds.GOBLIN_ARMORY) || vl.equals(RoomIds.GOBLIN_TREASURE));
+            });
+            if (adjSpecial) continue;
+            hs.add(k);
+        }
+        for (Point k : hs) {
+            int d = ga.get(k).size();
+            if (d == 3) topLabels.put(k, RoomIds.GOBLIN_HOUSE_3);
+            else if (d == 2) {
+                List<Point> nb2 = new ArrayList<>(ga.get(k));
+                if (!isStraight(nb2.get(0), nb2.get(1))) topLabels.put(k, RoomIds.GOBLIN_HOUSE_2);
+            } else if (d == 1) topLabels.put(k, RoomIds.GOBLIN_HOUSE_1);
+        }
+        for (var e : ga.entrySet()) { adj.putIfAbsent(e.getKey(), new HashSet<>()); adj.get(e.getKey()).addAll(e.getValue()); goblinCells.add(e.getKey()); }
+        goblinCells.add(gLeaf);
+        return true;
+    }
+
+    private static void placeChapelAndCrypt(Map<Point, Set<Point>> adj, Map<Point, String> topLabels, 
+                                             Map<Point, Set<Point>> ct, Point cs, Set<Point> globalOccupied, Random rng) {
+        for (Point k : ct.keySet()) {
+            String vl = topLabels.get(k);
+            if (ct.get(k).size() != 1 || k.equals(cs) || vl == null || !vl.equals(RoomIds.DEAD_END_DJ)) continue;
+            Point mb = ct.get(k).iterator().next();
+            Point e = k.move(k.x() - mb.x(), k.y() - mb.y());
+            if (e.isOutOfBounds() || globalOccupied.contains(e)) continue;
+
+            globalOccupied.add(e);
+            adj.put(e, new HashSet<>());
+            adj.get(k).add(e); adj.get(e).add(k);
+            topLabels.put(k, RoomIds.CHAPEL_1); topLabels.put(e, RoomIds.CHAPEL_2);
+
+            int dir = (k.x() - mb.x() == 1) ? 0 : (k.x() - mb.x() == -1) ? 2 : (k.y() - mb.y() == 1) ? 1 : 3;
+            int pathLen = 3 + rng.nextInt(3);
+            int turnAt = 1 + rng.nextInt(pathLen - 1);
+            int turnDir = rng.nextBoolean() ? 1 : -1;
+            Point pv = e; Point curr = e;
+
+            for (int s = 0; s < pathLen; s++) {
+                if (s == turnAt) dir = (dir + turnDir + 4) % 4;
+                Point ncx = curr.move(DIR_OFFSET[dir]);
+                if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
+                globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
+                adj.get(pv).add(ncx); adj.get(ncx).add(pv);
+                topLabels.put(ncx, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng)); 
+                pv = ncx; curr = ncx;
+            }
+            for (int s = 0; s < 2; s++) {
+                Point ncx = curr.move(DIR_OFFSET[dir]);
+                if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
+                globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
+                adj.get(pv).add(ncx); adj.get(ncx).add(pv);
+                topLabels.put(ncx, s == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2); 
+                pv = ncx; curr = ncx;
+            }
+            break;
+        }
+    }
+
+    private static void placePrisonBlock(Map<Point, Set<Point>> adj, Map<Point, String> topLabels, 
+                                          Map<Point, Set<Point>> pt, Point ps, Set<Point> globalOccupied) {
+        for (Point pk : pt.keySet()) {
+            String vp = topLabels.get(pk);
+            if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || !vp.equals(RoomIds.DEAD_END_DJ)) continue;
+            Point np = pt.get(pk).iterator().next();
+            int dx = pk.x() - np.x(), dy = pk.y() - np.y();
+            int d = dx == 1 ? 0 : dx == -1 ? 2 : dy == 1 ? 1 : 3;
+
+            Point p2 = pk.move(dx, dy);
+            int r1 = (d + 1) % 4; Point p3 = p2.move(DIR_OFFSET[r1]);
+            int r2 = (r1 + 1) % 4; Point p4 = p3.move(DIR_OFFSET[r2]);
+
+            if (p2.isOutOfBounds() || p3.isOutOfBounds() || p4.isOutOfBounds()) continue;
+            if (globalOccupied.contains(p2) || globalOccupied.contains(p3) || globalOccupied.contains(p4)) continue;
+
+            topLabels.put(pk, RoomIds.PRISON_C1);
+            Point[] prisonCells = {p2, p3, p4};
+            String[] prisonLabels = {RoomIds.PRISON_C2, RoomIds.PRISON_C3, RoomIds.PRISON_C4};
+            Point pv2 = pk;
+            for (int pi = 0; pi < prisonCells.length; pi++) {
+                globalOccupied.add(prisonCells[pi]);
+                adj.put(prisonCells[pi], new HashSet<>());
+                adj.get(pv2).add(prisonCells[pi]); adj.get(prisonCells[pi]).add(pv2);
+                topLabels.put(prisonCells[pi], prisonLabels[pi]); pv2 = prisonCells[pi];
+            }
+            break;
+        }
+    }
+
+    // ===================== Algorithm: generatePart4Tree =====================
+
+    private static boolean generatePart4Tree(Map<Point, Set<Point>> adj,
+                                              Map<Point, String> topLabels,
+                                              int hx, int hz, String missingLootType, Random rng) {
+        Point[] p4Exits = {
+            new Point(hx, hz + 2),
+            new Point(hx + 1, hz + 2),
+            new Point(hx - 1, hz),
+            new Point(hx + 2, hz),
+            new Point(hx + 1, hz - 1)
+        };
+        List<Point> p4List = new ArrayList<>(Arrays.asList(p4Exits));
+        Collections.shuffle(p4List, rng);
+
+        Set<Point> globalOccupied = new HashSet<>();
+        for (int x = hx; x <= hx + 1; x++) {
+            for (int z = hz; z <= hz + 1; z++) {
+                Point hp = new Point(x, z);
+                globalOccupied.add(hp);
+                adj.putIfAbsent(hp, new HashSet<>());
+            }
+        }
+
+        List<Point> cjKeys = new ArrayList<>(), exitKeys = new ArrayList<>();
+        List<int[]> cjDirs = new ArrayList<>();
+        for (Point pp : p4List) {
+            int adx = 0, ady = 0; Point hk = null;
+            if (pp.x() == hx && pp.y() == hz+2) { adx = 0; ady = 1; hk = new Point(hx, hz+1); }
+            else if (pp.x() == hx+1 && pp.y() == hz+2) { adx = 0; ady = 1; hk = new Point(hx+1, hz+1); }
+            else if (pp.x() == hx-1 && pp.y() == hz) { adx = -1; ady = 0; hk = new Point(hx, hz); }
+            else if (pp.x() == hx+2 && pp.y() == hz) { adx = 1; ady = 0; hk = new Point(hx+1, hz); }
+            else if (pp.x() == hx+1 && pp.y() == hz-1) { adx = 0; ady = -1; hk = new Point(hx+1, hz); }
+            if (hk == null) continue;
+
+            Point cjPt = pp.move(adx, ady);
+            if (!cjPt.isOutOfBounds() && !globalOccupied.contains(cjPt)) {
+                adj.putIfAbsent(pp, new HashSet<>()); adj.putIfAbsent(cjPt, new HashSet<>());
+                adj.get(pp).add(hk); adj.get(hk).add(pp);
+                adj.get(pp).add(cjPt); adj.get(cjPt).add(pp);
+                globalOccupied.add(pp); globalOccupied.add(cjPt);
+                cjKeys.add(cjPt); cjDirs.add(new int[]{adx, ady}); exitKeys.add(pp);
+            }
+        }
+
+        List<Map<Point, Set<Point>>> allTrees = new ArrayList<>();
+        List<Point> allStarts = new ArrayList<>();
+        for (int ti = 0; ti < 5 && ti < cjKeys.size(); ti++) {
+            Point startPoint = cjKeys.get(ti);
+            int adx = cjDirs.get(ti)[0], ady = cjDirs.get(ti)[1];
+            Map<Point, Set<Point>> tr = new HashMap<>();
+            tr.put(startPoint, new HashSet<>());
+            globalOccupied.add(startPoint);
+            int ci3 = 0, ci4 = 0, target = 13 + rng.nextInt(5);
+
+            Point f1 = startPoint.move(adx, ady);
+            if (!f1.isOutOfBounds()) {
+                globalOccupied.add(f1);
+                tr.put(f1, new HashSet<>());
+                tr.get(startPoint).add(f1); tr.get(f1).add(startPoint);
+
+                Point f2 = f1.move(adx, ady);
+                if (!f2.isOutOfBounds()) {
+                    globalOccupied.add(f2);
+                    tr.put(f2, new HashSet<>());
+                    tr.get(f1).add(f2); tr.get(f2).add(f1);
+                }
+            }
+
+            while (tr.size() < target) {
+                List<Object[]> cands = new ArrayList<>();
+                for (Point p : tr.keySet()) {
+                    int d = tr.get(p).size(); if (d >= 4) continue;
+                    if (d == 2 && ci3 >= P4_MAX_IJ3) continue;
+                    if (d == 3 && ci4 >= P4_MAX_IJ4) continue;
+
+                    for (int[] dir : DIR_OFFSET) {
+                        Point next = p.move(dir);
+                        if (next.isOutOfBounds()) continue;
+                        if (!globalOccupied.contains(next)) {
+                            if (d >= 2) {
+                                boolean sk = false;
+                                for (Point m1 : tr.get(p)) {
+                                    for (Point m2 : tr.get(p)) {
+                                        if (m1.equals(m2)) continue;
+                                        if (p.x() - m1.x() == m2.x() - p.x() && p.y() - m1.y() == m2.y() - p.y()) {
+                                            Set<Point> a1 = tr.get(m1), a2 = tr.get(m2);
+                                            if ((a1 != null && a1.size() >= 3) || (a2 != null && a2.size() >= 3)) { sk = true; break; }
+                                        }
+                                    }
+                                    if (sk) break;
+                                }
+                                if (sk) continue;
+                            }
+                            if (d == 1) {
+                                Point op = tr.get(p).iterator().next();
+                                if (p.x() - op.x() == next.x() - p.x() && p.y() - op.y() == next.y() - p.y()) {
+                                    Point bk = op.move(-(p.x() - op.x()), -(p.y() - op.y()));
+                                    if (tr.containsKey(bk) && tr.get(bk).contains(op)) continue;
+                                }
+                            }
+                            cands.add(new Object[]{p, next, dir});
+                        }
+                    }
+                }
+                if (cands.isEmpty()) break;
+                List<Object[]> w = new ArrayList<>();
+                for (Object[] c : cands) {
+                    int[] cd = (int[]) c[2];
+                    int wt = (cd[0] == adx && cd[1] == ady) ? 20 : 1;
+                    for (int i = 0; i < wt; i++) w.add(c);
+                }
+                if (w.isEmpty()) break;
+                Object[] ch = w.get(rng.nextInt(w.size()));
+                Point src = (Point) ch[0], dst = (Point) ch[1];
+                globalOccupied.add(dst); tr.put(dst, new HashSet<>());
+                tr.get(src).add(dst); tr.get(dst).add(src);
+                int nd = tr.get(src).size(); if (nd == 3) ci3++; else if (nd == 4) ci4++;
+            }
+            if (tr.size() < 6) continue;
+            allTrees.add(tr); allStarts.add(startPoint);
+
+            labelTreeNodes(tr, topLabels, startPoint, rng);
+
+            for (var e : tr.entrySet()) {
+                adj.putIfAbsent(e.getKey(), new HashSet<>());
+                adj.get(e.getKey()).addAll(e.getValue());
+            }
+        }
+
+        for (Point ek : exitKeys) {
+            if (topLabels.containsKey(ek)) continue;
+            Set<Point> skn = adj.get(ek); if (skn == null) continue;
+            int deg = skn.size();
+            if (deg == 1) topLabels.put(ek, RoomIds.DEAD_END_DJ);
+            else if (deg == 2) {
+                List<Point> nb = new ArrayList<>(skn);
+                topLabels.put(ek, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
+            } else if (deg == 3) topLabels.put(ek, RoomIds.INTERSECTION_3_J);
+            else if (deg == 4) topLabels.put(ek, RoomIds.INTERSECTION_4_J);
+        }
+
+        for (Point cjk : cjKeys) {
+            Set<Point> cn = adj.get(cjk); if (cn == null) continue;
+            int deg = cn.size();
+            if (deg == 1) topLabels.put(cjk, RoomIds.DEAD_END_DJ);
+            else if (deg == 2) {
+                List<Point> nb = new ArrayList<>(cn);
+                topLabels.put(cjk, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
+            } else if (deg == 3) topLabels.put(cjk, RoomIds.INTERSECTION_3_J);
+            else if (deg == 4) topLabels.put(cjk, RoomIds.INTERSECTION_4_J);
+        }
+
+        if (allTrees.size() < 5) return false;
+
+        List<Integer> idxs = new ArrayList<>(Arrays.asList(0, 1, 2, 3, 4));
+        Collections.shuffle(idxs, rng);
+        int gIdx = idxs.get(0), cIdx = idxs.get(1), pIdx = idxs.get(2);
+        Set<Point> goblinCells = new HashSet<>();
+
+        if (!placeGoblinVillage(adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
+        placeChapelAndCrypt(adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
+        placePrisonBlock(adj, topLabels, allTrees.get(pIdx), allStarts.get(pIdx), globalOccupied);
+
+        java.util.function.Predicate<Point> isHubExit = kp -> 
+            (kp.x() == hx-1 && kp.y() == hz) || (kp.x() == hx+2 && kp.y() == hz) || 
+            (kp.x() == hx+1 && kp.y() == hz-1) || (kp.x() == hx && kp.y() == hz+2) || 
+            (kp.x() == hx+1 && kp.y() == hz+2);
+
+        int mjT = 5 + rng.nextInt(6);
+        Map<Point, Integer> treeForNode = new HashMap<>();
+        for (int ti = 0; ti < allTrees.size(); ti++) for (Point k : allTrees.get(ti).keySet()) treeForNode.put(k, ti);
+        Set<Point> mjPlacedKeys = new HashSet<>();
+        Map<Integer, Set<String>> mjTypesOnTree = new HashMap<>();
+        for (int ti = 0; ti < allTrees.size(); ti++) mjTypesOnTree.put(ti, new HashSet<>());
+
+        for (int attempt = 0; attempt < 50 && mjPlacedKeys.size() < mjT; attempt++) {
+            Point best = null; String bestType = null;
+            for (Point k : topLabels.keySet()) {
+                if (mjPlacedKeys.contains(k) || goblinCells.contains(k) || isHubExit.test(k)) continue;
+                if (mjPlacedKeys.size() >= mjT) break;
+                String v = topLabels.get(k); if (v == null) continue;
+
+                boolean isLeaf = RoomIds.DEAD_END_DJ.equals(v);
+                boolean isCorr = v.startsWith("CJ") || v.startsWith("CG");
+                if (!isLeaf && !isCorr) continue;
+
+                boolean adjMj = adj.getOrDefault(k, Set.of()).stream().anyMatch(mjPlacedKeys::contains);
+                if (adjMj) continue;
+
+                int ti = treeForNode.getOrDefault(k, -1);
+                Set<String> usedOnTree = mjTypesOnTree.getOrDefault(ti, new HashSet<>());
+                List<String> pool = isLeaf ? RoomPools.LEAF_MONSTERS_P3_P4 : RoomPools.CORRIDOR_MONSTERS_P3_P4;
+                String availType = null;
+                for (String t : pool) if (!usedOnTree.contains(t)) { availType = t; break; }
+                if (availType == null) continue;
+                best = k; bestType = availType; break;
+            }
+            if (best != null) {
+                topLabels.put(best, bestType);
+                mjPlacedKeys.add(best);
+                int ti = treeForNode.getOrDefault(best, -1);
+                if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
+            }
+        }
+
+        for (var e : new ArrayList<>(topLabels.entrySet())) {
+            if (e.getValue() != null && e.getValue().equals(RoomIds.DEAD_END_DJ) && !isHubExit.test(e.getKey())) {
+                topLabels.put(e.getKey(), RoomIds.BLACK_MARKET); break;
+            }
+        }
+
+        if (missingLootType != null) {
+            boolean lootCorr = missingLootType.equals("Lootdj2");
+            Point lk = null;
+            for (var e : topLabels.entrySet()) {
+                String v = e.getValue(); Point k = e.getKey(); 
+                if (v == null || goblinCells.contains(k) || isHubExit.test(k)) continue;
+                if (lootCorr && (v.startsWith("CJ") || v.startsWith("CG"))) { lk = k; break; }
+                if (!lootCorr && v.equals(RoomIds.DEAD_END_DJ)) { lk = k; break; }
+            }
+            if (lk != null) topLabels.put(lk, missingLootType);
+        }
+
+        Point puitDJKey = null;
+        for (var e : topLabels.entrySet()) {
+            String v = e.getValue(); Point k = e.getKey(); 
+            if (v == null || goblinCells.contains(k) || isHubExit.test(k)) continue;
+            if (v.startsWith("CJ") || v.startsWith("CG")) { puitDJKey = k; break; }
+        }
+        if (puitDJKey != null) topLabels.put(puitDJKey, RoomIds.WELL_DJ);
+
+        // Validation finale
+        boolean hc1 = topLabels.containsValue(RoomIds.CHAPEL_1) && topLabels.containsValue(RoomIds.CRYPT_1);
+        boolean hpr = topLabels.values().stream().anyMatch(v -> v != null && v.startsWith("PrisonC"));
+        boolean hpg = topLabels.containsValue(RoomIds.GOBLIN_DOOR);
+        boolean hmn = topLabels.containsValue(RoomIds.BLACK_MARKET);
+        boolean hlt = topLabels.containsValue("Lootdj1") || topLabels.containsValue("Lootdj2") || topLabels.containsValue("Lootdj3");
+        boolean hPuitDJ = topLabels.containsValue(RoomIds.WELL_DJ);
+        int gbc = (int) topLabels.values().stream().filter(v -> v != null && (v.equals(RoomIds.GOBLIN_WELL) || v.equals(RoomIds.GOBLIN_MARCH) || v.equals(RoomIds.GOBLIN_ARMORY) || v.equals(RoomIds.GOBLIN_TREASURE))).count();
+        boolean hmg = topLabels.values().stream().anyMatch(v -> v != null && v.startsWith("MG"));
+
+        return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc >= 2 && mjPlacedKeys.size() >= 5;
+    }
+
+    private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked) {
+        return generateRawTree(PART2_TARGET_MIN, PART2_TARGET_MAX, PART2_MAX_I3, 1, PART2_STRAIGHT_WEIGHT, startPoint, blocked);
+    }
+
+    // ===================== Public Main API =====================
+
+    private static long lastSeed = 0;
+    private static Map<Point, String> lastTopLabels = null;
+
+    public static long getLastSeed() {
+        return lastSeed;
+    }
+
+    public static Map<Point, String> getLastTopLabels() {
+        return lastTopLabels;
+    }
+
+    public static DungeonResult generateDungeon(long seed) {
+        int maxAttempts = seed != 0 ? 20 : 100;
+        lastTopLabels = null;
+
+        for (int outer = 0; outer < maxAttempts; outer++) {
+            long actualSeed = seed != 0 && outer < 1 ? seed : System.nanoTime() + outer;
+            Random rng = new Random(actualSeed);
+
+            TreeResult sp1 = null;
+            Map<Point, String> labels = null;
+            for (int inner = 0; inner < 50; inner++) {
+                TreeResult try1 = generatePart1Tree();
+                if (try1.adj.size() < 10) continue;
+                List<Point> leaves = new ArrayList<>();
+                for (var e : try1.adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(try1.startPoint)) leaves.add(e.getKey());
+                if (leaves.size() < 4) continue;
+                if (!hasPrisonCandidate(try1.adj, try1.startPoint)) continue;
+                Map<Point, String> tryLabels = analyzePart1(try1.startPoint, try1.adj, rng);
+                if (tryLabels == null) continue;
+                sp1 = try1; labels = tryLabels; break;
+            }
+            if (sp1 == null) continue;
+
+            Point porteKey = findPointByValue(labels, RoomIds.DOOR_1);
+            if (porteKey == null) continue;
+
+            TavernResult tavern = placeTavernAndPath(sp1.adj, porteKey, rng);
+            if (tavern == null) continue;
+            for (var e : tavern.tavern.entrySet()) labels.put(e.getValue(), e.getKey());
+
+            TreeResult sp2 = generatePart2Tree(tavern.exitPoint, new HashSet<>(sp1.adj.keySet()));
+            if (sp2.adj.size() < 5) continue;
+            for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
+
+            int p1Loot = 0; for (String v : labels.values()) if (v.equals(RoomIds.LOOT_1)) p1Loot++;
+            int totalTarget = 1 + rng.nextInt(2);
+            if (p1Loot > totalTarget) {
+                List<Point> lootNodes = new ArrayList<>();
+                for (var e : labels.entrySet()) if (e.getValue().equals(RoomIds.LOOT_1) && !e.getKey().equals(sp1.startPoint)) lootNodes.add(e.getKey());
+                Collections.shuffle(lootNodes, rng);
+                for (int i = 0; i < p1Loot - totalTarget && i < lootNodes.size(); i++) labels.put(lootNodes.get(i), RoomIds.DEAD_END);
+            }
+
+            labels = analyzePart2(sp1.adj, tavern.exitPoint, labels, tavern.pathSet, rng);
+            if (labels == null) continue;
+
+            Point porte2Key = findPointByValue(labels, RoomIds.DOOR_2);
+            if (porte2Key == null) continue;
+
+            CampResult camp = placeCampAndPath(sp1.adj, porte2Key, rng);
+            if (camp == null) continue;
+            for (Point e : camp.campPathSet) {
+                int deg = sp1.adj.get(e).size();
+                if (deg == 2) {
+                    List<Point> nb = new ArrayList<>(sp1.adj.get(e));
+                    labels.put(e, isStraight(nb.get(0), nb.get(1)) ? pickC(rng) : RoomIds.CORRIDOR_TURN);
+                }
+            }
+            for (var e : camp.campNodes.entrySet()) labels.put(e.getValue(), e.getKey());
+
+            TreeResult sp3 = generatePart3Tree(camp.campExit, new HashSet<>(sp1.adj.keySet()), rng);
+            if (sp3.adj.size() < 10) continue;
+            if (sp3.adj.get(sp3.startPoint).isEmpty()) continue;
+            for (var e : sp3.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
+
+            labels = analyzePart3(sp1.adj, camp.campExit, labels, rng);
+            if (labels != null) {
+                String missingLoot = null;
+                Set<String> p3LootTypes = new HashSet<>();
+                for (String v : labels.values()) if (v != null && v.startsWith("Lootdj")) p3LootTypes.add(v);
+                for (String lt : RoomPools.LOOT_P3_P4) { if (!p3LootTypes.contains(lt)) { missingLoot = lt; break; } }
+
+                boolean p4Ok = false;
+                Map<Point, String> currentTopLabels = null;
+                Map<Point, Set<Point>> p4Adj = null;
+                Point hubPoint = findPointByValue(labels, RoomIds.CENTRALE);
+                if (hubPoint != null) {
+                    for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
+                        currentTopLabels = new HashMap<>();
+                        currentTopLabels.put(hubPoint, RoomIds.CENTRALE); // FIX #1: Inscription explicite de Centrale dans topLabels
+                        p4Adj = new HashMap<>();
+                        if (generatePart4Tree(p4Adj, currentTopLabels, hubPoint.x(), hubPoint.y(), missingLoot, rng)) {
+                            p4Ok = true;
+                            break;
+                        }
+                    }
+                }
+                if (!p4Ok) continue;
+
+                DungeonResult dr = new DungeonResult();
+                dr.adj = sp1.adj; dr.labels = labels;
+                dr.startPoint = sp1.startPoint;
+                dr.startKey = sp1.startKey;
+                dr.startX = sp1.startX; dr.startY = sp1.startY;
+                dr.topLabels = currentTopLabels;
+                dr.p4Adj = p4Adj.isEmpty() ? null : p4Adj;
+                dr.missingLootType = missingLoot;
+                dr.seed = actualSeed;
+
+                lastSeed = actualSeed;
+                DungeonAlgo.lastTopLabels = currentTopLabels; // FIX #2: Restauration du getter static getLastTopLabels()
+
+                return dr;
+            }
+        }
         return null;
     }
 }

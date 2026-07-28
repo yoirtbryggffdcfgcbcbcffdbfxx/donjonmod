@@ -1,9 +1,27 @@
-build/
+# Gradle
 .gradle/
+build/
+
+# IDE
 .idea/
 *.iml
-out/
-*.log
-algodonjonpython/
-oneblock-mod/
+
+# Minecraft
 run/
+out/
+
+# Java
+*.log
+*.hprof
+
+# Submodules
+oneblock-mod/
+dungeon-lobby/
+
+# Documents
+*.txt
+*.html
+*.odt
+
+# Python
+algodonjonpython/

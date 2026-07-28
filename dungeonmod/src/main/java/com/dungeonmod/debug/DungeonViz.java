@@ -1,7 +1,10 @@
 package com.dungeonmod.debug;
 
+import com.dungeonmod.debug.DungeonAlgo.Point;
+
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class DungeonViz {
@@ -93,22 +96,21 @@ public class DungeonViz {
 
     // ===================== HTML rendering =====================
 
-    public static void renderToHtml(Map<String, Set<String>> adj, Map<String, String> labels,
-                                     String startKey, long seed, String filePath) throws IOException {
-        renderToHtml(adj, labels, null, null, startKey, seed, filePath);
+    public static void renderToHtml(Map<Point, Set<Point>> adj, Map<Point, String> labels,
+                                     Point startPoint, long seed, String filePath) throws IOException {
+        renderToHtml(adj, labels, null, null, startPoint, seed, filePath);
     }
 
-    public static void renderToHtml(Map<String, Set<String>> adj, Map<String, String> labels,
-                                     Map<String, Set<String>> p4Adj,
-                                     Map<String, String> topLabels,
-                                     String startKey, long seed, String filePath) throws IOException {
+    public static void renderToHtml(Map<Point, Set<Point>> adj, Map<Point, String> labels,
+                                     Map<Point, Set<Point>> p4Adj,
+                                     Map<Point, String> topLabels,
+                                     Point startPoint, long seed, String filePath) throws IOException {
         if (labels == null || labels.isEmpty()) return;
 
         int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
         int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
-        for (String key : labels.keySet()) {
-            String[] p = key.split(",");
-            int x = Integer.parseInt(p[0]), z = Integer.parseInt(p[1]);
+        for (Point key : labels.keySet()) {
+            int x = key.x(), z = key.y();
             if (x < minX) minX = x; if (x > maxX) maxX = x;
             if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
         }
@@ -123,18 +125,17 @@ public class DungeonViz {
 
         Set<String> drawn = new HashSet<>();
         for (var entry : adj.entrySet()) {
-            String k1 = entry.getKey();
+            Point k1 = entry.getKey();
             if (!labels.containsKey(k1)) continue;
-            String[] p1 = k1.split(",");
-            int x1 = Integer.parseInt(p1[0]) - minX, z1 = Integer.parseInt(p1[1]) - minZ;
+            int x1 = k1.x() - minX, z1 = k1.y() - minZ;
             int cx1 = x1 * cellSize + cellSize / 2 + 20, cy1 = z1 * cellSize + cellSize / 2 + 20;
-            for (String k2 : entry.getValue()) {
+            for (Point k2 : entry.getValue()) {
                 if (!labels.containsKey(k2)) continue;
-                String edge = k1.compareTo(k2) < 0 ? k1 + "|" + k2 : k2 + "|" + k1;
-                if (drawn.contains(edge)) continue;
+                String edge = k1.key() + "|" + k2.key();
+                String rev = k2.key() + "|" + k1.key();
+                if (drawn.contains(edge) || drawn.contains(rev)) continue;
                 drawn.add(edge);
-                String[] p2 = k2.split(",");
-                int x2 = Integer.parseInt(p2[0]) - minX, z2 = Integer.parseInt(p2[1]) - minZ;
+                int x2 = k2.x() - minX, z2 = k2.y() - minZ;
                 int cx2 = x2 * cellSize + cellSize / 2 + 20, cy2 = z2 * cellSize + cellSize / 2 + 20;
                 svg.append("  <line x1='").append(cx1).append("' y1='").append(cy1)
                    .append("' x2='").append(cx2).append("' y2='").append(cy2)
@@ -143,18 +144,18 @@ public class DungeonViz {
         }
 
         for (var entry : labels.entrySet()) {
-            String key = entry.getKey(), type = entry.getValue();
-            String[] p = key.split(",");
-            int gx = Integer.parseInt(p[0]) - minX, gz = Integer.parseInt(p[1]) - minZ;
+            Point key = entry.getKey();
+            String type = entry.getValue();
+            int gx = key.x() - minX, gz = key.y() - minZ;
             int x = gx * cellSize + 20 + cellGap;
             int z = gz * cellSize + 20 + cellGap;
             int mult = type.equals("Centrale") ? 2 : 1;
             int w = cellSize * mult - cellGap * 2;
             String color = ROOM_COLORS.getOrDefault(type, "#555");
             String label = getShortLabel(type);
-            boolean isStart = key.equals(startKey);
+            boolean isStart = key.equals(startPoint);
 
-            String tooltip = escapeHtml(type) + " - " + escapeHtml(ROOM_LABELS.getOrDefault(type, type)) + " (" + key + ")";
+            String tooltip = escapeHtml(type) + " - " + escapeHtml(ROOM_LABELS.getOrDefault(type, type)) + " (" + key.key() + ")";
             svg.append("  <g><title>").append(tooltip).append("</title>")
                .append("<rect x='").append(x).append("' y='").append(z)
                .append("' width='").append(w).append("' height='").append(w)
@@ -168,15 +169,14 @@ public class DungeonViz {
         }
         svg.append("</svg>");
 
-        // SVG pour l'etage 1 (topLabels) - meme style que l'etage 0
+        // SVG pour l'etage 1 (topLabels)
         StringBuilder svgTop = new StringBuilder();
         if (topLabels != null && !topLabels.isEmpty()) {
 
             int tMinX = Integer.MAX_VALUE, tMaxX = Integer.MIN_VALUE;
             int tMinZ = Integer.MAX_VALUE, tMaxZ = Integer.MIN_VALUE;
-            for (String key : topLabels.keySet()) {
-                String[] p = key.split(",");
-                int x = Integer.parseInt(p[0]), z = Integer.parseInt(p[1]);
+            for (Point key : topLabels.keySet()) {
+                int x = key.x(), z = key.y();
                 if (x < tMinX) tMinX = x; if (x > tMaxX) tMaxX = x;
                 if (z < tMinZ) tMinZ = z; if (z > tMaxZ) tMaxZ = z;
             }
@@ -188,14 +188,13 @@ public class DungeonViz {
             svgTop.append("<svg xmlns='http://www.w3.org/2000/svg' width='").append(tSvgW)
                    .append("' height='").append(tSvgH).append("'>\n");
             svgTop.append("  <rect width='100%' height='100%' fill='#1a1a2e'/>\n");
-            // Connections : utilise l'adj du P4 si dispo, sinon l'adj principal filtre par topLabels
+
             Set<String> tDrawn = new HashSet<>();
-            Map<String, Set<String>> connAdj = (p4Adj != null) ? p4Adj : adj;
+            Map<Point, Set<Point>> connAdj = (p4Adj != null) ? p4Adj : adj;
             for (var entry : connAdj.entrySet()) {
-                String k1 = entry.getKey();
+                Point k1 = entry.getKey();
                 if (!topLabels.containsKey(k1)) continue;
-                String[] p1 = k1.split(",");
-                int gx1 = Integer.parseInt(p1[0]) - tMinX, gz1 = Integer.parseInt(p1[1]) - tMinZ;
+                int gx1 = k1.x() - tMinX, gz1 = k1.y() - tMinZ;
                 double cx1, cy1;
                 if (topLabels.get(k1).equals("Centrale")) {
                     cx1 = (gx1 + 0.5) * cellSize + 20 + cellSize / 2.0;
@@ -204,13 +203,13 @@ public class DungeonViz {
                     cx1 = gx1 * cellSize + cellSize / 2.0 + 20;
                     cy1 = gz1 * cellSize + cellSize / 2.0 + 20;
                 }
-                for (String k2 : entry.getValue()) {
+                for (Point k2 : entry.getValue()) {
                     if (!topLabels.containsKey(k2)) continue;
-                    String edge = k1.compareTo(k2) < 0 ? k1 + "|" + k2 : k2 + "|" + k1;
-                    if (tDrawn.contains(edge)) continue;
+                    String edge = k1.key() + "|" + k2.key();
+                    String rev = k2.key() + "|" + k1.key();
+                    if (tDrawn.contains(edge) || tDrawn.contains(rev)) continue;
                     tDrawn.add(edge);
-                    String[] p2 = k2.split(",");
-                    int gx2 = Integer.parseInt(p2[0]) - tMinX, gz2 = Integer.parseInt(p2[1]) - tMinZ;
+                    int gx2 = k2.x() - tMinX, gz2 = k2.y() - tMinZ;
                     double cx2, cy2;
                     if (topLabels.get(k2).equals("Centrale")) {
                         cx2 = (gx2 + 0.5) * cellSize + 20 + cellSize / 2.0;
@@ -224,18 +223,18 @@ public class DungeonViz {
                            .append("' stroke='#444' stroke-width='10' stroke-linecap='round'/>\n");
                 }
             }
-            // Salles - meme style que l'etage 0
+
             for (var entry : topLabels.entrySet()) {
-                String key = entry.getKey(), type = entry.getValue();
-                String[] p = key.split(",");
-                int gx = Integer.parseInt(p[0]) - tMinX, gz = Integer.parseInt(p[1]) - tMinZ;
+                Point key = entry.getKey();
+                String type = entry.getValue();
+                int gx = key.x() - tMinX, gz = key.y() - tMinZ;
                 int x = gx * cellSize + 20 + cellGap;
                 int z = gz * cellSize + 20 + cellGap;
                 int mult = type.equals("Centrale") ? 2 : 1;
                 int w = cellSize * mult - cellGap * 2;
                 String color = ROOM_COLORS.getOrDefault(type, "#555");
                 String label = getShortLabel(type);
-                String tooltip = escapeHtml(type) + " - " + escapeHtml(ROOM_LABELS.getOrDefault(type, type)) + " (" + key + ")";
+                String tooltip = escapeHtml(type) + " - " + escapeHtml(ROOM_LABELS.getOrDefault(type, type)) + " (" + key.key() + ")";
                 svgTop.append("  <g><title>").append(tooltip).append("</title>")
                        .append("<rect x='").append(x).append("' y='").append(z)
                        .append("' width='").append(w).append("' height='").append(w)
@@ -321,7 +320,7 @@ public class DungeonViz {
             DungeonAlgo.DungeonResult result = DungeonAlgo.generateDungeon(seed);
             if (result != null) {
                 try {
-                    renderToHtml(result.adj, result.labels, result.p4Adj, result.topLabels, result.startKey, DungeonAlgo.getLastSeed(), output);
+                    renderToHtml(result.adj, result.labels, result.p4Adj, result.topLabels, result.startPoint, DungeonAlgo.getLastSeed(), output);
                     System.out.println("Dungeon genere avec la seed " + DungeonAlgo.getLastSeed() + " (tentative " + attempts + ")");
                     System.out.println("Salles: " + result.labels.size());
                     System.out.println("Visualisation: " + Path.of(output).toAbsolutePath());

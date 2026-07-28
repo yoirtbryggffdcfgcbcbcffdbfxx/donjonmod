@@ -29,12 +29,13 @@ import java.util.List;
 public class BarmanEntity extends BaseNpcEntity implements NpcShopProvider {
 
     private static final Identifier ID = Identifier.of(DungeonMod.MOD_ID, "barman");
-    public static final EntityType<BarmanEntity> TYPE = Registry.register(
-        Registries.ENTITY_TYPE, ID,
-        EntityType.Builder.<BarmanEntity>create(BarmanEntity::new, SpawnGroup.MISC)
-            .dimensions(0.6f, 1.95f).maxTrackingRange(64)
-            .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), ID))
-    );
+    public static final EntityType<BarmanEntity> TYPE = EntityType.Builder.<BarmanEntity>create(BarmanEntity::new, SpawnGroup.MISC)
+        .dimensions(0.6f, 1.95f).maxTrackingRange(64)
+        .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), ID));
+
+    public static void register() {
+        Registry.register(Registries.ENTITY_TYPE, ID, TYPE);
+    }
 
     public BarmanEntity(EntityType<? extends net.minecraft.entity.mob.ZombieEntity> entityType, World world) {
         super(entityType, world);

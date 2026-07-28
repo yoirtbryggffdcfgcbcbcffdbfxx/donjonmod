@@ -97,15 +97,6 @@ public class DungeonCommand {
         );
 
         // /lobby url, /lobby check
-        dispatcher.register(CommandManager.literal("lobby")
-            .then(CommandManager.literal("url")
-                .then(CommandManager.argument("url", StringArgumentType.string())
-                    .executes(ctx -> lobbyUrl(ctx.getSource(), StringArgumentType.getString(ctx, "url"))))
-            )
-            .then(CommandManager.literal("check")
-                .executes(ctx -> lobbyCheck(ctx.getSource()))
-            )
-        );
     }
 
     // ===================== /teste =====================
@@ -430,14 +421,6 @@ public class DungeonCommand {
         return 1;
     }
 
-    // ===================== /lobby =====================
-
-    private static int lobbyUrl(ServerCommandSource source, String url) {
-        LobbyClient.setBaseUrl(url);
-        source.sendFeedback(() -> Text.literal("§aURL du lobby changée: §f" + LobbyClient.getBaseUrl()), true);
-        return 1;
-    }
-
     private static int testBeer(ServerCommandSource source) {
         ServerPlayerEntity player = source.getPlayer();
         if (player == null) return 0;
@@ -478,17 +461,6 @@ public class DungeonCommand {
         TestGenerator.placeCentraleTest(world, ox, oy, oz, entreeDir);
 
         source.sendFeedback(() -> Text.literal("§7Centrale placee. Entree vers le " + dirNames[entreeDir] + "."), true);
-        return 1;
-    }
-
-    private static int lobbyCheck(ServerCommandSource source) {
-        source.sendFeedback(() -> Text.literal("§7Vérification du lobby " + LobbyClient.getBaseUrl() + "..."), false);
-        boolean ok = LobbyClient.healthCheck();
-        if (ok) {
-            source.sendFeedback(() -> Text.literal("§a§l✔ Lobby répond !"), true);
-        } else {
-            source.sendError(Text.literal("§c§l✘ Lobby injoignable"));
-        }
         return 1;
     }
 }

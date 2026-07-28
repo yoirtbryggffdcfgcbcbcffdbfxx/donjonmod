@@ -19,10 +19,14 @@ public class NpcRegistry {
     public static List<NpcEntry> getAll() { return ENTRIES; }
 
     public static void init() {
+        BarmanEntity.register();
+        GaspardEntity.register();
+        EliasEntity.register();
         int T1 = 12, T2 = 13, T3 = 14, T4 = 15;
         for (int t : new int[]{T1, T2, T3, T4}) {
             register(Blocks.WHITE_GLAZED_TERRACOTTA, BarmanEntity.TYPE, t);
             register(Blocks.LIGHT_GRAY_GLAZED_TERRACOTTA, GaspardEntity.TYPE, t);
+            register(Blocks.GRAY_GLAZED_TERRACOTTA, EliasEntity.TYPE, t);
         }
     }
 }
