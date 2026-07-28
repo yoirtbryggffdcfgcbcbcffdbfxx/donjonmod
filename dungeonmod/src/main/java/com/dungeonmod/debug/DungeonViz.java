@@ -129,6 +129,7 @@ public class DungeonViz {
             if (!labels.containsKey(k1)) continue;
             int x1 = k1.x() - minX, z1 = k1.y() - minZ;
             int cx1 = x1 * cellSize + cellSize / 2 + 20, cy1 = z1 * cellSize + cellSize / 2 + 20;
+            if (labels.get(k1).equals("Centrale")) { cx1 += 40; cy1 += 40; } // carré 2x2 : centre réel
             for (Point k2 : entry.getValue()) {
                 if (!labels.containsKey(k2)) continue;
                 String edge = k1.key() + "|" + k2.key();
@@ -137,6 +138,7 @@ public class DungeonViz {
                 drawn.add(edge);
                 int x2 = k2.x() - minX, z2 = k2.y() - minZ;
                 int cx2 = x2 * cellSize + cellSize / 2 + 20, cy2 = z2 * cellSize + cellSize / 2 + 20;
+                if (labels.get(k2).equals("Centrale")) { cx2 += 40; cy2 += 40; } // carré 2x2 : centre réel
                 svg.append("  <line x1='").append(cx1).append("' y1='").append(cy1)
                    .append("' x2='").append(cx2).append("' y2='").append(cy2)
                    .append("' stroke='#444' stroke-width='10' stroke-linecap='round'/>\n");
@@ -324,6 +326,17 @@ public class DungeonViz {
                     System.out.println("Dungeon genere avec la seed " + DungeonAlgo.getLastSeed() + " (tentative " + attempts + ")");
                     System.out.println("Salles: " + result.labels.size());
                     System.out.println("Visualisation: " + Path.of(output).toAbsolutePath());
+                    // Validation de cohérence label <-> adjacence (0 incohérence attendu)
+                    List<String> probs = DungeonAlgo.validateStructure(result.labels, result.adj, "ETAGE 0");
+                    if (result.topLabels != null && result.p4Adj != null) {
+                        probs.addAll(DungeonAlgo.validateStructure(result.topLabels, result.p4Adj, "ETAGE 1"));
+                    }
+                    if (probs.isEmpty()) {
+                        System.out.println("Validation structure : OK, 0 incoherence");
+                    } else {
+                        System.out.println("Validation structure : " + probs.size() + " incoherence(s) !");
+                        for (String p : probs) System.out.println("  - " + p);
+                    }
                 } catch (IOException e) {
                     System.err.println("Erreur ecriture: " + e.getMessage());
                 }

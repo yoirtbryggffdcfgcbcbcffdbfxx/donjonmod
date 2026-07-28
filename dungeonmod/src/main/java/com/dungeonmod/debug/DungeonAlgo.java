@@ -129,6 +129,124 @@ public class DungeonAlgo {
         return p1.x() == p2.x() || p1.y() == p2.y();
     }
 
+    // ===================== Classification géométrique UNIQUE =====================
+    // RÈGLE D'OR : un label structurel (couloir / virage / intersection / cul-de-sac)
+    // se déduit TOUJOURS de l'adjacence FINALE du nœud — jamais d'une décision locale
+    // prise pendant la construction. Toute mutation post-classification doit être
+    // suivie d'un reclassifyGeneric() sur la map concernée.
+
+    /** Forme géométrique d'un nœud, déduite UNIQUEMENT de son adjacence. */
+    public enum Shape { DEAD_END, STRAIGHT, TURN, CROSS_3, CROSS_4 }
+
+    /** Déduit la forme d'un nœud depuis son ensemble de voisins. */
+    public static Shape shapeOf(Set<Point> neighbors) {
+        int deg = neighbors == null ? 0 : neighbors.size();
+        if (deg <= 1) return Shape.DEAD_END;
+        if (deg == 2) {
+            Iterator<Point> it = neighbors.iterator();
+            return isStraight(it.next(), it.next()) ? Shape.STRAIGHT : Shape.TURN;
+        }
+        if (deg == 3) return Shape.CROSS_3;
+        return Shape.CROSS_4;
+    }
+
+    /** Thème visuel d'un étage : P1/P2, donjon (P3/P4) ou village gobelin. */
+    public enum Theme { P12, DJ, GOBLIN }
+
+    /** Mapping UNIQUE forme + thème -> identifiant de salle. */
+    private static String shapeLabel(Shape shape, Theme theme, Random rng) {
+        return switch (shape) {
+            case DEAD_END -> switch (theme) {
+                case P12 -> RoomIds.DEAD_END; case DJ -> RoomIds.DEAD_END_DJ; case GOBLIN -> RoomIds.GOBLIN_DEAD_END;
+            };
+            case STRAIGHT -> switch (theme) {
+                case P12 -> pickC(rng); case DJ -> pickCJ(rng); case GOBLIN -> RoomIds.GOBLIN_CORRIDOR;
+            };
+            case TURN -> switch (theme) {
+                case P12 -> RoomIds.CORRIDOR_TURN; case DJ -> RoomIds.CORRIDOR_TURN_J; case GOBLIN -> RoomIds.GOBLIN_TURN;
+            };
+            case CROSS_3 -> switch (theme) {
+                case P12 -> RoomIds.INTERSECTION_3; case DJ -> RoomIds.INTERSECTION_3_J; case GOBLIN -> RoomIds.GOBLIN_I3;
+            };
+            case CROSS_4 -> switch (theme) {
+                case P12 -> RoomIds.INTERSECTION_4; case DJ -> RoomIds.INTERSECTION_4_J; case GOBLIN -> RoomIds.GOBLIN_I4;
+            };
+        };
+    }
+
+    /** Raccourci : label structurel déduit directement de l'adjacence du nœud. */
+    private static String labelForNeighbors(Set<Point> neighbors, Theme theme, Random rng) {
+        return shapeLabel(shapeOf(neighbors), theme, rng);
+    }
+
+    /** Vrai si le label structurel correspond exactement à la forme géométrique. */
+    public static boolean shapeMatchesLabel(Shape shape, String label) {
+        return switch (shape) {
+            case DEAD_END -> label.equals(RoomIds.DEAD_END) || label.equals(RoomIds.DEAD_END_DJ) || label.equals(RoomIds.GOBLIN_DEAD_END);
+            case STRAIGHT -> RoomPools.CORRIDORS_P1_P2.contains(label) || RoomPools.CORRIDORS_P3_P4.contains(label) || label.equals(RoomIds.GOBLIN_CORRIDOR);
+            case TURN -> label.equals(RoomIds.CORRIDOR_TURN) || label.equals(RoomIds.CORRIDOR_TURN_J) || label.equals(RoomIds.GOBLIN_TURN);
+            case CROSS_3 -> label.equals(RoomIds.INTERSECTION_3) || label.equals(RoomIds.INTERSECTION_3_J) || label.equals(RoomIds.GOBLIN_I3);
+            case CROSS_4 -> label.equals(RoomIds.INTERSECTION_4) || label.equals(RoomIds.INTERSECTION_4_J) || label.equals(RoomIds.GOBLIN_I4);
+        };
+    }
+
+    /** Thème d'un label structurel générique, ou null si c'est une salle spéciale. */
+    private static Theme genericThemeOf(String label) {
+        if (label == null) return null;
+        switch (label) {
+            case "C1", "C2", "C3", "I2", "I3", "I4", "cul": return Theme.P12;
+            case "CJ1", "CJ2", "CJ3", "IJ2", "IJ3", "IJ4", "culDJ": return Theme.DJ;
+            case "CG1", "GI2", "GI3", "GI4", "CDG": return Theme.GOBLIN;
+            default: return null;
+        }
+    }
+
+    /**
+     * PASSE DE COHÉRENCE FINALE : re-dérive chaque label structurel générique depuis
+     * l'adjacence FINALE du graphe. À appeler après toute modification de la topologie
+     * ayant suivi une classification. Ne touche JAMAIS aux salles spéciales.
+     * Ne consomme le RNG que pour les nœuds réellement corrigés.
+     * @return le nombre de labels corrigés.
+     */
+    private static int reclassifyGeneric(Map<Point, String> labels, Map<Point, Set<Point>> adj, Random rng) {
+        List<Point> sorted = new ArrayList<>(labels.keySet());
+        sorted.sort(Comparator.comparingInt(Point::x).thenComparingInt(Point::y));
+        int fixes = 0;
+        for (Point p : sorted) {
+            String current = labels.get(p);
+            Theme theme = genericThemeOf(current);
+            if (theme == null) continue;
+            Set<Point> nb = adj.get(p);
+            Shape actual = shapeOf(nb);
+            if (shapeMatchesLabel(actual, current)) continue;
+            labels.put(p, shapeLabel(actual, theme, rng));
+            fixes++;
+        }
+        return fixes;
+    }
+
+    /**
+     * VALIDATEUR : retourne la liste des incohérences entre labels structurels et
+     * adjacence réelle (chaîne vide si tout est cohérent). Outil de debug, sans effet
+     * de bord — DungeonViz l'appelle après chaque génération.
+     */
+    public static List<String> validateStructure(Map<Point, String> labels, Map<Point, Set<Point>> adj, String scope) {
+        List<String> problems = new ArrayList<>();
+        List<Point> sorted = new ArrayList<>(labels.keySet());
+        sorted.sort(Comparator.comparingInt(Point::x).thenComparingInt(Point::y));
+        for (Point p : sorted) {
+            String label = labels.get(p);
+            if (genericThemeOf(label) == null) continue;
+            Set<Point> nb = adj.getOrDefault(p, Set.of());
+            Shape actual = shapeOf(nb);
+            if (!shapeMatchesLabel(actual, label)) {
+                problems.add(scope + " @ (" + p.key() + ") : label '" + label + "' mais adjacence=" + actual
+                        + " (" + nb.size() + " voisins : " + nb.stream().map(Point::key).sorted().toList() + ")");
+            }
+        }
+        return problems;
+    }
+
     // ===================== Inner classes =====================
 
     public static class RoomConfig {
@@ -563,17 +681,8 @@ public class DungeonAlgo {
 
     private static Map<Point, String> analyzePart2(Map<Point, Set<Point>> adj, Point exitPoint,
                                                     Map<Point, String> labels, Set<Point> pathSet, Random rng) {
-        List<Point> exitNb = new ArrayList<>(adj.get(exitPoint));
-        if (exitNb.size() == 2) {
-            if (isStraight(exitNb.get(0), exitNb.get(1))) labels.put(exitPoint, pickC(rng));
-            else {
-                List<Point> nbs = new ArrayList<>(adj.get(exitPoint));
-                if (nbs.size() == 2 && !isStraight(nbs.get(0), nbs.get(1))) labels.put(exitPoint, RoomIds.CORRIDOR_TURN);
-            }
-        } else if (exitNb.size() == 1) labels.put(exitPoint, RoomIds.DEAD_END);
-        else if (exitNb.size() == 3) labels.put(exitPoint, RoomIds.INTERSECTION_3);
-        else if (exitNb.size() >= 4) labels.put(exitPoint, RoomIds.INTERSECTION_4);
-        else labels.put(exitPoint, pickC(rng));
+        // Sortie de taverne : label structurel déduit de l'adjacence réelle (forme P1/P2).
+        labels.put(exitPoint, labelForNeighbors(adj.get(exitPoint), Theme.P12, rng));
 
         Set<Point> allLabeled = new HashSet<>(labels.keySet());
         List<Point> p2Nodes = new ArrayList<>();
@@ -818,6 +927,23 @@ public class DungeonAlgo {
 
     // ===================== Part 3 Trunk Tree & Mini-Trees =====================
 
+    /**
+     * Retire proprement des nœuds du graphe, y compris les arêtes RÉCIPROQUES chez les
+     * voisins qui ne font PAS partie de l'ensemble retiré (ex: Bib2 au départ du couloir
+     * du hub). Sans ça, un voisin gardait un lien fantôme vers une cellule supprimée.
+     */
+    private static void removeNodesClean(Map<Point, Set<Point>> adj, Collection<Point> nodes) {
+        for (Point n : nodes) {
+            Set<Point> ns = adj.remove(n);
+            if (ns != null) {
+                for (Point nb : ns) {
+                    Set<Point> back = adj.get(nb);
+                    if (back != null) back.remove(n);
+                }
+            }
+        }
+    }
+
     private static void addEdge(Map<Point, Set<Point>> adj, Set<Point> occupied, Point a, Point b) {
         adj.putIfAbsent(a, new HashSet<>());
         adj.putIfAbsent(b, new HashSet<>());
@@ -1015,14 +1141,8 @@ public class DungeonAlgo {
 
     private static Map<Point, String> analyzePart3(Map<Point, Set<Point>> adj, Point campExit,
                                                      Map<Point, String> labels, Random rng) {
-        List<Point> campExitNb = new ArrayList<>(adj.get(campExit));
-        if (campExitNb.size() == 2) {
-            if (isStraight(campExitNb.get(0), campExitNb.get(1))) labels.put(campExit, pickCJ(rng));
-            else labels.put(campExit, RoomIds.CORRIDOR_TURN_J);
-        } else if (campExitNb.size() == 1) labels.put(campExit, RoomIds.DEAD_END_DJ);
-        else if (campExitNb.size() == 3) labels.put(campExit, RoomIds.INTERSECTION_3_J);
-        else if (campExitNb.size() >= 4) labels.put(campExit, RoomIds.INTERSECTION_4_J);
-        else labels.put(campExit, pickCJ(rng));
+        // Sortie de camp : label structurel déduit de l'adjacence réelle (thème donjon).
+        labels.put(campExit, labelForNeighbors(adj.get(campExit), Theme.DJ, rng));
 
         Set<Point> allLabeled = new HashSet<>(labels.keySet());
         List<Point> bfsP3 = new ArrayList<>();
@@ -1129,19 +1249,19 @@ public class DungeonAlgo {
                 corrNodes.add(next); adj.put(next, new HashSet<>());
                 adj.get(next).add(prev); adj.get(prev).add(next); cx = next.x(); cz = next.y(); prev = next;
             }
-            if (!ok || corrNodes.size() < 3) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+            if (!ok || corrNodes.size() < 3) { removeNodesClean(adj, corrNodes); continue; }
 
             Point wKey = new Point(cx + 1, cz);
-            if (adj.containsKey(wKey) || wKey.isOutOfBounds()) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+            if (adj.containsKey(wKey) || wKey.isOutOfBounds()) { removeNodesClean(adj, corrNodes); continue; }
             adj.put(wKey, new HashSet<>()); adj.get(wKey).add(prev); adj.get(prev).add(wKey);
             corrNodes.add(wKey);
 
             int hx2 = cx, hz2 = cz + 1;
-            if (hz2 + 1 >= GRID_SIZE) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+            if (hz2 + 1 >= GRID_SIZE) { removeNodesClean(adj, corrNodes); continue; }
             Point[] hubCells = {new Point(hx2, hz2), new Point(hx2+1, hz2), new Point(hx2, hz2+1), new Point(hx2+1, hz2+1)};
             boolean hubFree = true;
             for (Point c : hubCells) { if (adj.containsKey(c) || c.isOutOfBounds()) { hubFree = false; break; } }
-            if (!hubFree) { for (Point n : corrNodes) { adj.get(n).clear(); adj.remove(n); } continue; }
+            if (!hubFree) { removeNodesClean(adj, corrNodes); continue; }
 
             Point hubKey = new Point(hx2, hz2);
             adj.put(hubKey, new HashSet<>()); adj.get(hubKey).add(wKey); adj.get(wKey).add(hubKey);
@@ -1260,23 +1380,16 @@ public class DungeonAlgo {
             int d = tr.get(k).size();
             if (d == 1) lf.add(k); else if (d == 2) co.add(k); else if (d == 3) i3.add(k); else if (d == 4) i4.add(k);
         }
-        int skDeg = tr.get(startPoint).size();
-        if (skDeg == 1) topLabels.put(startPoint, pickCJ(rng));
-        else if (skDeg == 2) {
-            List<Point> nb = new ArrayList<>(tr.get(startPoint));
-            topLabels.put(startPoint, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
-        } else if (skDeg == 3) topLabels.put(startPoint, RoomIds.INTERSECTION_3_J);
-        else if (skDeg == 4) topLabels.put(startPoint, RoomIds.INTERSECTION_4_J);
-        for (Point k : i3) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.INTERSECTION_3_J);
-        for (Point k : i4) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.INTERSECTION_4_J);
-        for (Point k : co) {
-            if (topLabels.containsKey(k)) continue;
-            List<Point> nb = new ArrayList<>(tr.get(k));
-            if (nb.size() == 2) {
-                topLabels.put(k, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
-            }
-        }
-        for (Point k : lf) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.DEAD_END_DJ);
+        // Racine : si elle n'a qu'un voisin dans 'tr', l'arête vers l'exit du hub (absente de 'tr')
+        // la rendra droite dans 'adj' — pickCJ direct est donc correct et évite un re-pick futur.
+        if (tr.get(startPoint).size() == 1) topLabels.put(startPoint, pickCJ(rng));
+        else topLabels.put(startPoint, labelForNeighbors(tr.get(startPoint), Theme.DJ, rng));
+        for (Point k : i3) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(tr.get(k), Theme.DJ, rng));
+        for (Point k : i4) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(tr.get(k), Theme.DJ, rng));
+        for (Point k : co) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(tr.get(k), Theme.DJ, rng));
+        for (Point k : lf) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(tr.get(k), Theme.DJ, rng));
+        // Règle spéciale : un couloir droit rattaché perpendiculairement à une intersection 4
+        // devient un virage (visuellement, on tourne en entrant/sortant de l'intersection).
         for (Point ip : i4) {
             for (Point nb : tr.get(ip)) {
                 String lbl = topLabels.get(nb);
@@ -1334,8 +1447,8 @@ public class DungeonAlgo {
             int d = ga.get(k).size();
             if (d == 1) gl.add(k); else if (d == 2) gco.add(k); else if (d == 3) gi3.add(k); else if (d == 4) gi4.add(k);
         }
-        for (Point k : gi3) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.GOBLIN_I3);
-        for (Point k : gi4) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.GOBLIN_I4);
+        for (Point k : gi3) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
+        for (Point k : gi4) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
 
         for (Point k : gco) {
             List<Point> nb2 = new ArrayList<>(ga.get(k));
@@ -1348,11 +1461,8 @@ public class DungeonAlgo {
         if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_ARMORY); gli++; }
         if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_TREASURE); gli++; }
 
-        for (Point k : gco) if (!topLabels.containsKey(k)) {
-            List<Point> nb2 = new ArrayList<>(ga.get(k));
-            topLabels.put(k, isStraight(nb2.get(0), nb2.get(1)) ? RoomIds.GOBLIN_CORRIDOR : RoomIds.GOBLIN_TURN);
-        }
-        for (Point k : gl) if (!topLabels.containsKey(k)) topLabels.put(k, RoomIds.GOBLIN_DEAD_END);
+        for (Point k : gco) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
+        for (Point k : gl) if (!topLabels.containsKey(k)) topLabels.put(k, labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
 
         List<Point> hl = new ArrayList<>();
         for (Point k : ga.keySet()) {
@@ -1418,7 +1528,8 @@ public class DungeonAlgo {
                 if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
                 globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
                 adj.get(pv).add(ncx); adj.get(ncx).add(pv);
-                topLabels.put(ncx, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng)); 
+                // Chemin de crypte (étage P4) : thème donjon, pas P1/P2 !
+                topLabels.put(ncx, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN_J : pickCJ(rng));
                 pv = ncx; curr = ncx;
             }
             for (int s = 0; s < 2; s++) {
@@ -1593,27 +1704,17 @@ public class DungeonAlgo {
             }
         }
 
+        // Rattrapage : les exits et racines d'arbres voient leur degré réel dans 'adj'
+        // (le hub et l'arête racine ne sont pas dans les maps d'arbres locales).
         for (Point ek : exitKeys) {
             if (topLabels.containsKey(ek)) continue;
             Set<Point> skn = adj.get(ek); if (skn == null) continue;
-            int deg = skn.size();
-            if (deg == 1) topLabels.put(ek, RoomIds.DEAD_END_DJ);
-            else if (deg == 2) {
-                List<Point> nb = new ArrayList<>(skn);
-                topLabels.put(ek, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
-            } else if (deg == 3) topLabels.put(ek, RoomIds.INTERSECTION_3_J);
-            else if (deg == 4) topLabels.put(ek, RoomIds.INTERSECTION_4_J);
+            topLabels.put(ek, labelForNeighbors(skn, Theme.DJ, rng));
         }
 
         for (Point cjk : cjKeys) {
             Set<Point> cn = adj.get(cjk); if (cn == null) continue;
-            int deg = cn.size();
-            if (deg == 1) topLabels.put(cjk, RoomIds.DEAD_END_DJ);
-            else if (deg == 2) {
-                List<Point> nb = new ArrayList<>(cn);
-                topLabels.put(cjk, isStraight(nb.get(0), nb.get(1)) ? pickCJ(rng) : RoomIds.CORRIDOR_TURN_J);
-            } else if (deg == 3) topLabels.put(cjk, RoomIds.INTERSECTION_3_J);
-            else if (deg == 4) topLabels.put(cjk, RoomIds.INTERSECTION_4_J);
+            topLabels.put(cjk, labelForNeighbors(cn, Theme.DJ, rng));
         }
 
         if (allTrees.size() < 5) return false;
@@ -1626,6 +1727,12 @@ public class DungeonAlgo {
         if (!placeGoblinVillage(adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
         placeChapelAndCrypt(adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
         placePrisonBlock(adj, topLabels, allTrees.get(pIdx), allStarts.get(pIdx), globalOccupied);
+
+        // PASSE DE COHÉRENCE FINALE : la topologie P4 est désormais figée (arbres, exits,
+        // village gobelin, chapelle, prison). On re-déduit chaque label structurel générique
+        // (CJ/IJ/culDJ + CG/GI/CDG) de l'adjacence RÉELLE. Corrige notamment les nœuds classés
+        // "virage" qui ont gagné un 3e voisin via une greffe post-classification.
+        reclassifyGeneric(topLabels, adj, rng);
 
         java.util.function.Predicate<Point> isHubExit = kp -> 
             (kp.x() == hx-1 && kp.y() == hz) || (kp.x() == hx+2 && kp.y() == hz) || 
@@ -1778,11 +1885,8 @@ public class DungeonAlgo {
             CampResult camp = placeCampAndPath(sp1.adj, porte2Key, rng);
             if (camp == null) continue;
             for (Point e : camp.campPathSet) {
-                int deg = sp1.adj.get(e).size();
-                if (deg == 2) {
-                    List<Point> nb = new ArrayList<>(sp1.adj.get(e));
-                    labels.put(e, isStraight(nb.get(0), nb.get(1)) ? pickC(rng) : RoomIds.CORRIDOR_TURN);
-                }
+                Set<Point> nb = sp1.adj.get(e);
+                if (nb.size() == 2) labels.put(e, labelForNeighbors(nb, Theme.P12, rng));
             }
             for (var e : camp.campNodes.entrySet()) labels.put(e.getValue(), e.getKey());
 
@@ -1814,6 +1918,11 @@ public class DungeonAlgo {
                     }
                 }
                 if (!p4Ok) continue;
+
+                // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
+                // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
+                // générique est re-déduit de l'adjacence réelle. Salles spéciales jamais touchées.
+                reclassifyGeneric(labels, sp1.adj, rng);
 
                 DungeonResult dr = new DungeonResult();
                 dr.adj = sp1.adj; dr.labels = labels;
