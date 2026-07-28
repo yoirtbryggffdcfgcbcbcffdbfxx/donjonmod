@@ -24,8 +24,6 @@ import java.util.*;
 public class TestGenerator {
 
     private static final int CELL = 10;
-    private static final int[][] DIR_OFFSET = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
-    private static final int GRID_SIZE = 64;
 
     // ===================== Dictionnaires Dynamiques (NBT & Ports) =====================
     private static final Map<String, BlockState[][][]> NBT_CACHE = new HashMap<>();
@@ -122,11 +120,6 @@ public class TestGenerator {
     public static int[] getRoomPorts(int type) {
         String name = (type >= 0 && type < TYPE_NAMES.length) ? TYPE_NAMES[type] : "";
         return roomPorts.getOrDefault(name, new int[]{3, 1});
-    }
-
-    public static int[] getPurplePorts(int type) {
-        String name = (type >= 0 && type < TYPE_NAMES.length) ? TYPE_NAMES[type] : "";
-        return roomPurplePorts.get(name);
     }
 
     public static void initTestHub() { loadAll(); }
@@ -730,20 +723,6 @@ public class TestGenerator {
         }
     }
 
-    public static void restoreFromSave(long seed, int originY, int departX, int departZ, List<int[]> specialRooms) {
-        lastSeed = seed;
-        lastOriginY = originY;
-        lastDepartX = departX;
-        lastDepartZ = departZ;
-        lastSpecialRooms.clear();
-        lastPuitPositions.clear();
-        for (int[] sr : specialRooms) {
-            lastSpecialRooms.add(new SpecialRoomEntry(sr[0], sr[1], sr[2]));
-            if (sr[2] == 10 || sr[2] == 43 || sr[2] == 62) {
-                lastPuitPositions.add(new BlockPos(sr[0], 0, sr[1]));
-            }
-        }
-    }
 
     // ===================== Utilities & NBT Loaders =====================
 
