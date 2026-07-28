@@ -571,6 +571,8 @@ public class DungeonAlgo {
                 if (nbs.size() == 2 && !isStraight(nbs.get(0), nbs.get(1))) labels.put(exitPoint, RoomIds.CORRIDOR_TURN);
             }
         } else if (exitNb.size() == 1) labels.put(exitPoint, RoomIds.DEAD_END);
+        else if (exitNb.size() == 3) labels.put(exitPoint, RoomIds.INTERSECTION_3);
+        else if (exitNb.size() >= 4) labels.put(exitPoint, RoomIds.INTERSECTION_4);
         else labels.put(exitPoint, pickC(rng));
 
         Set<Point> allLabeled = new HashSet<>(labels.keySet());
@@ -1018,6 +1020,8 @@ public class DungeonAlgo {
             if (isStraight(campExitNb.get(0), campExitNb.get(1))) labels.put(campExit, pickCJ(rng));
             else labels.put(campExit, RoomIds.CORRIDOR_TURN_J);
         } else if (campExitNb.size() == 1) labels.put(campExit, RoomIds.DEAD_END_DJ);
+        else if (campExitNb.size() == 3) labels.put(campExit, RoomIds.INTERSECTION_3_J);
+        else if (campExitNb.size() >= 4) labels.put(campExit, RoomIds.INTERSECTION_4_J);
         else labels.put(campExit, pickCJ(rng));
 
         Set<Point> allLabeled = new HashSet<>(labels.keySet());
