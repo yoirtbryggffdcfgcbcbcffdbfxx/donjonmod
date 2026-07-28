@@ -126,6 +126,13 @@ public class ModItems {
             return this;
         }
 
+        AttrBuilder attackPercent(String identifierPath, double value, AttributeModifierSlot slot) {
+            builder.add(EntityAttributes.ATTACK_DAMAGE,
+                new EntityAttributeModifier(Identifier.of("dungeonmod", identifierPath), value, EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE),
+                slot);
+            return this;
+        }
+
         AttributeModifiersComponent build() {
             return builder.build().withShowInTooltip(false);
         }
@@ -309,62 +316,74 @@ public class ModItems {
     private static void registerArmures() {
         register("casque_chasseur", "§9Casque du chasseur", Items.CHAINMAIL_HELMET,
             stack -> {
-                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "casque_chasseur"));
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                    new AttrBuilder().armor("casque_chasseur_armor", 4.0, AttributeModifierSlot.HEAD).build());
+                    new AttrBuilder()
+                        .armor("casque_chasseur_armor", 10.0, AttributeModifierSlot.HEAD)
+                        .build());
                 stack.set(DataComponentTypes.EQUIPPABLE,
                     EquippableComponent.builder(EquipmentSlot.HEAD)
+                        .model(net.minecraft.item.equipment.EquipmentAssetKeys.CHAINMAIL)
                         .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_CHAIN)
                         .swappable(true)
                         .build());
             },
-            "§7Un casque léger.", "§7Portée : voir les PV des monstres à 5 blocs.", "§7Protection: +4");
+            "§7Un casque léger.", "§7Portée : voir les PV des monstres à 5 blocs.", "§7Protection: 10%, Attaque: +65%");
+        var chasseurItem = ModItems.get("casque_chasseur");
+        if (chasseurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(chasseurItem.vanillaItem, 0.65f);
         register("plastron_chasseur", "§9Plastron du chasseur", Items.CHAINMAIL_CHESTPLATE,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("plastron_chasseur_armor", 7.0, AttributeModifierSlot.CHEST).build()),
-            "§7Un plastron de chasseur.", "§7Ralentit la chute.", "§7Protection: +7");
+            "§7Un plastron de chasseur.", "§7Tue un ennemi récupère 1 coeur.", "§7Protection: +7");
         register("crane_squelette", "§9Crâne de squelette", Items.SKELETON_SKULL,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                    new AttrBuilder().armor("crane_squelette_armor", 2.0, AttributeModifierSlot.HEAD).build());
+                    new AttrBuilder()
+                        .armor("crane_squelette_armor", 6.0, AttributeModifierSlot.HEAD)
+                        .build());
                 stack.set(DataComponentTypes.EQUIPPABLE,
                     EquippableComponent.builder(EquipmentSlot.HEAD)
                         .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_CHAIN)
                         .swappable(true)
                         .build());
             },
-            "§7Un crâne qui protège des regards.", "§7Protection: +2");
+            "§7Un crâne qui protège des regards.", "§7Protection: 6%, Attaque: +45%");
+        var craneItem = ModItems.get("crane_squelette");
+        if (craneItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(craneItem.vanillaItem, 0.45f);
         register("casque_lourd", "§9Casque lourd", Items.IRON_HELMET,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                     new AttrBuilder()
-                        .armor("casque_lourd_armor", 8.0, AttributeModifierSlot.HEAD)
+                        .armor("casque_lourd_armor", 17.0, AttributeModifierSlot.HEAD)
                         .speedMult("casque_lourd_speed", -0.1, AttributeModifierSlot.HEAD)
                         .jumpMult("casque_lourd_jump", -0.1, AttributeModifierSlot.HEAD)
                         .build());
-                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "casque_lourd"));
                 stack.set(DataComponentTypes.EQUIPPABLE,
                     EquippableComponent.builder(EquipmentSlot.HEAD)
-                        .model(net.minecraft.registry.RegistryKey.of(net.minecraft.item.equipment.EquipmentAssetKeys.REGISTRY_KEY, Identifier.of("dungeonmod", "armure_lourde")))
+                        .model(net.minecraft.item.equipment.EquipmentAssetKeys.IRON)
                         .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_IRON)
                         .swappable(true)
                         .cameraOverlay(Identifier.of("dungeonmod", "misc/helmet_overlay"))
                         .build());
             },
-            "§7Un casque lourd en fer.", "§7Protège beaucoup mais réduit la vision.", "§7Protection: +8");
+            "§7Un casque lourd en fer.", "§7Protège beaucoup mais réduit la vision.", "§7Protection: 17%, Attaque: +75%");
+        var lourdItem = ModItems.get("casque_lourd");
+        if (lourdItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(lourdItem.vanillaItem, 0.75f);
         register("casque_mineur", "§9Casque du mineur", Items.LEATHER_HELMET,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                new AttrBuilder().armor("casque_mineur_armor", 2.0, AttributeModifierSlot.HEAD).build()),
-            "§7Un casque qui éclaire les environs.", "§7Protection: +2");
+                new AttrBuilder()
+                    .armor("casque_mineur_armor", 6.0, AttributeModifierSlot.HEAD)
+                    .build()),
+            "§7Un casque qui éclaire les environs.", "§7Protection: 6%, Attaque: +25%");
+        var mineurItem = ModItems.get("casque_mineur");
+        if (mineurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(mineurItem.vanillaItem, 0.25f);
         register("plastron_lourd", "§9Plastron lourd", Items.IRON_CHESTPLATE,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, new AttrBuilder()
                     .armor("plastron_lourd_armor", 12.0, AttributeModifierSlot.CHEST)
                     .speedMult("plastron_lourd_speed", -0.3, AttributeModifierSlot.CHEST)
                     .jumpMult("plastron_lourd_jump", -0.3, AttributeModifierSlot.CHEST).build());
-                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "plastron_lourd"));
                 stack.set(DataComponentTypes.EQUIPPABLE, EquippableComponent.builder(EquipmentSlot.CHEST)
-                    .model(RegistryKey.of(EquipmentAssetKeys.REGISTRY_KEY, Identifier.of("dungeonmod", "armure_lourde")))
+                    .model(net.minecraft.item.equipment.EquipmentAssetKeys.IRON)
                     .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_IRON).swappable(true).build());
             },
             "§7Un plastron en fer très résistant.", "§7Ralentit le porteur mais augmente l'endurance.", "§7Protection: +12");
@@ -374,9 +393,8 @@ public class ModItems {
                     .armor("jambiere_lourde_armor", 6.0, AttributeModifierSlot.LEGS)
                     .speedMult("jambiere_lourde_speed", -0.2, AttributeModifierSlot.LEGS)
                     .jumpMult("jambiere_lourde_jump", -0.2, AttributeModifierSlot.LEGS).build());
-                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "jambiere_lourde"));
                 stack.set(DataComponentTypes.EQUIPPABLE, EquippableComponent.builder(EquipmentSlot.LEGS)
-                    .model(RegistryKey.of(EquipmentAssetKeys.REGISTRY_KEY, Identifier.of("dungeonmod", "armure_lourde")))
+                    .model(net.minecraft.item.equipment.EquipmentAssetKeys.IRON)
                     .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_IRON).swappable(true).build());
             },
             "§7Des jambières en fer renforcées.", "§7Protection: +6");
@@ -385,9 +403,8 @@ public class ModItems {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, new AttrBuilder()
                     .armor("bottes_lourdes_armor", 6.0, AttributeModifierSlot.FEET)
                     .knockback("bottes_lourdes_kb", 1.0, AttributeModifierSlot.FEET).build());
-                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "bottes_lourdes"));
                 stack.set(DataComponentTypes.EQUIPPABLE, EquippableComponent.builder(EquipmentSlot.FEET)
-                    .model(RegistryKey.of(EquipmentAssetKeys.REGISTRY_KEY, Identifier.of("dungeonmod", "armure_lourde")))
+                    .model(net.minecraft.item.equipment.EquipmentAssetKeys.IRON)
                     .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_IRON).swappable(true).build());
             },
             "§7Des bottes en fer renforcées.", "§7Annule le recul.", "§7Protection: +6");
@@ -395,10 +412,17 @@ public class ModItems {
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("plastron_heros_armor", 8.0, AttributeModifierSlot.CHEST).build()),
             "§7Un plastron légendaire.", "§7Reflette les dégâts reçus à l'attaquant.", "§7Protection: +8");
-        register("plastron_voyageur", "§9Plastron du voyageur", Items.LEATHER_CHESTPLATE,
-            stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                new AttrBuilder().armor("plastron_voyageur_armor", 6.0, AttributeModifierSlot.CHEST).build()),
-            "§7Un plastron de voyageur.", "§7Tuer un ennemi régénère 0.5 coeur.", "§7Protection: +6");
+        register("cape_du_voyageur", "§6Cape du voyageur", Items.ELYTRA,
+            stack -> {
+                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "cape_du_voyageur"));
+                stack.set(DataComponentTypes.EQUIPPABLE,
+                    EquippableComponent.builder(EquipmentSlot.CHEST)
+                        .model(RegistryKey.of(net.minecraft.item.equipment.EquipmentAssetKeys.REGISTRY_KEY, Identifier.of("dungeonmod", "cape_du_voyageur")))
+                        .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_ELYTRA)
+                        .swappable(true)
+                        .build());
+            },
+            "§7Une cape légère permettant de planer.", "§7Annule les dégâts de chute.");
         register("jambiere_voyageur", "§9Jambière du voyageur", Items.LEATHER_LEGGINGS,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("jambiere_voyageur_armor", 5.0, AttributeModifierSlot.LEGS).build()),

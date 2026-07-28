@@ -525,7 +525,7 @@ public class DungeonMod implements ModInitializer {
                     handleHeavyChestplate(player);
                     handleVoyageurLeggings(player);
                     showHunterCooldown(player);
-                    handleHunterLeggings(player);
+                    handleVoyageurCape(player);
                     handleDentDeLoup(player);
                     checkFlecheTimers(player, System.currentTimeMillis());
                     handleTetralame(player);
@@ -1223,11 +1223,11 @@ public class DungeonMod implements ModInitializer {
         }
     }
 
-    private static void handleHunterLeggings(ServerPlayerEntity player) {
+    private static void handleVoyageurCape(ServerPlayerEntity player) {
         var chest = player.getInventory().getArmorStack(2);
-        if (chest.isEmpty() || !chest.isOf(Items.CHAINMAIL_CHESTPLATE)) return;
+        if (chest.isEmpty() || !chest.isOf(Items.ELYTRA)) return;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return;
-        if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du chasseur")) return;
+        if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Cape du voyageur")) return;
 
         player.addStatusEffect(new StatusEffectInstance(
             StatusEffects.SLOW_FALLING, 15, 0, true, false, false));
