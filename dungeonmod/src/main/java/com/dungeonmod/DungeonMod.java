@@ -90,6 +90,10 @@ public class DungeonMod implements ModInitializer {
             net.minecraft.entity.mob.ZombieEntity.createZombieAttributes()
                 .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, Float.MAX_VALUE)
                 .add(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED, 0.0));
+        FabricDefaultAttributeRegistry.register(com.dungeonmod.entity.EliasEntity.TYPE,
+            net.minecraft.entity.mob.ZombieEntity.createZombieAttributes()
+                .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, Float.MAX_VALUE)
+                .add(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED, 0.0));
         com.dungeonmod.entity.OgreEntity.registerAttributes();
         BOUT_TISSU = net.minecraft.registry.Registry.register(
             net.minecraft.registry.Registries.ITEM,
@@ -176,8 +180,9 @@ public class DungeonMod implements ModInitializer {
                 });
             });
 
+        com.dungeonmod.entity.NpcRegistry.init();
+
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            com.dungeonmod.entity.NpcRegistry.init();
             com.dungeonmod.village.SellTradeRegistry.init();
             TestGenerator.loadFromDisk(server);
             if (TestGenerator.getLastSeed() != 0) {
@@ -520,7 +525,7 @@ public class DungeonMod implements ModInitializer {
                     handleHeavyChestplate(player);
                     handleVoyageurLeggings(player);
                     showHunterCooldown(player);
-                    handleHunterLeggings(player);
+                    handleVoyageurCape(player);
                     handleDentDeLoup(player);
                     checkFlecheTimers(player, System.currentTimeMillis());
                     handleTetralame(player);
@@ -1218,11 +1223,11 @@ public class DungeonMod implements ModInitializer {
         }
     }
 
-    private static void handleHunterLeggings(ServerPlayerEntity player) {
+    private static void handleVoyageurCape(ServerPlayerEntity player) {
         var chest = player.getInventory().getArmorStack(2);
-        if (chest.isEmpty() || !chest.isOf(Items.CHAINMAIL_CHESTPLATE)) return;
+        if (chest.isEmpty() || !chest.isOf(Items.ELYTRA)) return;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return;
-        if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du chasseur")) return;
+        if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Cape du voyageur")) return;
 
         player.addStatusEffect(new StatusEffectInstance(
             StatusEffects.SLOW_FALLING, 15, 0, true, false, false));

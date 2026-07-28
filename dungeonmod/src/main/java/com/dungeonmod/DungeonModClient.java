@@ -37,6 +37,7 @@ public class DungeonModClient implements ClientModInitializer {
         EntityRendererRegistry.register(com.dungeonmod.entity.OgreEntity.TYPE, com.dungeonmod.entity.OgreRenderer::new);
         EntityRendererRegistry.register(com.dungeonmod.entity.BarmanEntity.TYPE, com.dungeonmod.entity.BarmanRenderer::new);
         EntityRendererRegistry.register(com.dungeonmod.entity.GaspardEntity.TYPE, com.dungeonmod.entity.GaspardRenderer::new);
+        EntityRendererRegistry.register(com.dungeonmod.entity.EliasEntity.TYPE, com.dungeonmod.entity.EliasRenderer::new);
 
 
 

@@ -62,7 +62,8 @@
     "PlayerScreenHandlerMixin",
     "ScreenHandlerInvoker",
     "ScreenHandlerMixin",
-    "InteractionBlockerMixin"
+    "InteractionBlockerMixin",
+    "SlotAccessor"
   ],
   "client": [
     "ArmorHudMixin",

@@ -27,12 +27,13 @@ public class GaspardEntity extends BaseNpcEntity implements NpcShopProvider {
     private static final java.util.Random RANDOM = new java.util.Random();
 
     private static final Identifier ID = Identifier.of(DungeonMod.MOD_ID, "gaspard");
-    public static final EntityType<GaspardEntity> TYPE = Registry.register(
-        Registries.ENTITY_TYPE, ID,
-        EntityType.Builder.<GaspardEntity>create(GaspardEntity::new, SpawnGroup.MISC)
-            .dimensions(0.6f, 1.95f).maxTrackingRange(64)
-            .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), ID))
-    );
+    public static final EntityType<GaspardEntity> TYPE = EntityType.Builder.<GaspardEntity>create(GaspardEntity::new, SpawnGroup.MISC)
+        .dimensions(0.6f, 1.95f).maxTrackingRange(64)
+        .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), ID));
+
+    public static void register() {
+        Registry.register(Registries.ENTITY_TYPE, ID, TYPE);
+    }
 
     public GaspardEntity(EntityType<? extends net.minecraft.entity.mob.ZombieEntity> entityType, World world) {
         super(entityType, world);

@@ -1,0 +1,27 @@
+# Build
+build/
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# Run directory (crash reports, logs, worlds)
+run/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Gradle
+local.properties
+
+# Python temp scripts
+*.py

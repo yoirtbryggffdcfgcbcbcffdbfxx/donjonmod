@@ -24,7 +24,7 @@ public class VoyageurMixin {
         var chest = player.getInventory().getArmorStack(2);
         if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return;
-        if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du voyageur")) return;
+        if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du chasseur")) return;
 
         player.heal(1.0f);
     }
