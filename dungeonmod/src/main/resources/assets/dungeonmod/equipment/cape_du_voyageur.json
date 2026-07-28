@@ -2,7 +2,7 @@
   "layers": {
     "wings": [
       {
-        "texture": "dungeonmod:elytra/cape_du_voyageur"
+        "texture": "dungeonmod:cape_du_voyageur"
       }
     ]
   }

@@ -295,9 +295,9 @@ public class DungeonAlgo {
     }
 
     private static TreeResult generateRawTree(int targetMin, int targetMax, int maxI3, int maxI4,
-                                               int straightWeight, Point startPt, Set<Point> blocked) {
+                                               int straightWeight, Point startPt, Set<Point> blocked,
+                                               Random rng) {
         if (blocked == null) blocked = new HashSet<>();
-        Random rng = new Random();
         Point start = startPt != null ? startPt : new Point(GRID_SIZE / 2, GRID_SIZE / 2);
 
         Set<Point> occupied = new HashSet<>();
@@ -393,8 +393,8 @@ public class DungeonAlgo {
         return tr;
     }
 
-    private static TreeResult generatePart1Tree() {
-        return generateRawTree(PART1_TARGET_MIN, PART1_TARGET_MAX, PART1_MAX_I3, PART1_MAX_I4, PART1_STRAIGHT_WEIGHT, null, null);
+    private static TreeResult generatePart1Tree(Random rng) {
+        return generateRawTree(PART1_TARGET_MIN, PART1_TARGET_MAX, PART1_MAX_I3, PART1_MAX_I4, PART1_STRAIGHT_WEIGHT, null, null, rng);
     }
 
     // ===================== Algorithm: analyzePart1 =====================
@@ -1307,7 +1307,7 @@ public class DungeonAlgo {
         globalOccupied.add(firstGob); ga.put(firstGob, new HashSet<>());
         ga.get(gLeaf).add(firstGob); ga.get(firstGob).add(gLeaf);
 
-        TreeResult gobRaw = generateRawTree(20, 25, 3, 1, 2, firstGob, new HashSet<>(globalOccupied));
+        TreeResult gobRaw = generateRawTree(20, 25, 3, 1, 2, firstGob, new HashSet<>(globalOccupied), rng);
         if (gobRaw.adj.size() < 6) return false;
 
         for (var e : gobRaw.adj.entrySet()) {
@@ -1704,8 +1704,8 @@ public class DungeonAlgo {
         return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc >= 2 && mjPlacedKeys.size() >= 5;
     }
 
-    private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked) {
-        return generateRawTree(PART2_TARGET_MIN, PART2_TARGET_MAX, PART2_MAX_I3, 1, PART2_STRAIGHT_WEIGHT, startPoint, blocked);
+    private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked, Random rng) {
+        return generateRawTree(PART2_TARGET_MIN, PART2_TARGET_MAX, PART2_MAX_I3, 1, PART2_STRAIGHT_WEIGHT, startPoint, blocked, rng);
     }
 
     // ===================== Public Main API =====================
@@ -1726,13 +1726,14 @@ public class DungeonAlgo {
         lastTopLabels = null;
 
         for (int outer = 0; outer < maxAttempts; outer++) {
-            long actualSeed = seed != 0 && outer < 1 ? seed : System.nanoTime() + outer;
+            // Seed déterministe : chaque tentative (y compris les retries) découle de la seed demandée
+            long actualSeed = seed != 0 ? seed + outer : System.nanoTime() + outer;
             Random rng = new Random(actualSeed);
 
             TreeResult sp1 = null;
             Map<Point, String> labels = null;
             for (int inner = 0; inner < 50; inner++) {
-                TreeResult try1 = generatePart1Tree();
+                TreeResult try1 = generatePart1Tree(rng);
                 if (try1.adj.size() < 10) continue;
                 List<Point> leaves = new ArrayList<>();
                 for (var e : try1.adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(try1.startPoint)) leaves.add(e.getKey());
@@ -1751,7 +1752,7 @@ public class DungeonAlgo {
             if (tavern == null) continue;
             for (var e : tavern.tavern.entrySet()) labels.put(e.getValue(), e.getKey());
 
-            TreeResult sp2 = generatePart2Tree(tavern.exitPoint, new HashSet<>(sp1.adj.keySet()));
+            TreeResult sp2 = generatePart2Tree(tavern.exitPoint, new HashSet<>(sp1.adj.keySet()), rng);
             if (sp2.adj.size() < 5) continue;
             for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
