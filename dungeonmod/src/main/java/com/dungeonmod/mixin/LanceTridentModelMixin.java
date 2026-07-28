@@ -8,6 +8,10 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(TridentEntityModel.class)
 public class LanceTridentModelMixin {
 
+    /**
+     * @reason Modèle de la lance (trident custom) : cuboïdes simplifiés
+     *         conformes au modèle attendu par le rendu du mod.
+     */
     @Overwrite
     public static TexturedModelData getTexturedModelData() {
         ModelData data = new ModelData();

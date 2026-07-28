@@ -1233,7 +1233,7 @@ public class DungeonMod implements ModInitializer {
             StatusEffects.SLOW_FALLING, 15, 0, true, false, false));
 
         // Contrôles aériens (inactifs au sol et en vol plané élytra)
-        if (player.isOnGround() || player.isFallFlying()) return;
+        if (player.isOnGround() || player.isGliding()) return;
 
         double vx = player.getVelocity().x;
         double vy = player.getVelocity().y;
