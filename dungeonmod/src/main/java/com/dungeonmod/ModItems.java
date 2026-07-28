@@ -412,17 +412,18 @@ public class ModItems {
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("plastron_heros_armor", 8.0, AttributeModifierSlot.CHEST).build()),
             "§7Un plastron légendaire.", "§7Reflette les dégâts reçus à l'attaquant.", "§7Protection: +8");
-        register("cape_du_voyageur", "§6Cape du voyageur", Items.ELYTRA,
+        register("cape_du_voyageur", "§6Cape du voyageur", Items.LEATHER_CHESTPLATE,
             stack -> {
                 stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "cape_du_voyageur"));
                 stack.set(DataComponentTypes.EQUIPPABLE,
                     EquippableComponent.builder(EquipmentSlot.CHEST)
                         .model(RegistryKey.of(net.minecraft.item.equipment.EquipmentAssetKeys.REGISTRY_KEY, Identifier.of("dungeonmod", "cape_du_voyageur")))
-                        .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_ELYTRA)
+                        .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_LEATHER)
                         .swappable(true)
                         .build());
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                     new AttrBuilder().fallDamageMult("cape_voyageur_fall", -1.0, AttributeModifierSlot.CHEST).build());
+                stack.remove(DataComponentTypes.DYED_COLOR);
             },
             "§7Une cape légère permettant de planer.",
             "§7Annule les dégâts de chute.",

@@ -1225,7 +1225,7 @@ public class DungeonMod implements ModInitializer {
 
     private static void handleVoyageurCape(ServerPlayerEntity player) {
         var chest = player.getInventory().getArmorStack(2);
-        if (chest.isEmpty() || !chest.isOf(Items.ELYTRA)) return;
+        if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return;
         if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Cape du voyageur")) return;
 
