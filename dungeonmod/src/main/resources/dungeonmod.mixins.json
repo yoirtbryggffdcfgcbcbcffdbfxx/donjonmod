@@ -59,6 +59,7 @@
     "MaxHealthPersistMixin",
     "SyrinxMixin",
     "OgreEyeMixin",
+    "LivingEntityJumpAccessor",
     "PlayerScreenHandlerMixin",
     "ScreenHandlerInvoker",
     "ScreenHandlerMixin",

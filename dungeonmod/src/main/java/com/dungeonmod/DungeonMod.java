@@ -1231,6 +1231,27 @@ public class DungeonMod implements ModInitializer {
 
         player.addStatusEffect(new StatusEffectInstance(
             StatusEffects.SLOW_FALLING, 15, 0, true, false, false));
+
+        // Contrôles aériens (inactifs au sol et en vol plané élytra)
+        if (player.isOnGround() || player.isFallFlying()) return;
+
+        double vx = player.getVelocity().x;
+        double vy = player.getVelocity().y;
+        double vz = player.getVelocity().z;
+
+        if (player.isSneaking()) {
+            // SHIFT en l'air : plongée rapide vers le sol
+            player.setVelocity(vx, -3.5, vz);
+            player.velocityModified = true;
+        } else if (((com.dungeonmod.mixin.LivingEntityJumpAccessor) player).dungeonmod$isJumping()) {
+            // ESPACE maintenu : descente ultra lente + léger mal de mer
+            if (vy < -0.05) {
+                player.setVelocity(vx, -0.05, vz);
+                player.velocityModified = true;
+            }
+            player.addStatusEffect(new StatusEffectInstance(
+                StatusEffects.NAUSEA, 100, 0, true, false, false));
+        }
     }
 
     private static boolean hasVoyageurLeggings(ServerPlayerEntity player) {

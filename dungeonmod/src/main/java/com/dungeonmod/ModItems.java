@@ -421,8 +421,14 @@ public class ModItems {
                         .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_ELYTRA)
                         .swappable(true)
                         .build());
+                stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
+                    new AttrBuilder().fallDamageMult("cape_voyageur_fall", -1.0, AttributeModifierSlot.CHEST).build());
             },
-            "§7Une cape légère permettant de planer.", "§7Annule les dégâts de chute.");
+            "§7Une cape légère permettant de planer.",
+            "§7Annule les dégâts de chute.",
+            "§7En l'air : SHIFT pour plonger rapidement au sol.",
+            "§7En l'air : maintient ESPACE pour descendre très lentement",
+            "§7(léger mal de mer).");
         register("jambiere_voyageur", "§9Jambière du voyageur", Items.LEATHER_LEGGINGS,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("jambiere_voyageur_armor", 5.0, AttributeModifierSlot.LEGS).build()),
