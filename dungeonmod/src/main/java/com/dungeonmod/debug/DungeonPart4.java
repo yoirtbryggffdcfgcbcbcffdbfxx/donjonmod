@@ -35,7 +35,26 @@ final class DungeonPart4 {
         return p1.x() == p2.x() || p1.y() == p2.y();
     }
 
-    private static void labelTreeNodes(Map<Point, Set<Point>> tr, Map<Point, String> topLabels, Point startPoint, Random rng) {
+    private static void putSpecial(DungeonLabelState labelState, Map<Point, String> workingLabels,
+                                   Point point, String label) {
+        labelState.putSpecial(point, label);
+        workingLabels.put(point, label);
+    }
+
+    private static void putGeneric(DungeonLabelState labelState, Map<Point, String> workingLabels,
+                                   Point point, Theme theme, Set<Point> neighbors, Random rng) {
+        labelState.setTheme(point, theme);
+        workingLabels.put(point, DungeonLabels.labelForNeighbors(neighbors, theme, rng));
+    }
+
+    private static void putGenericWorking(DungeonLabelState labelState, Map<Point, String> workingLabels,
+                                          Point point, Theme theme, String workingLabel) {
+        labelState.setTheme(point, theme);
+        workingLabels.put(point, workingLabel);
+    }
+
+    private static void labelTreeNodes(DungeonLabelState labelState, Map<Point, Set<Point>> tr,
+                                       Map<Point, String> topLabels, Point startPoint, Random rng) {
         List<Point> lf = new ArrayList<>(), co = new ArrayList<>(), i3 = new ArrayList<>(), i4 = new ArrayList<>();
         for (Point k : tr.keySet()) {
             int d = tr.get(k).size();
@@ -43,12 +62,12 @@ final class DungeonPart4 {
         }
         // Racine : si elle n'a qu'un voisin dans 'tr', l'arête vers l'exit du hub (absente de 'tr')
         // la rendra droite dans 'adj' — pickCJ direct est donc correct et évite un re-pick futur.
-        if (tr.get(startPoint).size() == 1) topLabels.put(startPoint, pickCJ(rng));
-        else topLabels.put(startPoint, DungeonLabels.labelForNeighbors(tr.get(startPoint), Theme.DJ, rng));
-        for (Point k : i3) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(tr.get(k), Theme.DJ, rng));
-        for (Point k : i4) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(tr.get(k), Theme.DJ, rng));
-        for (Point k : co) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(tr.get(k), Theme.DJ, rng));
-        for (Point k : lf) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(tr.get(k), Theme.DJ, rng));
+        if (tr.get(startPoint).size() == 1) putGenericWorking(labelState, topLabels, startPoint, Theme.DJ, pickCJ(rng));
+        else putGeneric(labelState, topLabels, startPoint, Theme.DJ, tr.get(startPoint), rng);
+        for (Point k : i3) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.DJ, tr.get(k), rng);
+        for (Point k : i4) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.DJ, tr.get(k), rng);
+        for (Point k : co) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.DJ, tr.get(k), rng);
+        for (Point k : lf) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.DJ, tr.get(k), rng);
         // Règle spéciale : un couloir droit rattaché perpendiculairement à une intersection 4
         // devient un virage (visuellement, on tourne en entrant/sortant de l'intersection).
         for (Point ip : i4) {
@@ -59,14 +78,16 @@ final class DungeonPart4 {
                 if (nAd.size() != 2) continue;
                 Point a0 = nAd.get(0);
                 Point a1 = nAd.get(1);
-                if ((a1.x() - a0.x()) * (nb.x() - ip.x()) + (a1.y() - a0.y()) * (nb.y() - ip.y()) == 0) topLabels.put(nb, RoomIds.CORRIDOR_TURN_J);
+                if ((a1.x() - a0.x()) * (nb.x() - ip.x()) + (a1.y() - a0.y()) * (nb.y() - ip.y()) == 0) {
+                    putGenericWorking(labelState, topLabels, nb, Theme.DJ, RoomIds.CORRIDOR_TURN_J);
+                }
             }
         }
     }
 
-    private static boolean placeGoblinVillage(Map<Point, Set<Point>> adj, Map<Point, String> topLabels,
-                                               Map<Point, Set<Point>> gt, Set<Point> globalOccupied,
-                                               Set<Point> goblinCells, Random rng) {
+    private static boolean placeGoblinVillage(DungeonLabelState labelState, Map<Point, Set<Point>> adj,
+                                               Map<Point, String> topLabels, Map<Point, Set<Point>> gt,
+                                               Set<Point> globalOccupied, Set<Point> goblinCells, Random rng) {
         Point gLeaf = null; Point firstGob = null; Point parent = null;
         for (Point testLeaf : new ArrayList<>(gt.keySet())) {
             if (topLabels.get(testLeaf) == null || !topLabels.get(testLeaf).equals(RoomIds.DEAD_END_DJ)) continue;
@@ -79,7 +100,7 @@ final class DungeonPart4 {
         }
         if (gLeaf == null || firstGob == null) return false;
 
-        topLabels.put(gLeaf, RoomIds.GOBLIN_DOOR);
+        putSpecial(labelState, topLabels, gLeaf, RoomIds.GOBLIN_DOOR);
         Map<Point, Set<Point>> ga = new HashMap<>();
         ga.put(gLeaf, new HashSet<>());
         globalOccupied.add(firstGob); ga.put(firstGob, new HashSet<>());
@@ -101,6 +122,7 @@ final class DungeonPart4 {
             }
         }
         globalOccupied.addAll(ga.keySet());
+        labelState.setTheme(ga.keySet(), Theme.GOBLIN);
 
         List<Point> gl = new ArrayList<>(), gco = new ArrayList<>(), gi3 = new ArrayList<>(), gi4 = new ArrayList<>();
         for (Point k : ga.keySet()) {
@@ -108,22 +130,22 @@ final class DungeonPart4 {
             int d = ga.get(k).size();
             if (d == 1) gl.add(k); else if (d == 2) gco.add(k); else if (d == 3) gi3.add(k); else if (d == 4) gi4.add(k);
         }
-        for (Point k : gi3) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
-        for (Point k : gi4) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
+        for (Point k : gi3) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.GOBLIN, ga.get(k), rng);
+        for (Point k : gi4) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.GOBLIN, ga.get(k), rng);
 
         for (Point k : gco) {
             List<Point> nb2 = new ArrayList<>(ga.get(k));
-            if (isStraight(nb2.get(0), nb2.get(1))) { topLabels.put(k, RoomIds.GOBLIN_WELL); break; }
+            if (isStraight(nb2.get(0), nb2.get(1))) { putSpecial(labelState, topLabels, k, RoomIds.GOBLIN_WELL); break; }
         }
 
         Collections.shuffle(gl, rng);
         int gli = 0;
-        if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_MARCH); gli++; }
-        if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_ARMORY); gli++; }
-        if (gli < gl.size()) { topLabels.put(gl.get(gli), RoomIds.GOBLIN_TREASURE); gli++; }
+        if (gli < gl.size()) { putSpecial(labelState, topLabels, gl.get(gli), RoomIds.GOBLIN_MARCH); gli++; }
+        if (gli < gl.size()) { putSpecial(labelState, topLabels, gl.get(gli), RoomIds.GOBLIN_ARMORY); gli++; }
+        if (gli < gl.size()) { putSpecial(labelState, topLabels, gl.get(gli), RoomIds.GOBLIN_TREASURE); gli++; }
 
-        for (Point k : gco) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
-        for (Point k : gl) if (!topLabels.containsKey(k)) topLabels.put(k, DungeonLabels.labelForNeighbors(ga.get(k), Theme.GOBLIN, rng));
+        for (Point k : gco) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.GOBLIN, ga.get(k), rng);
+        for (Point k : gl) if (!topLabels.containsKey(k)) putGeneric(labelState, topLabels, k, Theme.GOBLIN, ga.get(k), rng);
 
         List<Point> hl = new ArrayList<>();
         for (Point k : ga.keySet()) {
@@ -152,19 +174,20 @@ final class DungeonPart4 {
         }
         for (Point k : hs) {
             int d = ga.get(k).size();
-            if (d == 3) topLabels.put(k, RoomIds.GOBLIN_HOUSE_3);
+            if (d == 3) putSpecial(labelState, topLabels, k, RoomIds.GOBLIN_HOUSE_3);
             else if (d == 2) {
                 List<Point> nb2 = new ArrayList<>(ga.get(k));
-                if (!isStraight(nb2.get(0), nb2.get(1))) topLabels.put(k, RoomIds.GOBLIN_HOUSE_2);
-            } else if (d == 1) topLabels.put(k, RoomIds.GOBLIN_HOUSE_1);
+                if (!isStraight(nb2.get(0), nb2.get(1))) putSpecial(labelState, topLabels, k, RoomIds.GOBLIN_HOUSE_2);
+            } else if (d == 1) putSpecial(labelState, topLabels, k, RoomIds.GOBLIN_HOUSE_1);
         }
         for (var e : ga.entrySet()) { adj.putIfAbsent(e.getKey(), new HashSet<>()); adj.get(e.getKey()).addAll(e.getValue()); goblinCells.add(e.getKey()); }
         goblinCells.add(gLeaf);
         return true;
     }
 
-    private static void placeChapelAndCrypt(Map<Point, Set<Point>> adj, Map<Point, String> topLabels,
-                                             Map<Point, Set<Point>> ct, Point cs, Set<Point> globalOccupied, Random rng) {
+    private static void placeChapelAndCrypt(DungeonLabelState labelState, Map<Point, Set<Point>> adj,
+                                             Map<Point, String> topLabels, Map<Point, Set<Point>> ct,
+                                             Point cs, Set<Point> globalOccupied, Random rng) {
         for (Point k : ct.keySet()) {
             String vl = topLabels.get(k);
             if (ct.get(k).size() != 1 || k.equals(cs) || vl == null || !vl.equals(RoomIds.DEAD_END_DJ)) continue;
@@ -175,7 +198,7 @@ final class DungeonPart4 {
             globalOccupied.add(e);
             adj.put(e, new HashSet<>());
             adj.get(k).add(e); adj.get(e).add(k);
-            topLabels.put(k, RoomIds.CHAPEL_1); topLabels.put(e, RoomIds.CHAPEL_2);
+            putSpecial(labelState, topLabels, k, RoomIds.CHAPEL_1); putSpecial(labelState, topLabels, e, RoomIds.CHAPEL_2);
 
             int dir = (k.x() - mb.x() == 1) ? 0 : (k.x() - mb.x() == -1) ? 2 : (k.y() - mb.y() == 1) ? 1 : 3;
             int pathLen = 3 + rng.nextInt(3);
@@ -190,7 +213,7 @@ final class DungeonPart4 {
                 globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
                 adj.get(pv).add(ncx); adj.get(ncx).add(pv);
                 // Chemin chapelle -> crypte : couloirs thème P1/P2 (C/I2), demande du dev.
-                topLabels.put(ncx, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
+                putGenericWorking(labelState, topLabels, ncx, Theme.P12, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
                 pv = ncx; curr = ncx;
             }
             for (int s = 0; s < 2; s++) {
@@ -198,15 +221,16 @@ final class DungeonPart4 {
                 if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
                 globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
                 adj.get(pv).add(ncx); adj.get(ncx).add(pv);
-                topLabels.put(ncx, s == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2);
+                putSpecial(labelState, topLabels, ncx, s == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2);
                 pv = ncx; curr = ncx;
             }
             break;
         }
     }
 
-    private static void placePrisonBlock(Map<Point, Set<Point>> adj, Map<Point, String> topLabels,
-                                          Map<Point, Set<Point>> pt, Point ps, Set<Point> globalOccupied) {
+    private static void placePrisonBlock(DungeonLabelState labelState, Map<Point, Set<Point>> adj,
+                                          Map<Point, String> topLabels, Map<Point, Set<Point>> pt,
+                                          Point ps, Set<Point> globalOccupied) {
         for (Point pk : pt.keySet()) {
             String vp = topLabels.get(pk);
             if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || !vp.equals(RoomIds.DEAD_END_DJ)) continue;
@@ -221,7 +245,7 @@ final class DungeonPart4 {
             if (p2.isOutOfBounds() || p3.isOutOfBounds() || p4.isOutOfBounds()) continue;
             if (globalOccupied.contains(p2) || globalOccupied.contains(p3) || globalOccupied.contains(p4)) continue;
 
-            topLabels.put(pk, RoomIds.PRISON_C1);
+            putSpecial(labelState, topLabels, pk, RoomIds.PRISON_C1);
             Point[] prisonCells = {p2, p3, p4};
             String[] prisonLabels = {RoomIds.PRISON_C2, RoomIds.PRISON_C3, RoomIds.PRISON_C4};
             Point pv2 = pk;
@@ -229,7 +253,7 @@ final class DungeonPart4 {
                 globalOccupied.add(prisonCells[pi]);
                 adj.put(prisonCells[pi], new HashSet<>());
                 adj.get(pv2).add(prisonCells[pi]); adj.get(prisonCells[pi]).add(pv2);
-                topLabels.put(prisonCells[pi], prisonLabels[pi]); pv2 = prisonCells[pi];
+                putSpecial(labelState, topLabels, prisonCells[pi], prisonLabels[pi]); pv2 = prisonCells[pi];
             }
             break;
         }
@@ -247,6 +271,8 @@ final class DungeonPart4 {
     static boolean generatePart4Tree(Map<Point, Set<Point>> adj,
                                               Map<Point, String> topLabels,
                                               int hx, int hz, String missingLootType, Random rng) {
+        DungeonLabelState labelState = new DungeonLabelState();
+        labelState.absorbLabels(topLabels);
         Point[] p4Exits = {
             new Point(hx, hz + 2),
             new Point(hx + 1, hz + 2),
@@ -283,6 +309,8 @@ final class DungeonPart4 {
                 adj.get(pp).add(hk); adj.get(hk).add(pp);
                 adj.get(pp).add(cjPt); adj.get(cjPt).add(pp);
                 globalOccupied.add(pp); globalOccupied.add(cjPt);
+                labelState.setTheme(pp, Theme.DJ);
+                labelState.setTheme(cjPt, Theme.DJ);
                 cjKeys.add(cjPt); cjDirs.add(new int[]{adx, ady}); exitKeys.add(pp);
             }
         }
@@ -388,7 +416,7 @@ final class DungeonPart4 {
             if (tr.size() < 6) continue;
             allTrees.add(tr); allStarts.add(startPoint);
 
-            labelTreeNodes(tr, topLabels, startPoint, rng);
+            labelTreeNodes(labelState, tr, topLabels, startPoint, rng);
 
             for (var e : tr.entrySet()) {
                 adj.putIfAbsent(e.getKey(), new HashSet<>());
@@ -411,12 +439,12 @@ final class DungeonPart4 {
         for (Point ek : exitKeys) {
             if (topLabels.containsKey(ek)) continue;
             Set<Point> skn = adj.get(ek); if (skn == null) continue;
-            topLabels.put(ek, DungeonLabels.labelForNeighbors(skn, Theme.DJ, rng));
+            putGeneric(labelState, topLabels, ek, Theme.DJ, skn, rng);
         }
 
         for (Point cjk : cjKeys) {
             Set<Point> cn = adj.get(cjk); if (cn == null) continue;
-            topLabels.put(cjk, DungeonLabels.labelForNeighbors(cn, Theme.DJ, rng));
+            putGeneric(labelState, topLabels, cjk, Theme.DJ, cn, rng);
         }
 
         if (allTrees.size() < 5) return false;
@@ -426,9 +454,9 @@ final class DungeonPart4 {
         int gIdx = idxs.get(0), cIdx = idxs.get(1), pIdx = idxs.get(2);
         Set<Point> goblinCells = new HashSet<>();
 
-        if (!placeGoblinVillage(adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
-        placeChapelAndCrypt(adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
-        placePrisonBlock(adj, topLabels, allTrees.get(pIdx), allStarts.get(pIdx), globalOccupied);
+        if (!placeGoblinVillage(labelState, adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
+        placeChapelAndCrypt(labelState, adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
+        placePrisonBlock(labelState, adj, topLabels, allTrees.get(pIdx), allStarts.get(pIdx), globalOccupied);
 
         // PASSE DE COHÉRENCE FINALE : la topologie P4 est désormais figée (arbres, exits,
         // village gobelin, chapelle, prison). On re-déduit chaque label structurel générique
@@ -472,7 +500,7 @@ final class DungeonPart4 {
                 best = k; bestType = availType; break;
             }
             if (best != null) {
-                topLabels.put(best, bestType);
+                putSpecial(labelState, topLabels, best, bestType);
                 mjPlacedKeys.add(best);
                 int ti = treeForNode.getOrDefault(best, -1);
                 if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
@@ -481,7 +509,7 @@ final class DungeonPart4 {
 
         for (var e : new ArrayList<>(topLabels.entrySet())) {
             if (e.getValue() != null && e.getValue().equals(RoomIds.DEAD_END_DJ) && !isHubExit.test(e.getKey())) {
-                topLabels.put(e.getKey(), RoomIds.BLACK_MARKET); break;
+                putSpecial(labelState, topLabels, e.getKey(), RoomIds.BLACK_MARKET); break;
             }
         }
 
@@ -494,7 +522,7 @@ final class DungeonPart4 {
                 if (lootCorr && (v.startsWith("CJ") || v.startsWith("CG"))) { lk = k; break; }
                 if (!lootCorr && v.equals(RoomIds.DEAD_END_DJ)) { lk = k; break; }
             }
-            if (lk != null) topLabels.put(lk, missingLootType);
+            if (lk != null) putSpecial(labelState, topLabels, lk, missingLootType);
         }
 
         Point puitDJKey = null;
@@ -503,7 +531,7 @@ final class DungeonPart4 {
             if (v == null || goblinCells.contains(k) || isHubExit.test(k)) continue;
             if (v.startsWith("CJ") || v.startsWith("CG")) { puitDJKey = k; break; }
         }
-        if (puitDJKey != null) topLabels.put(puitDJKey, RoomIds.WELL_DJ);
+        if (puitDJKey != null) putSpecial(labelState, topLabels, puitDJKey, RoomIds.WELL_DJ);
 
         // Règle cul-de-sac étage 1 (conversation 3) : pas de culDJ/CDG au bout d'une
         // ligne droite. Échec => rejet (false => retry amont, 15 tentatives).
