@@ -31,6 +31,7 @@ public class DungeonAlgo {
      */
     private static final int MAX_COLINEAR_RUN = 3;
     /** @deprecated alias — utiliser {@link #MAX_COLINEAR_RUN} */
+    @Deprecated
     private static final int PART2_MAX_COLINEAR_RUN = MAX_COLINEAR_RUN;
 
     private static final int PART3_TARGET = 45;
