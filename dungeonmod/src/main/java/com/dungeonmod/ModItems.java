@@ -169,13 +169,14 @@ public class ModItems {
         register("chair_gobelin_crue", "§cChair de gobelin crue", Items.BEEF,
             stack -> {
                 stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chair_gobelin_crue"));
-                stack.set(DataComponentTypes.FOOD, new net.minecraft.component.type.FoodComponent.Builder().nutrition(8).saturationModifier(0.3f).build());
+                // nutrition 0 : le soin PV est géré par DungeonConsumableMixin (×2 glouton)
+                stack.set(DataComponentTypes.FOOD, new net.minecraft.component.type.FoodComponent.Builder().nutrition(0).saturationModifier(0).alwaysEdible().build());
             },
             "§7Une chair de gobelin crue.", "§7Restaure 2 coeurs.");
         register("chair_gobelin_cuite", "§aChair de gobelin cuite", Items.COOKED_BEEF,
             stack -> {
                 stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chair_gobelin_cuite"));
-                stack.set(DataComponentTypes.FOOD, new net.minecraft.component.type.FoodComponent.Builder().nutrition(20).saturationModifier(0.6f).build());
+                stack.set(DataComponentTypes.FOOD, new net.minecraft.component.type.FoodComponent.Builder().nutrition(0).saturationModifier(0).alwaysEdible().build());
             },
             "§7Une chair de gobelin cuite.", "§7Restaure 5 coeurs.");
 
@@ -418,6 +419,23 @@ public class ModItems {
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("plastron_heros_armor", 8.0, AttributeModifierSlot.CHEST).build()),
             "§7Un plastron légendaire.", "§7Reflette les dégâts reçus à l'attaquant.", "§7Protection: +8");
+        register("plastron_glouton", "§6Plastron du glouton", Items.LEATHER_CHESTPLATE,
+            stack -> {
+                stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
+                    new AttrBuilder().armor("plastron_glouton_armor", 15.0, AttributeModifierSlot.CHEST).build());
+                stack.set(DataComponentTypes.EQUIPPABLE, EquippableComponent.builder(EquipmentSlot.CHEST)
+                    .model(net.minecraft.item.equipment.EquipmentAssetKeys.LEATHER)
+                    .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_LEATHER).swappable(true).build());
+                stack.remove(DataComponentTypes.DYED_COLOR);
+            },
+            "§7Un plastron de glouton.",
+            "§7Manger / boire : instantané.",
+            "§7Soins des aliments ×2.",
+            "§7Durée potions / bières ×2.",
+            "§7Protection: 15%, Attaque: +40%");
+        var plastronGloutonItem = ModItems.get("plastron_glouton");
+        if (plastronGloutonItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(
+            plastronGloutonItem.vanillaItem, "Plastron du glouton", 0.40f);
         register("cape_du_voyageur", "§6Cape du voyageur", Items.LEATHER_CHESTPLATE,
             stack -> {
                 stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "cape_du_voyageur"));

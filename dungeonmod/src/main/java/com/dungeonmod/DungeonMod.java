@@ -360,64 +360,8 @@ public class DungeonMod implements ModInitializer {
                 }
             }
 
-            if (isFlask(stack) && isBlessedFlask(stack)) {
-                if (!world.isClient()) {
-                    if (player instanceof ServerPlayerEntity sp) {
-                        holyWaterTimers.put(sp.getUuid(), System.currentTimeMillis() + 8000);
-                    }
-                    transformFlaskToNormal(player, hand, stack);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isApple(stack)) {
-                if (!world.isClient()) {
-                    player.heal(1.0f);
-                    if (!player.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isPotato(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
-                    sp.heal(2.0f);
-                    sp.addStatusEffect(new StatusEffectInstance(
-                        StatusEffects.NAUSEA, 200, 0, false, false));
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isSteak(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
-                    sp.heal(6.0f);
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isBiere(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
-                    if (stack.isOf(Items.POTION)) {
-                        sp.addStatusEffect(new StatusEffectInstance(
-                            StatusEffects.NAUSEA, 400, 0, false, false));
-                        com.dungeonmod.util.BeerStrengthData.applyBoost(sp, "brune", 1.5f, 400);
-                    } else {
-                        com.dungeonmod.util.BeerStrengthData.applyBoost(sp, "viking", 2.5f, 600);
-                    }
-                    if (!sp.isCreative()) {
-                        ItemStack chope = new ItemStack(Items.GLASS_BOTTLE);
-                        chope.set(DataComponentTypes.CUSTOM_NAME, net.minecraft.text.Text.literal("§7Chope de bière"));
-                        chope.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chope_biere"));
-                        if (hand.equals(net.minecraft.util.Hand.MAIN_HAND)) {
-                            player.getInventory().setStack(player.getInventory().selectedSlot, chope);
-                        } else {
-                            player.getInventory().setStack(40, chope);
-                        }
-                    }
-                }
-                return ActionResult.SUCCESS;
-            }
+            // Pomme / patate / steack / chair gobelin / bière / fiole bénite :
+            // animations vanilla + effets via DungeonConsumableMixin (plus d'instantané ici).
 
             if (isEgg(stack)) {
                 if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
@@ -604,6 +548,24 @@ public class DungeonMod implements ModInitializer {
         if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
         String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
         return name.contains("Steack cru");
+    }
+
+    /** Chair de gobelin crue (BEEF) ou cuite (COOKED_BEEF). */
+    public static boolean isGoblinMeat(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        if (!stack.isOf(Items.BEEF) && !stack.isOf(Items.COOKED_BEEF)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
+        return name.contains("Chair de gobelin");
+    }
+
+    /** Plastron du glouton équipé (slot chest). */
+    public static boolean hasGloutonChestplate(PlayerEntity player) {
+        if (player == null) return false;
+        ItemStack chest = player.getInventory().getArmorStack(2);
+        if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return false;
+        if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        return chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du glouton");
     }
 
     public static boolean isBiere(ItemStack stack) {
@@ -841,8 +803,11 @@ public class DungeonMod implements ModInitializer {
     }
 
     public static boolean isBlessedFlask(ItemStack stack) {
-        return stack.isOf(Items.GLASS_BOTTLE) && stack.contains(DataComponentTypes.CUSTOM_NAME) && 
-            stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Fiole d'eau bénite");
+        // Creative/ModItems = POTION ; transform fontaine = GLASS_BOTTLE
+        if (stack.isEmpty()) return false;
+        if (!stack.isOf(Items.GLASS_BOTTLE) && !stack.isOf(Items.POTION)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        return stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Fiole d'eau bénite");
     }
 
     private static boolean isNearWater(World world, BlockPos pos) {
@@ -1396,7 +1361,8 @@ public class DungeonMod implements ModInitializer {
     }
 
     private static final java.util.Map<java.util.UUID, Long> flechePause = new java.util.HashMap<>();
-    private static final java.util.Map<java.util.UUID, Long> holyWaterTimers = new java.util.HashMap<>();
+    /** Timers eau bénite (uuid → expireAt ms). Public pour DungeonConsumableMixin. */
+    public static final java.util.Map<java.util.UUID, Long> holyWaterTimers = new java.util.HashMap<>();
     private static final java.util.Map<java.util.UUID, Long> holyWaterLastHeal = new java.util.HashMap<>();
 
     private static void checkFlecheTimers(ServerPlayerEntity player, long now) {

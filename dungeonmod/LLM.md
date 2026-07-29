@@ -54,6 +54,7 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 | `plastron_lourd` | Plastron lourd | IRON_CHESTPLATE | 12 | -30% vitesse, -30% saut, +10 absorption max (set 10 HP à l'équipement) |
 | `plastron_heros` | Plastron du héros | GOLDEN_CHESTPLATE | 8 | Reflette les dégâts subis à l'attaquant |
 | `plastron_chasseur` | Plastron du chasseur | CHAINMAIL_CHESTPLATE | 23 | Kill → +0,5 cœur ; Attaque +125% |
+| `plastron_glouton` | Plastron du glouton | LEATHER_CHESTPLATE | 15 | Manger/boire instantané ; soins aliments ×2 ; durée potions/bières ×2 ; Attaque +40% |
 | `cape_du_voyageur` | Cape du voyageur | LEATHER_CHESTPLATE | 18 | Plane / chute nulle ; Attaque +70% |
 
 ### Jambières (slot LEGS)
