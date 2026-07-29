@@ -34,6 +34,32 @@ final class DungeonCompositeRooms {
             .edge(0, 1, 0, 2)
             .build();
 
+    static final Spec CAMP = Spec.builder()
+            .entry(0, 0)
+            .exit(2, -1)
+            .label(0, 0, DungeonAlgo.RoomIds.CAMP_1)
+            .label(1, 0, DungeonAlgo.RoomIds.CAMP_2)
+            .label(1, -1, DungeonAlgo.RoomIds.CAMP_3)
+            .label(0, -1, DungeonAlgo.RoomIds.CAMP_4)
+            .node(2, -1) // sortie générique vers P3
+            .edge(0, 0, 1, 0)
+            .edge(1, 0, 1, -1)
+            .edge(1, -1, 0, -1)
+            .edge(1, -1, 2, -1)
+            .build();
+
+    static final Spec PRISON_CENTRAL = Spec.builder()
+            .entry(0, 0)
+            .exit(0, -1)
+            .label(0, 0, DungeonAlgo.RoomIds.PRISON_C1)
+            .label(1, 0, DungeonAlgo.RoomIds.PRISON_C2)
+            .label(1, -1, DungeonAlgo.RoomIds.PRISON_C3)
+            .label(0, -1, DungeonAlgo.RoomIds.PRISON_C4)
+            .edge(0, 0, 1, 0)
+            .edge(1, 0, 1, -1)
+            .edge(1, -1, 0, -1)
+            .build();
+
     record LocalPoint(int forward, int side) {}
 
     record LocalEdge(LocalPoint a, LocalPoint b) {}
@@ -146,11 +172,17 @@ final class DungeonCompositeRooms {
      * Prépare une pose sans modifier l'adj. Retourne null si l'emprise n'est pas libre.
      */
     static Placement plan(Map<Point, Set<Point>> adj, Point anchor, int dx, int dy, Spec spec) {
+        return plan(adj, anchor, dx, dy, spec, Set.of());
+    }
+
+    static Placement plan(Map<Point, Set<Point>> adj, Point anchor, int dx, int dy, Spec spec,
+                          Set<Point> allowedExisting) {
         Map<LocalPoint, Point> world = new LinkedHashMap<>();
         Set<Point> unique = new HashSet<>();
+        Set<Point> allowed = allowedExisting == null ? Set.of() : allowedExisting;
         for (LocalPoint local : spec.nodes) {
             Point p = toWorld(anchor, dx, dy, local);
-            if (p.isOutOfBounds() || adj.containsKey(p) || !unique.add(p)) return null;
+            if (p.isOutOfBounds() || (!allowed.contains(p) && adj.containsKey(p)) || !unique.add(p)) return null;
             world.put(local, p);
         }
         return new Placement(spec, anchor, dx, dy, world);
@@ -161,10 +193,10 @@ final class DungeonCompositeRooms {
      */
     static void place(Map<Point, Set<Point>> adj, Point externalEntry, Placement placement) {
         for (Point p : placement.occupiedCells()) {
-            adj.put(p, new HashSet<>());
+            adj.putIfAbsent(p, new HashSet<>());
         }
         Point entryPoint = placement.worldCells.get(placement.spec.entry);
-        connect(adj, externalEntry, entryPoint);
+        if (externalEntry != null) connect(adj, externalEntry, entryPoint);
         for (LocalEdge edge : placement.spec.edges) {
             connect(adj, placement.worldCells.get(edge.a()), placement.worldCells.get(edge.b()));
         }

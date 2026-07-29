@@ -276,15 +276,8 @@ final class DungeonPart2 {
             }
             if (!okC) return null;
         }
-        Point c2 = c1.move(dx, dy);
-        int pex = dy, pey = -dx;
-        Point c3 = c2.move(pex, pey);
-        Point c4 = c3.move(-dx, -dy);
-        Point cex = c3.move(dx, dy);
-
-        for (Point k : Arrays.asList(c1, c2, c3, c4, cex)) {
-            if (adj.containsKey(k) || k.isOutOfBounds()) return null;
-        }
+        DungeonCompositeRooms.Placement camp = DungeonCompositeRooms.plan(adj, c1, dx, dy, DungeonCompositeRooms.CAMP);
+        if (camp == null) return null;
 
         Set<Point> campPathSet = new HashSet<>();
         Point cur = porte2;
@@ -292,15 +285,11 @@ final class DungeonPart2 {
             campPathSet.add(cell);
             adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
         }
-        adj.put(c1, new HashSet<>()); adj.get(cur).add(c1); adj.get(c1).add(cur);
-        adj.put(c2, new HashSet<>()); adj.get(c1).add(c2); adj.get(c2).add(c1);
-        adj.put(c3, new HashSet<>()); adj.get(c2).add(c3); adj.get(c3).add(c2);
-        adj.put(c4, new HashSet<>()); adj.get(c3).add(c4); adj.get(c4).add(c3);
-        adj.put(cex, new HashSet<>()); adj.get(c3).add(cex); adj.get(cex).add(c3);
+        DungeonCompositeRooms.place(adj, cur, camp);
 
         CampResult cr = new CampResult();
-        cr.campExit = cex; cr.campPathSet = campPathSet;
-        cr.campNodes = Map.of(RoomIds.CAMP_1, c1, RoomIds.CAMP_2, c2, RoomIds.CAMP_3, c3, RoomIds.CAMP_4, c4);
+        cr.campExit = camp.exitPoint(); cr.campPathSet = campPathSet;
+        cr.campNodes = camp.labelPoints();
         return cr;
     }
 
