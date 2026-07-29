@@ -15,10 +15,13 @@ public class DungeonAlgo {
     private static final int PART1_MAX_I4 = 1;
     private static final int PART1_STRAIGHT_WEIGHT = 1;
 
-    private static final int PART2_TARGET_MIN = 18;
-    private static final int PART2_TARGET_MAX = 25;
+    private static final int PART2_TARGET_MIN = 20;
+    private static final int PART2_TARGET_MAX = 28;
     private static final int PART2_MAX_I3 = 4;
-    private static final int PART2_STRAIGHT_WEIGHT = 1;
+    private static final int PART2_TRUNK_MIN = 8;
+    private static final int PART2_TRUNK_MAX = 12;
+    /** Max cellules droites d'affilée sur le tronc P2 avant virage forcé. */
+    private static final int PART2_TRUNK_MAX_STRAIGHT = 3;
 
     private static final int PART3_TARGET = 45;
     private static final int PART3_MAX_IJ3 = 3;
@@ -545,16 +548,43 @@ public class DungeonAlgo {
         List<Point> others = new ArrayList<>();
         for (Point l : leaves) if (!l.equals(prison)) others.add(l);
 
-        // Porte1 : préfère une leaf dont le parent est un couloir DROIT (deg2 colinéaire)
-        // pour pouvoir coller M5 juste avant : … → M5 → porte → chemin taverne
+        // Porte1 : leaf avec parent couloir DROIT et profondeur ≥3 (M5 + 1–2 gap)
+        // Parcours : … → M5 → [1–2 C/I2] → porte → chemin taverne
+        Map<Point, Integer> depthFromStart = new HashMap<>();
+        {
+            Deque<Point> dq = new ArrayDeque<>();
+            dq.add(startPoint);
+            depthFromStart.put(startPoint, 0);
+            while (!dq.isEmpty()) {
+                Point cur = dq.poll();
+                int d0 = depthFromStart.get(cur);
+                for (Point nb : adj.getOrDefault(cur, Set.of())) {
+                    if (!depthFromStart.containsKey(nb)) {
+                        depthFromStart.put(nb, d0 + 1);
+                        dq.add(nb);
+                    }
+                }
+            }
+        }
         Point porte = null;
+        int bestPorteScore = -1;
         for (Point leaf : others) {
+            int depth = depthFromStart.getOrDefault(leaf, 0);
+            if (depth < 3) continue;
             Point par = adj.get(leaf).iterator().next();
             if (par.equals(startPoint)) continue;
             Set<Point> pnb = adj.get(par);
-            if (pnb != null && pnb.size() == 2) {
-                List<Point> pnbs = new ArrayList<>(pnb);
-                if (isStraight(pnbs.get(0), pnbs.get(1))) { porte = leaf; break; }
+            if (pnb == null || pnb.size() != 2) continue;
+            List<Point> pnbs = new ArrayList<>(pnb);
+            if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
+            int score = depth + 10;
+            if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
+        }
+        if (porte == null) {
+            // Fallback : leaf la plus profonde
+            for (Point leaf : others) {
+                int depth = depthFromStart.getOrDefault(leaf, 0);
+                if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
             }
         }
         if (porte == null) porte = others.get(0);
@@ -750,18 +780,36 @@ public class DungeonAlgo {
         Collections.shuffle(remain, rng);
 
         labels.put(remain.get(0), RoomIds.FOUNTAIN);
-        // Porte2 : préfère une leaf dont le parent est couloir DROIT (pour M5 avant porte)
+        // Porte2 : leaf la plus LOIN (fin de tronc P2), avec chaîne d'ancêtres
+        // assez longue pour M5 + 1–2 cellules d'écart (jamais M5 collé à la porte).
         Point porte2 = null;
-                for (int i = 1; i < remain.size(); i++) {
+        int bestScore = -1;
+        for (int i = 1; i < remain.size(); i++) {
             Point leaf = remain.get(i);
+            int d = dist.getOrDefault(leaf, 0);
+            if (d < 3) continue; // trop court pour M5 + gap + porte
+            // Remonte 2–3 crans : parent/grand-parent doivent permettre un gap
             Point par = adj.get(leaf).iterator().next();
-            Set<Point> pnb = adj.get(par);
-            if (pnb != null && pnb.size() == 2) {
+            Set<Point> pnb = adj.getOrDefault(par, Set.of());
+            if (pnb.size() < 2) continue;
+            int score = d * 10;
+            // Bonus si parent est couloir droit
+            if (pnb.size() == 2) {
                 List<Point> pnbs = new ArrayList<>(pnb);
-                if (isStraight(pnbs.get(0), pnbs.get(1))) { porte2 = leaf; break; }
+                if (isStraight(pnbs.get(0), pnbs.get(1))) score += 5;
+            }
+            if (score > bestScore) { bestScore = score; porte2 = leaf; }
+        }
+        if (porte2 == null) {
+            // Fallback : leaf la plus loin hors fontaine
+            for (int i = 1; i < remain.size(); i++) {
+                Point leaf = remain.get(i);
+                int d = dist.getOrDefault(leaf, 0);
+                if (d > bestScore) { bestScore = d; porte2 = leaf; }
             }
         }
-        if (porte2 == null) porte2 = remain.get(1);
+        if (porte2 == null && remain.size() > 1) porte2 = remain.get(1);
+        if (porte2 == null) return null;
         labels.put(porte2, RoomIds.DOOR_2);
 
         Point m3Leaf = null;
@@ -1883,17 +1931,133 @@ public class DungeonAlgo {
         return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc >= 2 && mjPlacedKeys.size() >= 5;
     }
 
+    /**
+     * P2 = arbre à tronc + branches (comme P3), avec virage forcé au plus tard
+     * après {@link #PART2_TRUNK_MAX_STRAIGHT} cellules droites.
+     * La fin de tronc est réservée plus tard pour : M5 → 1-2 C/I2 → porte2 → camp.
+     */
     private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked, Random rng) {
-        return generateRawTree(PART2_TARGET_MIN, PART2_TARGET_MAX, PART2_MAX_I3, 1, PART2_STRAIGHT_WEIGHT, startPoint, blocked, rng);
+        return generatePart2TrunkTree(startPoint, blocked, rng);
+    }
+
+    private static TreeResult generatePart2TrunkTree(Point startPt, Set<Point> blocked, Random rng) {
+        Map<Point, Set<Point>> adj = new HashMap<>();
+        Set<Point> occupied = new HashSet<>(blocked != null ? blocked : Set.of());
+
+        Point start = startPt != null ? startPt : new Point(GRID_SIZE / 2, GRID_SIZE / 2);
+        adj.put(start, new HashSet<>());
+        occupied.add(start);
+
+        // Direction initiale : s'éloigner du blocage (sortie taverne)
+        List<int[]> dirs = new ArrayList<>(Arrays.asList(DIR_OFFSET));
+        Collections.shuffle(dirs, rng);
+        int dir = -1;
+        for (int[] d : dirs) {
+            Point target = start.move(d);
+            if (!target.isOutOfBounds() && !occupied.contains(target)) {
+                for (int i = 0; i < 4; i++) {
+                    if (DIR_OFFSET[i][0] == d[0] && DIR_OFFSET[i][1] == d[1]) { dir = i; break; }
+                }
+                break;
+            }
+        }
+        if (dir < 0) {
+            TreeResult tr = new TreeResult();
+            tr.startPoint = start; tr.startKey = start.key();
+            tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj;
+            return tr;
+        }
+
+        Point c = start.move(DIR_OFFSET[dir]);
+        addEdge(adj, occupied, start, c);
+        List<Point> trunkCells = new ArrayList<>();
+        trunkCells.add(c);
+
+        int trunkTarget = PART2_TRUNK_MIN + rng.nextInt(PART2_TRUNK_MAX - PART2_TRUNK_MIN + 1);
+        int stepsSinceTurn = 1;
+
+        for (int t = 1; t < trunkTarget; t++) {
+            stepsSinceTurn++;
+            // Virage : possible après ≥2 droits, FORCÉ après max 3 droits d'affilée
+            boolean forceTurn = stepsSinceTurn >= PART2_TRUNK_MAX_STRAIGHT;
+            boolean maybeTurn = stepsSinceTurn >= 2 && rng.nextFloat() < 0.40f;
+            if (forceTurn || maybeTurn) {
+                dir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+                stepsSinceTurn = 0;
+            }
+
+            Point n = c.move(DIR_OFFSET[dir]);
+            if (n.isOutOfBounds() || occupied.contains(n)) {
+                int od = dir;
+                boolean found = false;
+                for (int a = 0; a < 4; a++) {
+                    dir = (od + a) % 4;
+                    n = c.move(DIR_OFFSET[dir]);
+                    if (!n.isOutOfBounds() && !occupied.contains(n)) { found = true; break; }
+                }
+                if (!found) break;
+                stepsSinceTurn = 0;
+            }
+
+            addEdge(adj, occupied, c, n);
+            trunkCells.add(n);
+            c = n;
+
+            // Branches latérales le long du tronc (pas sur la toute fin : réservée M5/porte)
+            if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
+                int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+                growMiniTree(n, pDir, adj, occupied, rng);
+            }
+        }
+
+        // Fin de tronc : petites branches latérales (pas dans l'axe principal)
+        if (!trunkCells.isEmpty()) {
+            Point endPoint = trunkCells.get(trunkCells.size() - 1);
+            // une seule mini-branche latérale en fin, pour garder l'axe libre vers M5/porte
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            growMiniTree(endPoint, side, adj, occupied, rng);
+        }
+
+        // Remplissage jusqu'à la taille cible (priorité tronc)
+        int targetSize = PART2_TARGET_MIN + rng.nextInt(PART2_TARGET_MAX - PART2_TARGET_MIN + 1);
+        int ci3 = 0, ci4 = 0;
+        for (Set<Point> nb : adj.values()) {
+            int d = nb.size();
+            if (d == 3) ci3++; else if (d == 4) ci4++;
+        }
+        while (adj.size() < targetSize) {
+            List<Point[]> candidates = new ArrayList<>();
+            for (Point node : adj.keySet()) {
+                if (node.equals(start)) continue;
+                int deg = adj.get(node).size();
+                if (deg >= 4) continue;
+                if (deg == 2 && ci3 >= PART2_MAX_I3) continue;
+                if (deg == 3 && ci4 >= 1) continue;
+                for (int[] d : DIR_OFFSET) {
+                    Point next = node.move(d);
+                    if (next.isOutOfBounds() || occupied.contains(next)) continue;
+                    int w = trunkCells.contains(node) ? 2 : 1;
+                    for (int wi = 0; wi < w; wi++) candidates.add(new Point[]{node, next});
+                }
+            }
+            if (candidates.isEmpty()) break;
+            Point[] choice = candidates.get(rng.nextInt(candidates.size()));
+            addEdge(adj, occupied, choice[0], choice[1]);
+            int nd = adj.get(choice[0]).size();
+            if (nd == 3) ci3++; else if (nd == 4) ci4++;
+        }
+
+        TreeResult tr = new TreeResult();
+        tr.startPoint = start; tr.startKey = start.key();
+        tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj;
+        return tr;
     }
 
     /**
-     * Place M5 (couloir monstre DROIT, comme M2/M4) juste AVANT porte1 et porte2,
-     * côté intérieur — parcours joueur vers la suite :
-     *   … → M5 → porte → chemin cellules → taverne / campement
-     * Uniquement sur un nœud de degré 2 colinéaire (pas de virage I2).
-     * Pas de mobs dans M5 (structure seule).
-     * @return nombre de M5 placés (0..2, idéalement 2 — obligatoire)
+     * Place M5 (couloir monstre DROIT) sur le chemin intérieur vers porte1 et porte2,
+     * avec 1–2 cellules (C ou I2) entre M5 et la porte — jamais côte à côte.
+     * Parcours : … → M5 → [1–2 C/I2] → porte → chemin → taverne/camp.
+     * @return nombre de M5 placés (idéal 2)
      */
     private static int placeMonster5OnDoorPaths(Map<Point, String> labels, Map<Point, Set<Point>> adj,
                                                  Point startPoint) {
@@ -1901,7 +2065,7 @@ public class DungeonAlgo {
         for (String doorId : List.of(RoomIds.DOOR_1, RoomIds.DOOR_2)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
-            Point candidate = findStraightCorridorImmediatelyBeforeDoor(door, labels, adj, startPoint);
+            Point candidate = findM5WithGapBeforeDoor(door, labels, adj, startPoint);
             if (candidate == null) continue;
             labels.put(candidate, RoomIds.MONSTER_5);
             placed++;
@@ -1910,15 +2074,14 @@ public class DungeonAlgo {
     }
 
     /**
-     * Voisin immédiat de la porte côté INTÉRIEUR (vers le départ) :
-     * doit être un couloir DROIT (deg 2 colinéaire), comme M2/M4.
-     * Ordre : M5 → porte → chemin taverne/camp.
+     * Remonte depuis la porte vers le départ : cherche un couloir DROIT
+     * à distance 2 ou 3 (donc 1–2 nœuds entre M5 et la porte).
+     * Préfère distance 2, sinon 3.
      */
-    private static Point findStraightCorridorImmediatelyBeforeDoor(Point door, Map<Point, String> labels,
-                                                                    Map<Point, Set<Point>> adj, Point startPoint) {
+    private static Point findM5WithGapBeforeDoor(Point door, Map<Point, String> labels,
+                                                  Map<Point, Set<Point>> adj, Point startPoint) {
         if (startPoint == null || door == null) return null;
 
-        // BFS start → parent[door] = voisin intérieur (vers le départ)
         Map<Point, Point> parent = new HashMap<>();
         Deque<Point> q = new ArrayDeque<>();
         Set<Point> seen = new HashSet<>();
@@ -1934,38 +2097,68 @@ public class DungeonAlgo {
             }
         }
 
-        Point cand = parent.get(door); // cellule juste AVANT la porte
-        if (cand == null || cand.equals(startPoint)) return null;
+        // Chaîne porte ← p1 ← p2 ← p3 (vers le départ)
+        Point p1 = parent.get(door);       // distance 1 — trop proche, gap interdit
+        Point p2 = p1 != null ? parent.get(p1) : null; // distance 2 — gap = 1 cellule
+        Point p3 = p2 != null ? parent.get(p2) : null; // distance 3 — gap = 2 cellules
 
-        Set<Point> nb = adj.getOrDefault(cand, Set.of());
-        // STRICT : couloir droit uniquement (deg 2 + colinéaire)
-        if (nb.size() != 2) return null;
-        List<Point> nbs = new ArrayList<>(nb);
-        if (!isStraight(nbs.get(0), nbs.get(1))) return null;
-
-        String lbl = labels.get(cand);
-        // Jamais écraser M2 prison / salles spéciales
-        if (lbl != null && (lbl.equals(RoomIds.MONSTER_2)
-                || lbl.equals(RoomIds.PRISON)
-                || lbl.equals(RoomIds.START)
-                || lbl.equals(RoomIds.LOOT_1)
-                || lbl.equals(RoomIds.MONSTER_1)
-                || lbl.equals(RoomIds.MONSTER_3)
-                || lbl.equals(RoomIds.FOUNTAIN)
-                || lbl.equals(RoomIds.OGRE)
-                || lbl.startsWith("T")
-                || lbl.startsWith("Ca"))) {
-            return null;
-        }
-        // Remplaçable : C1-3, WELL, M4, null, déjà M5
-        if (lbl == null
-                || RoomPools.CORRIDORS_P1_P2.contains(lbl)
-                || lbl.equals(RoomIds.WELL)
-                || lbl.equals(RoomIds.MONSTER_4)
-                || lbl.equals(RoomIds.MONSTER_5)) {
+        for (Point cand : new Point[]{p2, p3}) {
+            if (cand == null || cand.equals(startPoint)) continue;
+            if (!isReplaceableStraightCorridor(cand, labels, adj)) continue;
+            // Les nœuds entre cand et door doivent rester des couloirs structurels (gap)
+            if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) continue;
             return cand;
         }
         return null;
+    }
+
+    private static boolean isReplaceableStraightCorridor(Point cand, Map<Point, String> labels,
+                                                          Map<Point, Set<Point>> adj) {
+        Set<Point> nb = adj.getOrDefault(cand, Set.of());
+        if (nb.size() != 2) return false;
+        List<Point> nbs = new ArrayList<>(nb);
+        if (!isStraight(nbs.get(0), nbs.get(1))) return false;
+
+        String lbl = labels.get(cand);
+        if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.PRISON)
+                || lbl.equals(RoomIds.START) || lbl.equals(RoomIds.LOOT_1)
+                || lbl.equals(RoomIds.MONSTER_1) || lbl.equals(RoomIds.MONSTER_3)
+                || lbl.equals(RoomIds.FOUNTAIN) || lbl.equals(RoomIds.OGRE)
+                || lbl.equals(RoomIds.DOOR_1) || lbl.equals(RoomIds.DOOR_2)
+                || lbl.startsWith("T") || lbl.startsWith("Ca"))) {
+            return false;
+        }
+        return lbl == null
+                || RoomPools.CORRIDORS_P1_P2.contains(lbl)
+                || lbl.equals(RoomIds.WELL)
+                || lbl.equals(RoomIds.MONSTER_4)
+                || lbl.equals(RoomIds.MONSTER_5)
+                || lbl.equals(RoomIds.CORRIDOR_TURN);
+    }
+
+    /** Vérifie que les nœuds strictement entre from et door (via parent) sont des couloirs. */
+    private static boolean gapCellsAreCorridors(Point from, Point door, Map<Point, Point> parent,
+                                                 Map<Point, String> labels, Map<Point, Set<Point>> adj) {
+        Point cur = parent.get(door);
+        int guard = 0;
+        while (cur != null && !cur.equals(from) && guard++ < 8) {
+            String lbl = labels.get(cur);
+            if (lbl != null) {
+                boolean structural = RoomPools.CORRIDORS_P1_P2.contains(lbl)
+                        || lbl.equals(RoomIds.CORRIDOR_TURN)
+                        || lbl.equals(RoomIds.WELL)
+                        || lbl.equals(RoomIds.MONSTER_4)
+                        || lbl.equals(RoomIds.INTERSECTION_3)
+                        || lbl.equals(RoomIds.INTERSECTION_4)
+                        || lbl.equals("I2") || lbl.equals("I3") || lbl.equals("I4");
+                // Salle spéciale dans le gap (hors structurel) → refuse
+                if (!structural && genericThemeOf(lbl) == null) return false;
+            }
+            Set<Point> nb = adj.getOrDefault(cur, Set.of());
+            if (nb.size() < 2 || nb.size() > 3) return false;
+            cur = parent.get(cur);
+        }
+        return cur != null && cur.equals(from);
     }
 
     // ===================== Public Main API =====================
@@ -2068,10 +2261,10 @@ public class DungeonAlgo {
                 }
                 if (!p4Ok) continue;
 
-                // M5 : couloir droit juste AVANT porte1 et porte2 (sans mobs)
-                // Parcours : … → M5 → porte → chemin cellules → taverne / campement
+                // M5 : couloir droit AVANT porte1/porte2 avec 1–2 C/I2 d'écart (sans mobs)
+                // Parcours : … → M5 → [1–2 C/I2] → porte → chemin → taverne / campement
                 int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
-                if (m5 < 2) continue; // M5 obligatoire sur les 2 portes
+                if (m5 < 2) continue; // M5 obligatoire sur les 2 portes (gap inclus)
 
                 // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
                 // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
