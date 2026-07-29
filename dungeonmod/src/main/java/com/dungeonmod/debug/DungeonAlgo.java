@@ -1855,10 +1855,12 @@ public class DungeonAlgo {
     }
 
     /**
-     * Place M5 (couloir monstre) juste AVANT porte1 et porte2, côté intérieur
-     * du donjon (voisin de la porte vers le départ). Préfère un couloir droit
-     * de degré 2 non déjà spécial ; sinon remonte d'un cran sur le chemin.
-     * @return nombre de M5 placés (0..2)
+     * Place M5 (couloir monstre DROIT, comme M2/M4) juste AVANT porte1 et porte2,
+     * côté intérieur du donjon — ordonné sur le parcours :
+     *   … → M5 → porte → chemin cellules → taverne / campement
+     * Uniquement sur un nœud de degré 2 colinéaire (pas de virage I2).
+     * N'écrase jamais Prison / M2-prison / salles spéciales non-couloir.
+     * @return nombre de M5 placés (0..2, idéalement 2)
      */
     private static int placeMonster5BeforeDoors(Map<Point, String> labels, Map<Point, Set<Point>> adj,
                                                  Point startPoint) {
@@ -1866,42 +1868,27 @@ public class DungeonAlgo {
         for (String doorId : List.of(RoomIds.DOOR_1, RoomIds.DOOR_2)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
-            Point candidate = findCorridorBeforeDoor(door, labels, adj, startPoint);
+            Point candidate = findStraightCorridorBeforeDoor(door, labels, adj, startPoint);
             if (candidate == null) continue;
-            String cur = labels.get(candidate);
-            // Ne pas écraser salles spéciales (M2 prison, puit, taverne…)
-            if (cur != null && !RoomPools.CORRIDORS_P1_P2.contains(cur)
-                    && !cur.equals(RoomIds.CORRIDOR_TURN)
-                    && !cur.equals(RoomIds.MONSTER_4)
-                    && !cur.equals(RoomIds.MONSTER_2)
-                    && !cur.equals(RoomIds.WELL)) {
-                // déjà spécial non-couloir → skip
-                if (!cur.startsWith("C") && !cur.equals("I2")) continue;
-            }
-            // Autorise remplacement d'un simple C1-3 / I2 / éventuellement M4 générique de couloir
-            if (cur == null || RoomPools.CORRIDORS_P1_P2.contains(cur)
-                    || cur.equals(RoomIds.CORRIDOR_TURN)
-                    || cur.equals(RoomIds.MONSTER_4)
-                    || cur.equals(RoomIds.WELL)
-                    || cur.equals("I2")) {
-                labels.put(candidate, RoomIds.MONSTER_5);
-                placed++;
-            }
+            labels.put(candidate, RoomIds.MONSTER_5);
+            placed++;
         }
         return placed;
     }
 
     /**
      * Remonte depuis la porte vers le départ : premier nœud de degré 2
-     * formant un passage (idéalement droit) non encore M5.
+     * formant un COULOIR DROIT (voisins colinéaires), remplaçable.
+     * Priorité au voisin immédiat de la porte (juste avant la porte).
      */
-    private static Point findCorridorBeforeDoor(Point door, Map<Point, String> labels,
-                                                 Map<Point, Set<Point>> adj, Point startPoint) {
-        // BFS depuis start pour avoir le parent "vers l'intérieur" de la porte
+    private static Point findStraightCorridorBeforeDoor(Point door, Map<Point, String> labels,
+                                                         Map<Point, Set<Point>> adj, Point startPoint) {
+        if (startPoint == null || door == null) return null;
+
+        // BFS depuis start → parent[node] = voisin vers le départ
         Map<Point, Point> parent = new HashMap<>();
         Deque<Point> q = new ArrayDeque<>();
         Set<Point> seen = new HashSet<>();
-        if (startPoint == null) return null;
         q.add(startPoint);
         seen.add(startPoint);
         while (!q.isEmpty()) {
@@ -1913,26 +1900,42 @@ public class DungeonAlgo {
                 }
             }
         }
-        // Remonte depuis la porte : parent immédiat, puis grand-parent si besoin
+
+        // Labels qu'on a le droit d'écraser pour mettre M5 (couloirs "génériques")
+        java.util.function.Predicate<String> replaceable = lbl ->
+            lbl == null
+            || RoomPools.CORRIDORS_P1_P2.contains(lbl)
+            || lbl.equals(RoomIds.WELL)
+            || lbl.equals(RoomIds.MONSTER_4)
+            || lbl.equals(RoomIds.MONSTER_5); // idempotent
+
+        // Remonte porte → intérieur : parent immédiat d'abord, puis +1/+2 hops
         Point step = parent.get(door);
         for (int hops = 0; hops < 3 && step != null; hops++) {
             if (step.equals(startPoint)) break;
             Set<Point> nb = adj.getOrDefault(step, Set.of());
+            // STRICT : couloir droit uniquement (deg 2 + colinéaire), comme M2/M4
             if (nb.size() == 2) {
-                // Couloir (droit ou virage) : candidat
-                String lbl = labels.get(step);
-                if (lbl == null || RoomPools.CORRIDORS_P1_P2.contains(lbl)
-                        || lbl.equals(RoomIds.CORRIDOR_TURN)
-                        || lbl.equals(RoomIds.MONSTER_4)
-                        || lbl.equals(RoomIds.WELL)
-                        || lbl.equals("I2")
-                        || lbl.equals(RoomIds.MONSTER_2)) {
-                    // Évite d'écraser le M2 collé à la Prison
-                    if (lbl != null && lbl.equals(RoomIds.MONSTER_2)) {
+                List<Point> nbs = new ArrayList<>(nb);
+                if (isStraight(nbs.get(0), nbs.get(1))) {
+                    String lbl = labels.get(step);
+                    // Jamais M2 (garde prison), jamais salles spéciales
+                    if (lbl != null && (lbl.equals(RoomIds.MONSTER_2)
+                            || lbl.equals(RoomIds.PRISON)
+                            || lbl.equals(RoomIds.START)
+                            || lbl.equals(RoomIds.LOOT_1)
+                            || lbl.equals(RoomIds.MONSTER_1)
+                            || lbl.equals(RoomIds.MONSTER_3)
+                            || lbl.equals(RoomIds.FOUNTAIN)
+                            || lbl.equals(RoomIds.OGRE)
+                            || lbl.startsWith("T")
+                            || lbl.startsWith("Ca"))) {
                         step = parent.get(step);
                         continue;
                     }
-                    return step;
+                    if (replaceable.test(lbl)) {
+                        return step;
+                    }
                 }
             }
             step = parent.get(step);
