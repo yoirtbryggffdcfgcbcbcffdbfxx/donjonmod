@@ -4,6 +4,7 @@ import com.dungeonmod.debug.DungeonAlgo.Point;
 import com.dungeonmod.debug.DungeonAlgo.RoomIds;
 import com.dungeonmod.debug.DungeonAlgo.RoomPools;
 import com.dungeonmod.debug.DungeonAlgo.Shape;
+import com.dungeonmod.debug.DungeonAlgo.Theme;
 import com.dungeonmod.debug.DungeonAlgo.TavernResult;
 import com.dungeonmod.debug.DungeonAlgo.TreeResult;
 
@@ -44,7 +45,10 @@ final class DungeonPart1 {
     }
 
     static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
-        Map<Point, String> labels = new HashMap<>();
+        DungeonLabelState labelState = new DungeonLabelState();
+        labelState.setTheme(adj.keySet(), Theme.P12);
+        // Pendant la migration, cette map ne contient plus que les salles spéciales/contenus.
+        Map<Point, String> labels = labelState.specials();
         List<Point> leaves = new ArrayList<>();
         for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint)) leaves.add(e.getKey());
         if (leaves.size() < 5) return null;
@@ -174,8 +178,8 @@ final class DungeonPart1 {
         }
         if (secondMonster == null) return null;
 
-        // Les feuilles non utilisées deviennent des culs-de-sac génériques.
-        for (Point n : freeLeaves) labels.put(n, RoomIds.DEAD_END);
+        // Les feuilles non utilisées restent génériques : elles deviendront "cul"
+        // lors de la construction finale des labels depuis adj + theme.
 
         for (Point n : cNodes) {
             if (!labels.containsKey(n)) { labels.put(n, RoomIds.WELL); break; }
@@ -193,10 +197,7 @@ final class DungeonPart1 {
                 }
             }
         }
-        for (Point n : cNodes) if (!labels.containsKey(n)) labels.put(n, pickC(rng));
-        for (Point n : i2Nodes) if (!labels.containsKey(n)) labels.put(n, RoomIds.CORRIDOR_TURN);
-        for (Point n : i3Nodes) labels.put(n, RoomIds.INTERSECTION_3);
-        for (Point n : i4Nodes) labels.put(n, RoomIds.INTERSECTION_4);
+        // Les labels génériques (C/I/cul) sont construits à la fin depuis l'adj réelle.
 
         for (Point ip : i4Nodes) {
             for (Point nb : adj.get(ip)) {
@@ -214,10 +215,20 @@ final class DungeonPart1 {
                 }
             }
         }
+        // Construction finale P1 : adj = géométrie, theme = P12, specials = salles imposées.
+        // L'ordre reproduit l'ancien flux autant que possible pour les variantes C1/C2/C3.
+        List<Point> genericOrder = new ArrayList<>();
+        genericOrder.addAll(freeLeaves);
+        genericOrder.addAll(cNodes);
+        genericOrder.addAll(i2Nodes);
+        genericOrder.addAll(i3Nodes);
+        genericOrder.addAll(i4Nodes);
+        Map<Point, String> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
+
         // Règle cul-de-sac (conversation 3) : jamais au bout d'une ligne droite
         // (virage/intersection requis) — sinon rejet et retry amont.
-        if (!DungeonConstraints.enforceDeadEndAfterTurn(labels, adj, rng)) return null;
-        return labels;
+        if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
+        return finalLabels;
     }
 
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
