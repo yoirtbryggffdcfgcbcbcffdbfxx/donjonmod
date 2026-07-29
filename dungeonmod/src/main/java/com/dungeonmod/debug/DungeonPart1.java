@@ -302,30 +302,19 @@ final class DungeonPart1 {
             }
             if (!okT) return null;
         }
-        Point t2 = t1.move(dx, dy);
-        int pex = -dy, pey = dx;
-        Point t3 = t2.move(pex, pey);
-        Point t4 = t1.move(pex, pey);
-        Point ext = t4.move(pex, pey);
-
-        for (Point p : Arrays.asList(t1, t2, t3, t4, ext)) {
-            if (adj.containsKey(p) || p.isOutOfBounds()) return null;
-        }
+        DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
+        if (tavern == null) return null;
 
         Set<Point> pathSet = new HashSet<>();
         Point cur = porte;
         for (Point cell : pathCells) {
             pathSet.add(cell); adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
         }
-        adj.put(t1, new HashSet<>()); adj.get(cur).add(t1); adj.get(t1).add(cur);
-        adj.put(t2, new HashSet<>()); adj.get(t1).add(t2); adj.get(t2).add(t1);
-        adj.put(t3, new HashSet<>()); adj.get(t2).add(t3); adj.get(t3).add(t2);
-        adj.put(t4, new HashSet<>()); adj.get(t3).add(t4); adj.get(t4).add(t3);
-        adj.put(ext, new HashSet<>()); adj.get(t4).add(ext); adj.get(ext).add(t4);
+        DungeonCompositeRooms.place(adj, cur, tavern);
 
         TavernResult tr = new TavernResult();
-        tr.tavern = Map.of(RoomIds.TAVERN_1, t1, RoomIds.TAVERN_2, t2, RoomIds.TAVERN_3, t3, RoomIds.TAVERN_4, t4);
-        tr.exitPoint = ext; tr.pathSet = pathSet;
+        tr.tavern = tavern.labelPoints();
+        tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
         return tr;
     }
 
