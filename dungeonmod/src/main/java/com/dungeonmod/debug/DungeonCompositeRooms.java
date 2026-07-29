@@ -21,6 +21,7 @@ final class DungeonCompositeRooms {
     private DungeonCompositeRooms() {}
 
     static final Spec TAVERN = Spec.builder()
+            .name("TAVERN")
             .entry(0, 0)
             .exit(0, 2)
             .label(0, 0, DungeonAlgo.RoomIds.TAVERN_1)
@@ -35,6 +36,7 @@ final class DungeonCompositeRooms {
             .build();
 
     static final Spec CAMP = Spec.builder()
+            .name("CAMP")
             .entry(0, 0)
             .exit(2, -1)
             .label(0, 0, DungeonAlgo.RoomIds.CAMP_1)
@@ -49,6 +51,7 @@ final class DungeonCompositeRooms {
             .build();
 
     static final Spec PRISON_CENTRAL = Spec.builder()
+            .name("PRISON_CENTRAL")
             .entry(0, 0)
             .exit(0, 1)
             .label(0, 0, DungeonAlgo.RoomIds.PRISON_C1)
@@ -65,14 +68,16 @@ final class DungeonCompositeRooms {
     record LocalEdge(LocalPoint a, LocalPoint b) {}
 
     static final class Spec {
+        private final String name;
         private final LocalPoint entry;
         private final LocalPoint exit;
         private final Map<LocalPoint, String> labels;
         private final Set<LocalPoint> nodes;
         private final List<LocalEdge> edges;
 
-        private Spec(LocalPoint entry, LocalPoint exit, Map<LocalPoint, String> labels,
+        private Spec(String name, LocalPoint entry, LocalPoint exit, Map<LocalPoint, String> labels,
                      Set<LocalPoint> nodes, List<LocalEdge> edges) {
+            this.name = name;
             this.entry = entry;
             this.exit = exit;
             this.labels = Map.copyOf(labels);
@@ -86,11 +91,17 @@ final class DungeonCompositeRooms {
     }
 
     static final class Builder {
+        private String name = "ANONYMOUS_COMPOSITE";
         private LocalPoint entry;
         private LocalPoint exit;
         private final Map<LocalPoint, String> labels = new LinkedHashMap<>();
         private final Set<LocalPoint> nodes = new LinkedHashSet<>();
         private final List<LocalEdge> edges = new ArrayList<>();
+
+        Builder name(String name) {
+            if (name != null && !name.isBlank()) this.name = name;
+            return this;
+        }
 
         Builder entry(int forward, int side) {
             this.entry = point(forward, side);
@@ -128,7 +139,7 @@ final class DungeonCompositeRooms {
         Spec build() {
             if (entry == null) throw new IllegalStateException("CompositeRoom sans entry");
             if (exit == null) throw new IllegalStateException("CompositeRoom sans exit");
-            return new Spec(entry, exit, labels, nodes, edges);
+            return new Spec(name, entry, exit, labels, nodes, edges);
         }
 
         private static LocalPoint point(int forward, int side) {
@@ -149,6 +160,10 @@ final class DungeonCompositeRooms {
             this.dx = dx;
             this.dy = dy;
             this.worldCells = Map.copyOf(worldCells);
+        }
+
+        String name() {
+            return spec.name;
         }
 
         Point exitPoint() {
@@ -190,7 +205,21 @@ final class DungeonCompositeRooms {
         Set<Point> allowed = allowedExisting == null ? Set.of() : allowedExisting;
         for (LocalPoint local : spec.nodes) {
             Point p = toWorld(anchor, dx, dy, local);
-            if (p.isOutOfBounds() || (!allowed.contains(p) && adj.containsKey(p)) || !unique.add(p)) return null;
+            if (p.isOutOfBounds()) {
+                DungeonFailureLog.compositeReject(spec.name, "OUT_OF_BOUNDS", anchor,
+                        "local=" + local + " world=" + p.key());
+                return null;
+            }
+            if (!allowed.contains(p) && adj.containsKey(p)) {
+                DungeonFailureLog.compositeReject(spec.name, "ADJ_OCCUPIED", anchor,
+                        "local=" + local + " world=" + p.key());
+                return null;
+            }
+            if (!unique.add(p)) {
+                DungeonFailureLog.compositeReject(spec.name, "DUPLICATE_CELL", anchor,
+                        "local=" + local + " world=" + p.key());
+                return null;
+            }
             world.put(local, p);
         }
         return new Placement(spec, anchor, dx, dy, world);

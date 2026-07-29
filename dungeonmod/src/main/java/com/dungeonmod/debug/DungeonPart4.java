@@ -197,56 +197,65 @@ final class DungeonPart4 {
 
             int pathLen = 3 + rng.nextInt(3);
             int turnAt = 1 + rng.nextInt(pathLen - 1);
-            int turnDir = rng.nextBoolean() ? 1 : -1;
+            int[] turnDirs = rng.nextBoolean() ? new int[]{1, -1} : new int[]{-1, 1};
 
-            DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder()
-                    .entry(0, 0)
-                    .label(0, 0, RoomIds.CHAPEL_1)
-                    .label(1, 0, RoomIds.CHAPEL_2)
-                    .edge(0, 0, 1, 0);
+            for (int turnDir : turnDirs) {
+                DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder()
+                        .name("CHAPEL_CRYPT")
+                        .entry(0, 0)
+                        .label(0, 0, RoomIds.CHAPEL_1)
+                        .label(1, 0, RoomIds.CHAPEL_2)
+                        .edge(0, 0, 1, 0);
 
-            List<DungeonCompositeRooms.LocalPoint> pathLocals = new ArrayList<>();
-            DungeonCompositeRooms.LocalPoint prev = new DungeonCompositeRooms.LocalPoint(1, 0);
-            int forward = 1, side = 0;
-            int dForward = 1, dSide = 0;
+                List<DungeonCompositeRooms.LocalPoint> pathLocals = new ArrayList<>();
+                DungeonCompositeRooms.LocalPoint prev = new DungeonCompositeRooms.LocalPoint(1, 0);
+                int forward = 1, side = 0;
+                int dForward = 1, dSide = 0;
 
-            for (int step = 0; step < pathLen; step++) {
-                if (step == turnAt) { dForward = 0; dSide = turnDir; }
-                forward += dForward; side += dSide;
-                DungeonCompositeRooms.LocalPoint next = new DungeonCompositeRooms.LocalPoint(forward, side);
-                builder.node(forward, side).edge(prev.forward(), prev.side(), forward, side);
-                pathLocals.add(next);
-                prev = next;
+                for (int step = 0; step < pathLen; step++) {
+                    if (step == turnAt) { dForward = 0; dSide = turnDir; }
+                    forward += dForward; side += dSide;
+                    DungeonCompositeRooms.LocalPoint next = new DungeonCompositeRooms.LocalPoint(forward, side);
+                    builder.node(forward, side).edge(prev.forward(), prev.side(), forward, side);
+                    pathLocals.add(next);
+                    prev = next;
+                }
+
+                for (int step = 0; step < 2; step++) {
+                    forward += dForward; side += dSide;
+                    String label = step == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2;
+                    builder.label(forward, side, label).edge(prev.forward(), prev.side(), forward, side);
+                    prev = new DungeonCompositeRooms.LocalPoint(forward, side);
+                }
+
+                DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
+                DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
+                if (placement == null) continue;
+                boolean occupied = false;
+                for (Point cell : placement.occupiedCells()) {
+                    if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; }
+                }
+                if (occupied) {
+                    DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k,
+                            "turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt);
+                    continue;
+                }
+
+                DungeonCompositeRooms.place(adj, null, placement);
+                globalOccupied.addAll(placement.occupiedCells());
+                for (var e : placement.labelPoints().entrySet()) {
+                    putSpecial(labelState, topLabels, e.getValue(), e.getKey());
+                }
+                for (int step = 0; step < pathLocals.size(); step++) {
+                    Point pathPoint = placement.point(pathLocals.get(step));
+                    // Chemin chapelle -> crypte : couloirs thème P1/P2 (C/I2), demande du dev.
+                    putGenericWorking(labelState, topLabels, pathPoint, Theme.P12,
+                            step == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
+                }
+                return;
             }
-
-            for (int step = 0; step < 2; step++) {
-                forward += dForward; side += dSide;
-                String label = step == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2;
-                builder.label(forward, side, label).edge(prev.forward(), prev.side(), forward, side);
-                prev = new DungeonCompositeRooms.LocalPoint(forward, side);
-            }
-
-            DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
-            DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
-            if (placement == null) continue;
-            boolean occupied = false;
-            for (Point cell : placement.occupiedCells()) {
-                if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; }
-            }
-            if (occupied) continue;
-
-            DungeonCompositeRooms.place(adj, null, placement);
-            globalOccupied.addAll(placement.occupiedCells());
-            for (var e : placement.labelPoints().entrySet()) {
-                putSpecial(labelState, topLabels, e.getValue(), e.getKey());
-            }
-            for (int step = 0; step < pathLocals.size(); step++) {
-                Point pathPoint = placement.point(pathLocals.get(step));
-                // Chemin chapelle -> crypte : couloirs thème P1/P2 (C/I2), demande du dev.
-                putGenericWorking(labelState, topLabels, pathPoint, Theme.P12,
-                        step == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
-            }
-            break;
+            DungeonFailureLog.compositeReject("CHAPEL_CRYPT", "NO_TURN_VARIANT", k,
+                    "pathLen=" + pathLen + " turnAt=" + turnAt);
         }
     }
 
