@@ -32,6 +32,11 @@ final class DungeonLabelState {
         if (point != null && label != null) specials.put(point, label);
     }
 
+    void putSpecials(Map<Point, String> labels) {
+        if (labels == null) return;
+        for (var e : labels.entrySet()) putSpecial(e.getKey(), e.getValue());
+    }
+
     boolean hasSpecial(Point point) {
         return specials.containsKey(point);
     }
