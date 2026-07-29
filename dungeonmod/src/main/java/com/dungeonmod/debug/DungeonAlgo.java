@@ -21,11 +21,14 @@ public class DungeonAlgo {
     private static final int PART2_TRUNK_MIN = 8;
     private static final int PART2_TRUNK_MAX = 12;
     /**
-     * Max de segments COLINÉAIRES d'affilée dans l'adjacence (géométrie),
-     * pas "nombre de labels C". Au-delà → virage forcé.
-     * Ex. A—B—C—D alignés = 3 segments → ok ; un 4ᵉ segment droit interdit.
+     * Max de segments COLINÉAIRES d'affilée dans l'ADJACENCE (géométrie pure),
+     * pas "nombre de labels C". Compte aussi le passage tout droit à travers
+     * une I3/I4. Au-delà → virage forcé.
+     * Ex. I3—C—C—I2 alignés = 3 segments → ok ; un 4ᵉ segment droit interdit.
      */
-    private static final int PART2_MAX_COLINEAR_RUN = 3;
+    private static final int MAX_COLINEAR_RUN = 3;
+    /** @deprecated alias — utiliser {@link #MAX_COLINEAR_RUN} */
+    private static final int PART2_MAX_COLINEAR_RUN = MAX_COLINEAR_RUN;
 
     private static final int PART3_TARGET = 45;
     private static final int PART3_MAX_IJ3 = 3;
@@ -1025,33 +1028,8 @@ public class DungeonAlgo {
 
     private static void growMiniTree(Point root, int pDir, Map<Point, Set<Point>> adj,
                                      Set<Point> occupied, Random rng) {
-        Point n = root.move(DIR_OFFSET[pDir]);
-        if (n.isOutOfBounds() || occupied.contains(n)) return;
-
-        addEdge(adj, occupied, root, n);
-        int cDir = pDir; Point c = n;
-        int branchLen = 1 + rng.nextInt(3);
-        int st = 0;
-
-        for (int i = 0; i < branchLen; i++) {
-            st++;
-            if (st >= 2 && rng.nextFloat() < 0.4) {
-                cDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                st = 0;
-            }
-            Point nn = c.move(DIR_OFFSET[cDir]);
-            if (nn.isOutOfBounds() || occupied.contains(nn)) break;
-            addEdge(adj, occupied, c, nn);
-            c = nn;
-
-            if (rng.nextFloat() < 0.25) {
-                int sDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                Point sn = c.move(DIR_OFFSET[sDir]);
-                if (!sn.isOutOfBounds() && !occupied.contains(sn)) {
-                    addEdge(adj, occupied, c, sn);
-                }
-            }
-        }
+        // Délègue à la version bornée (limite colinéaire sur l'adj réelle)
+        growMiniTreeBounded(root, pDir, adj, occupied, rng);
     }
 
     private static void growSplitBranches(Point e, Map<Point, Set<Point>> adj,
@@ -1121,25 +1099,30 @@ public class DungeonAlgo {
         trunkCells.add(c);
 
         int trunkTarget = 8 + rng.nextInt(5);
-        int stepsSinceTurn = 1;
 
         for (int t = 1; t < trunkTarget; t++) {
-            stepsSinceTurn++;
-            if (stepsSinceTurn >= 2 && rng.nextFloat() < 0.35) {
+            // Limite géométrique : max MAX_COLINEAR_RUN segments alignés dans l'adj
+            // (compte aussi le passage tout droit à travers une I3)
+            int runIfStraight = colinearRunAfterEdge(c, c.move(DIR_OFFSET[dir]), adj);
+            boolean forceTurn = runIfStraight > MAX_COLINEAR_RUN;
+            boolean maybeTurn = runIfStraight >= 2 && rng.nextFloat() < 0.35f;
+            if (forceTurn || maybeTurn) {
                 dir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                stepsSinceTurn = 0;
             }
 
             Point n = c.move(DIR_OFFSET[dir]);
-            if (n.isOutOfBounds() || occupied.contains(n)) {
+            if (n.isOutOfBounds() || occupied.contains(n)
+                    || colinearRunAfterEdge(c, n, adj) > MAX_COLINEAR_RUN) {
                 int od = dir;
+                boolean found = false;
                 for (int a = 0; a < 4; a++) {
-                    dir = (od + a) % 4;
-                    n = c.move(DIR_OFFSET[dir]);
-                    if (!n.isOutOfBounds() && !occupied.contains(n)) break;
+                    int td = (od + a) % 4;
+                    Point cand = c.move(DIR_OFFSET[td]);
+                    if (cand.isOutOfBounds() || occupied.contains(cand)) continue;
+                    if (colinearRunAfterEdge(c, cand, adj) > MAX_COLINEAR_RUN) continue;
+                    dir = td; n = cand; found = true; break;
                 }
-                if (n.isOutOfBounds() || occupied.contains(n)) break;
-                stepsSinceTurn = 0;
+                if (!found) break;
             }
 
             addEdge(adj, occupied, c, n);
@@ -1171,6 +1154,9 @@ public class DungeonAlgo {
                 for (int[] d : DIR_OFFSET) {
                     Point next = node.move(d);
                     if (next.isOutOfBounds() || occupied.contains(next)) continue;
+                    // Limite géométrique globale : pas plus de MAX_COLINEAR_RUN
+                    // segments alignés dans l'adj (I3 comptés dans l'axe)
+                    if (colinearRunAfterEdge(node, next, adj) > MAX_COLINEAR_RUN) continue;
                     if (deg >= 2) {
                         boolean skip = false;
                         for (Point n1 : adj.get(node)) {
@@ -1927,30 +1913,67 @@ public class DungeonAlgo {
     }
 
     /**
-     * Compte combien de segments colinéaires d'affilée se terminent en {@code node}
-     * en venant de {@code from} (direction from→node). 1 = premier segment de la run.
+     * Longueur d'une run COLINÉAIRE dans l'adjacence RÉELLE le long de l'axe (dx,dy)
+     * passant par {@code origin} (nombre de SEGMENTS = arêtes alignées).
+     * <p>
+     * Traverse aussi les intersections I3/I4 tant qu'elles ont un voisin dans l'axe
+     * (passage "tout droit" géométrique). Les labels sont ignorés : seule l'adj compte.
+     * Ex. I3—C—C—C—I2 alignés = 4 segments → refusé si max=3.
      */
-    private static int colinearRunLength(Point from, Point node, Map<Point, Point> cameFrom) {
-        int dx = node.x() - from.x();
-        int dy = node.y() - from.y();
-        int run = 1;
-        Point cur = from;
-        Point prev = cameFrom.get(from);
-        while (prev != null && run < 16) {
-            int pdx = cur.x() - prev.x();
-            int pdy = cur.y() - prev.y();
-            if (pdx != dx || pdy != dy) break; // virage géométrique
-            run++;
+    private static int colinearRunInAdj(Point origin, int dx, int dy, Map<Point, Set<Point>> adj) {
+        if (dx == 0 && dy == 0) return 0;
+        int back = 0;
+        Point cur = origin;
+        while (back < 16) {
+            Point prev = cur.move(-dx, -dy);
+            if (!adj.getOrDefault(cur, Set.of()).contains(prev)) break;
+            back++;
             cur = prev;
-            prev = cameFrom.get(cur);
         }
-        return run;
+        int forward = 0;
+        cur = origin;
+        while (forward < 16) {
+            Point next = cur.move(dx, dy);
+            if (!adj.getOrDefault(cur, Set.of()).contains(next)) break;
+            forward++;
+            cur = next;
+        }
+        return back + forward;
+    }
+
+    /**
+     * Run colinéaire qui résulterait de l'ajout de l'arête {@code from}→{@code to}
+     * (to pas encore dans adj, ou déjà lié). = segments déjà présents en arrière
+     * depuis from dans l'axe + 1 (nouvelle arête) + éventuelle continuation depuis to.
+     */
+    private static int colinearRunAfterEdge(Point from, Point to, Map<Point, Set<Point>> adj) {
+        int dx = to.x() - from.x();
+        int dy = to.y() - from.y();
+        if (Math.abs(dx) + Math.abs(dy) != 1) return Integer.MAX_VALUE;
+        // Segments déjà derrière `from` dans la direction opposée
+        int back = 0;
+        Point cur = from;
+        while (back < 16) {
+            Point prev = cur.move(-dx, -dy);
+            if (!adj.getOrDefault(cur, Set.of()).contains(prev)) break;
+            back++;
+            cur = prev;
+        }
+        // Segments déjà devant `to` dans la même direction (si to déjà connecté)
+        int forward = 0;
+        cur = to;
+        while (forward < 16) {
+            Point next = cur.move(dx, dy);
+            if (!adj.getOrDefault(cur, Set.of()).contains(next)) break;
+            forward++;
+            cur = next;
+        }
+        return back + 1 + forward;
     }
 
     private static TreeResult generatePart2TrunkTree(Point startPt, Set<Point> blocked, Random rng) {
         Map<Point, Set<Point>> adj = new HashMap<>();
         Set<Point> occupied = new HashSet<>(blocked != null ? blocked : Set.of());
-        Map<Point, Point> cameFrom = new HashMap<>(); // pour mesurer les runs colinéaires
 
         Point start = startPt != null ? startPt : new Point(GRID_SIZE / 2, GRID_SIZE / 2);
         adj.put(start, new HashSet<>());
@@ -1977,73 +2000,55 @@ public class DungeonAlgo {
 
         Point c = start.move(DIR_OFFSET[dir]);
         addEdge(adj, occupied, start, c);
-        cameFrom.put(c, start);
         List<Point> trunkCells = new ArrayList<>();
         trunkCells.add(c);
 
         int trunkTarget = PART2_TRUNK_MIN + rng.nextInt(PART2_TRUNK_MAX - PART2_TRUNK_MIN + 1);
 
         for (int t = 1; t < trunkTarget; t++) {
-            // Run colinéaire actuelle si on continue dans `dir`
-            int runIfStraight = colinearRunLength(c, c.move(DIR_OFFSET[dir]), cameFrom);
-            // Si on est déjà à la limite, FORCER un virage (contrainte géométrique)
-            boolean forceTurn = runIfStraight >= PART2_MAX_COLINEAR_RUN;
+            // Run colinéaire dans l'ADJ si on continue dans `dir` (traverse I3/I4)
+            int runIfStraight = colinearRunAfterEdge(c, c.move(DIR_OFFSET[dir]), adj);
+            boolean forceTurn = runIfStraight > PART2_MAX_COLINEAR_RUN;
             boolean maybeTurn = runIfStraight >= 2 && rng.nextFloat() < 0.40f;
             if (forceTurn || maybeTurn) {
                 dir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
             }
 
             Point n = c.move(DIR_OFFSET[dir]);
-            if (n.isOutOfBounds() || occupied.contains(n)) {
+            if (n.isOutOfBounds() || occupied.contains(n)
+                    || colinearRunAfterEdge(c, n, adj) > PART2_MAX_COLINEAR_RUN) {
                 int od = dir;
                 boolean found = false;
                 for (int a = 0; a < 4; a++) {
                     int td = (od + a) % 4;
-                    // Même en fallback, refuser un 4ᵉ segment colinéaire
-                    int run = colinearRunLength(c, c.move(DIR_OFFSET[td]), cameFrom);
-                    if (run > PART2_MAX_COLINEAR_RUN) continue;
                     Point cand = c.move(DIR_OFFSET[td]);
-                    if (!cand.isOutOfBounds() && !occupied.contains(cand)) {
-                        dir = td; n = cand; found = true; break;
-                    }
+                    if (cand.isOutOfBounds() || occupied.contains(cand)) continue;
+                    if (colinearRunAfterEdge(c, cand, adj) > PART2_MAX_COLINEAR_RUN) continue;
+                    dir = td; n = cand; found = true; break;
                 }
                 if (!found) break;
-            } else {
-                // Double-check géométrique même si la case est libre
-                int run = colinearRunLength(c, n, cameFrom);
-                if (run > PART2_MAX_COLINEAR_RUN) {
-                    // forcer un virage
-                    boolean turned = false;
-                    for (int side : new int[]{1, 3}) {
-                        int td = (dir + side) % 4;
-                        Point cand = c.move(DIR_OFFSET[td]);
-                        if (!cand.isOutOfBounds() && !occupied.contains(cand)) {
-                            dir = td; n = cand; turned = true; break;
-                        }
-                    }
-                    if (!turned) break;
-                }
             }
 
             addEdge(adj, occupied, c, n);
-            cameFrom.put(n, c);
             trunkCells.add(n);
             c = n;
 
             // Branches latérales (pas sur la toute fin : réservée M5/porte)
+            // growMiniTree peut allonger une droite via une I3 : on borne après coup
             if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                growMiniTree(n, pDir, adj, occupied, rng);
+                growMiniTreeBounded(n, pDir, adj, occupied, rng);
             }
         }
 
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
         if (!trunkCells.isEmpty()) {
             int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-            growMiniTree(trunkEnd, side, adj, occupied, rng);
+            growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
         }
 
-        // Remplissage : refuse d'allonger une run colinéaire au-delà de la limite
+        // Remplissage : refuse toute arête qui créerait > MAX segments colinéaires
+        // (compte dans l'adj réelle, y compris à travers les intersections)
         int targetSize = PART2_TARGET_MIN + rng.nextInt(PART2_TARGET_MAX - PART2_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) {
@@ -2061,24 +2066,7 @@ public class DungeonAlgo {
                 for (int[] d : DIR_OFFSET) {
                     Point next = node.move(d);
                     if (next.isOutOfBounds() || occupied.contains(next)) continue;
-                    // Contrainte géométrique : pas plus de MAX segments colinéaires
-                    // (seulement si le nœud a déjà un "cameFrom" / un voisin unique pour la run)
-                    Point back = cameFrom.get(node);
-                    if (back != null) {
-                        int run = colinearRunLength(node, next, cameFrom);
-                        if (run > PART2_MAX_COLINEAR_RUN) continue;
-                    } else if (deg == 1) {
-                        // un seul voisin : c'est le "from"
-                        Point only = adj.get(node).iterator().next();
-                        int dx = next.x() - node.x(), dy = next.y() - node.y();
-                        int pdx = node.x() - only.x(), pdy = node.y() - only.y();
-                        if (dx == pdx && dy == pdy) {
-                            // poursuivrait une droite — compter via cameFrom synthétique
-                            Map<Point, Point> tmp = new HashMap<>(cameFrom);
-                            tmp.putIfAbsent(node, only);
-                            if (colinearRunLength(node, next, tmp) > PART2_MAX_COLINEAR_RUN) continue;
-                        }
-                    }
+                    if (colinearRunAfterEdge(node, next, adj) > PART2_MAX_COLINEAR_RUN) continue;
                     int w = trunkCells.contains(node) ? 2 : 1;
                     for (int wi = 0; wi < w; wi++) candidates.add(new Point[]{node, next});
                 }
@@ -2086,7 +2074,6 @@ public class DungeonAlgo {
             if (candidates.isEmpty()) break;
             Point[] choice = candidates.get(rng.nextInt(candidates.size()));
             addEdge(adj, occupied, choice[0], choice[1]);
-            cameFrom.putIfAbsent(choice[1], choice[0]);
             int nd = adj.get(choice[0]).size();
             if (nd == 3) ci3++; else if (nd == 4) ci4++;
         }
@@ -2097,6 +2084,46 @@ public class DungeonAlgo {
         tr.trunkEnd = trunkEnd;
         tr.trunkEndDir = dir;
         return tr;
+    }
+
+    /**
+     * Mini-branche latérale qui respecte {@link #PART2_MAX_COLINEAR_RUN}
+     * dans l'adjacence (ne prolonge pas une droite au-delà de la limite,
+     * même à travers une intersection).
+     */
+    private static void growMiniTreeBounded(Point root, int pDir, Map<Point, Set<Point>> adj,
+                                            Set<Point> occupied, Random rng) {
+        Point n = root.move(DIR_OFFSET[pDir]);
+        if (n.isOutOfBounds() || occupied.contains(n)) return;
+        if (colinearRunAfterEdge(root, n, adj) > PART2_MAX_COLINEAR_RUN) return;
+
+        addEdge(adj, occupied, root, n);
+        int cDir = pDir; Point c = n;
+        int branchLen = 1 + rng.nextInt(3);
+
+        for (int i = 0; i < branchLen; i++) {
+            // Virage si la poursuite droite dépasserait la limite géométrique
+            boolean mustTurn = colinearRunAfterEdge(c, c.move(DIR_OFFSET[cDir]), adj) > PART2_MAX_COLINEAR_RUN;
+            if (mustTurn || rng.nextFloat() < 0.4f) {
+                cDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            }
+            Point nn = c.move(DIR_OFFSET[cDir]);
+            if (nn.isOutOfBounds() || occupied.contains(nn)) break;
+            if (colinearRunAfterEdge(c, nn, adj) > PART2_MAX_COLINEAR_RUN) {
+                // tenter un virage
+                boolean ok = false;
+                for (int side : new int[]{1, 3}) {
+                    int td = (cDir + side) % 4;
+                    Point cand = c.move(DIR_OFFSET[td]);
+                    if (cand.isOutOfBounds() || occupied.contains(cand)) continue;
+                    if (colinearRunAfterEdge(c, cand, adj) > PART2_MAX_COLINEAR_RUN) continue;
+                    cDir = td; nn = cand; ok = true; break;
+                }
+                if (!ok) break;
+            }
+            addEdge(adj, occupied, c, nn);
+            c = nn;
+        }
     }
 
     /**
