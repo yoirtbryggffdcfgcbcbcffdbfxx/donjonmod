@@ -235,6 +235,15 @@ final class DungeonPart4 {
         }
     }
 
+    /** Reconstruit les labels finaux depuis la map de travail P4. */
+    private static void rebuildFinalLabels(Map<Point, String> topLabels, Map<Point, Set<Point>> adj, Random rng) {
+        DungeonLabelState labelState = new DungeonLabelState();
+        labelState.absorbLabels(topLabels);
+        topLabels.clear();
+        topLabels.putAll(labelState.buildLabels(adj, rng));
+    }
+
+
     static boolean generatePart4Tree(Map<Point, Set<Point>> adj,
                                               Map<Point, String> topLabels,
                                               int hx, int hz, String missingLootType, Random rng) {
@@ -499,6 +508,9 @@ final class DungeonPart4 {
         // Règle cul-de-sac étage 1 (conversation 3) : pas de culDJ/CDG au bout d'une
         // ligne droite. Échec => rejet (false => retry amont, 15 tentatives).
         if (!DungeonConstraints.enforceDeadEndAfterTurn(topLabels, adj, rng)) return false;
+
+        // Reconstruction finale : les génériques P4 sont redéduits de l'adj réelle.
+        rebuildFinalLabels(topLabels, adj, rng);
 
         // Validation finale
         boolean hc1 = topLabels.containsValue(RoomIds.CHAPEL_1) && topLabels.containsValue(RoomIds.CRYPT_1);

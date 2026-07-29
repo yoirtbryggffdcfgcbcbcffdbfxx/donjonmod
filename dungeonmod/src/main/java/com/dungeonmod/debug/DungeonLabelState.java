@@ -37,6 +37,19 @@ final class DungeonLabelState {
         for (var e : labels.entrySet()) putSpecial(e.getKey(), e.getValue());
     }
 
+    /**
+     * Importe une map de labels déjà construite : les labels génériques deviennent
+     * des thèmes, les autres labels deviennent des specials.
+     */
+    void absorbLabels(Map<Point, String> labels) {
+        if (labels == null) return;
+        for (var e : labels.entrySet()) {
+            Theme theme = DungeonLabels.genericThemeOf(e.getValue());
+            if (theme != null) setTheme(e.getKey(), theme);
+            else putSpecial(e.getKey(), e.getValue());
+        }
+    }
+
     boolean hasSpecial(Point point) {
         return specials.containsKey(point);
     }
