@@ -25,3 +25,6 @@ local.properties
 
 # Python temp scripts
 *.py
+
+# Cache Python (outils de validation)
+__pycache__/
