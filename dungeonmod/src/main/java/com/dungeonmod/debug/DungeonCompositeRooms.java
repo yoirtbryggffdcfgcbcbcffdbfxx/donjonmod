@@ -155,6 +155,14 @@ final class DungeonCompositeRooms {
             return worldCells.get(spec.exit);
         }
 
+        Point point(int forward, int side) {
+            return worldCells.get(new LocalPoint(forward, side));
+        }
+
+        Point point(LocalPoint localPoint) {
+            return worldCells.get(localPoint);
+        }
+
         Map<String, Point> labelPoints() {
             Map<String, Point> out = new LinkedHashMap<>();
             for (var e : spec.labels.entrySet()) {

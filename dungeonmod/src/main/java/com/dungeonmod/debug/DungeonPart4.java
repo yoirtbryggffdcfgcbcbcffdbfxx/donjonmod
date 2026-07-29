@@ -192,37 +192,59 @@ final class DungeonPart4 {
             String vl = topLabels.get(k);
             if (ct.get(k).size() != 1 || k.equals(cs) || vl == null || !vl.equals(RoomIds.DEAD_END_DJ)) continue;
             Point mb = ct.get(k).iterator().next();
-            Point e = k.move(k.x() - mb.x(), k.y() - mb.y());
-            if (e.isOutOfBounds() || globalOccupied.contains(e)) continue;
+            int dx = k.x() - mb.x(), dy = k.y() - mb.y();
+            if (k.move(dx, dy).isOutOfBounds() || globalOccupied.contains(k.move(dx, dy))) continue;
 
-            globalOccupied.add(e);
-            adj.put(e, new HashSet<>());
-            adj.get(k).add(e); adj.get(e).add(k);
-            putSpecial(labelState, topLabels, k, RoomIds.CHAPEL_1); putSpecial(labelState, topLabels, e, RoomIds.CHAPEL_2);
-
-            int dir = (k.x() - mb.x() == 1) ? 0 : (k.x() - mb.x() == -1) ? 2 : (k.y() - mb.y() == 1) ? 1 : 3;
             int pathLen = 3 + rng.nextInt(3);
             int turnAt = 1 + rng.nextInt(pathLen - 1);
             int turnDir = rng.nextBoolean() ? 1 : -1;
-            Point pv = e; Point curr = e;
 
-            for (int s = 0; s < pathLen; s++) {
-                if (s == turnAt) dir = (dir + turnDir + 4) % 4;
-                Point ncx = curr.move(DungeonAlgo.DIR_OFFSET[dir]);
-                if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
-                globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
-                adj.get(pv).add(ncx); adj.get(ncx).add(pv);
-                // Chemin chapelle -> crypte : couloirs thème P1/P2 (C/I2), demande du dev.
-                putGenericWorking(labelState, topLabels, ncx, Theme.P12, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
-                pv = ncx; curr = ncx;
+            DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder()
+                    .entry(0, 0)
+                    .label(0, 0, RoomIds.CHAPEL_1)
+                    .label(1, 0, RoomIds.CHAPEL_2)
+                    .edge(0, 0, 1, 0);
+
+            List<DungeonCompositeRooms.LocalPoint> pathLocals = new ArrayList<>();
+            DungeonCompositeRooms.LocalPoint prev = new DungeonCompositeRooms.LocalPoint(1, 0);
+            int forward = 1, side = 0;
+            int dForward = 1, dSide = 0;
+
+            for (int step = 0; step < pathLen; step++) {
+                if (step == turnAt) { dForward = 0; dSide = turnDir; }
+                forward += dForward; side += dSide;
+                DungeonCompositeRooms.LocalPoint next = new DungeonCompositeRooms.LocalPoint(forward, side);
+                builder.node(forward, side).edge(prev.forward(), prev.side(), forward, side);
+                pathLocals.add(next);
+                prev = next;
             }
-            for (int s = 0; s < 2; s++) {
-                Point ncx = curr.move(DungeonAlgo.DIR_OFFSET[dir]);
-                if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
-                globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
-                adj.get(pv).add(ncx); adj.get(ncx).add(pv);
-                putSpecial(labelState, topLabels, ncx, s == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2);
-                pv = ncx; curr = ncx;
+
+            for (int step = 0; step < 2; step++) {
+                forward += dForward; side += dSide;
+                String label = step == 0 ? RoomIds.CRYPT_1 : RoomIds.CRYPT_2;
+                builder.label(forward, side, label).edge(prev.forward(), prev.side(), forward, side);
+                prev = new DungeonCompositeRooms.LocalPoint(forward, side);
+            }
+
+            DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
+            DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
+            if (placement == null) continue;
+            boolean occupied = false;
+            for (Point cell : placement.occupiedCells()) {
+                if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; }
+            }
+            if (occupied) continue;
+
+            DungeonCompositeRooms.place(adj, null, placement);
+            globalOccupied.addAll(placement.occupiedCells());
+            for (var e : placement.labelPoints().entrySet()) {
+                putSpecial(labelState, topLabels, e.getValue(), e.getKey());
+            }
+            for (int step = 0; step < pathLocals.size(); step++) {
+                Point pathPoint = placement.point(pathLocals.get(step));
+                // Chemin chapelle -> crypte : couloirs thème P1/P2 (C/I2), demande du dev.
+                putGenericWorking(labelState, topLabels, pathPoint, Theme.P12,
+                        step == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
             }
             break;
         }
