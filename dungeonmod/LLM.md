@@ -53,20 +53,24 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 |----|-----|------|--------|-------|
 | `plastron_lourd` | Plastron lourd | IRON_CHESTPLATE | 12 | -30% vitesse, -30% saut, +10 absorption max (set 10 HP à l'équipement) |
 | `plastron_heros` | Plastron du héros | GOLDEN_CHESTPLATE | 8 | Reflette les dégâts subis à l'attaquant |
-| `plastron_voyageur` | Plastron du voyageur | LEATHER_CHESTPLATE | 6 | Portée blocs +1.5 (→6), portée entité +1 (→4) |
+| `plastron_chasseur` | Plastron du chasseur | CHAINMAIL_CHESTPLATE | 23 | Kill → +0,5 cœur ; Attaque +125% |
+| `cape_du_voyageur` | Cape du voyageur | LEATHER_CHESTPLATE | 18 | Plane / chute nulle ; Attaque +70% |
 
 ### Jambières (slot LEGS)
 
 | ID | Nom | Item | Armure | Effet |
 |----|-----|------|--------|-------|
-| `jambiere_voyageur` | Jambière du voyageur | LEATHER_LEGGINGS | 5 | +50% vitesse quand ≤4 PV |
-| `jambiere_chasseur` | Jambière du chasseur | CHAINMAIL_LEGGINGS | 7 | Sneak→mode caché (pose SWIMMING), gobelins ignorent, dégâts annulés. Cooldown 2s. |
+| `jambiere_voyageur` | Jambière du voyageur | LEATHER_LEGGINGS | 13 | +50% vitesse quand ≤4 PV ; Attaque +65% |
+| `jambiere_chasseur` | Jambière du chasseur | CHAINMAIL_LEGGINGS | 17 | Sneak→mode caché ; Attaque +80% |
+| `jambiere_lourde` | Jambière lourde | IRON_LEGGINGS | 23 | −20% vitesse/saut ; Attaque +95% |
 
 ### Bottes (slot FEET)
 
 | ID | Nom | Item | Armure | Effet |
 |----|-----|------|--------|-------|
-| `bottes_sept_lieues` | Bottes de sept lieues | LEATHER_BOOTS | 3 | +30% vitesse, +70% saut, 0 dégâts de chute |
+| `bottes_sept_lieues` | Bottes de sept lieues | LEATHER_BOOTS | 7 | +100% vitesse ; Attaque +30% |
+| `bottes_lourdes` | Bottes lourdes | IRON_BOOTS | 14 | Annule le recul ; Attaque +70% |
+| `bottes_apollon` | Bottes de Mercure | GOLDEN_BOOTS | 9 | Double saut, chute nulle ; Attaque +40% |
 
 ### Armes (slot MAINHAND)
 

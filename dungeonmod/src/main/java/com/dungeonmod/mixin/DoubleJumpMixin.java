@@ -63,6 +63,8 @@ public class DoubleJumpMixin {
         var boots = player.getInventory().getArmorStack(0);
         if (boots.isEmpty() || !boots.isOf(Items.GOLDEN_BOOTS)) return false;
         if (!boots.contains(DataComponentTypes.CUSTOM_NAME)) return false;
-        return boots.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Bottes d'Apollon");
+        String name = boots.get(DataComponentTypes.CUSTOM_NAME).getString();
+        // Compat : ancien nom "Apollon" + nouveau "Mercure"
+        return name.contains("Bottes de Mercure") || name.contains("Bottes d'Apollon");
     }
 }

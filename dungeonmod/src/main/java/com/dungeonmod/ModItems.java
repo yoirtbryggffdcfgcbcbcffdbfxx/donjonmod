@@ -329,11 +329,13 @@ public class ModItems {
             },
             "§7Un casque léger.", "§7Portée : voir les PV des monstres à 5 blocs.", "§7Protection: 10%, Attaque: +65%");
         var chasseurItem = ModItems.get("casque_chasseur");
-        if (chasseurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(chasseurItem.vanillaItem, 0.65f);
+        if (chasseurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(chasseurItem.vanillaItem, "Casque du chasseur", 0.65f);
         register("plastron_chasseur", "§9Plastron du chasseur", Items.CHAINMAIL_CHESTPLATE,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                new AttrBuilder().armor("plastron_chasseur_armor", 7.0, AttributeModifierSlot.CHEST).build()),
-            "§7Un plastron de chasseur.", "§7Tue un ennemi récupère 1 coeur.", "§7Protection: +7");
+                new AttrBuilder().armor("plastron_chasseur_armor", 23.0, AttributeModifierSlot.CHEST).build()),
+            "§7Un plastron de chasseur.", "§7Tue un ennemi récupère 0,5 coeur.", "§7Protection: 23%, Attaque: +125%");
+        var plastronChasseurItem = ModItems.get("plastron_chasseur");
+        if (plastronChasseurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(plastronChasseurItem.vanillaItem, "Plastron du chasseur", 1.25f);
         register("crane_squelette", "§9Crâne de squelette", Items.SKELETON_SKULL,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
@@ -348,7 +350,7 @@ public class ModItems {
             },
             "§7Un crâne qui protège des regards.", "§7Protection: 6%, Attaque: +45%");
         var craneItem = ModItems.get("crane_squelette");
-        if (craneItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(craneItem.vanillaItem, 0.45f);
+        if (craneItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(craneItem.vanillaItem, "Crâne de squelette", 0.45f);
         register("casque_lourd", "§9Casque lourd", Items.IRON_HELMET,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
@@ -367,7 +369,7 @@ public class ModItems {
             },
             "§7Un casque lourd en fer.", "§7Protège beaucoup mais réduit la vision.", "§7Protection: 17%, Attaque: +75%");
         var lourdItem = ModItems.get("casque_lourd");
-        if (lourdItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(lourdItem.vanillaItem, 0.75f);
+        if (lourdItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(lourdItem.vanillaItem, "Casque lourd", 0.75f);
         register("casque_mineur", "§9Casque du mineur", Items.LEATHER_HELMET,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder()
@@ -375,7 +377,7 @@ public class ModItems {
                     .build()),
             "§7Un casque qui éclaire les environs.", "§7Protection: 6%, Attaque: +25%");
         var mineurItem = ModItems.get("casque_mineur");
-        if (mineurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(mineurItem.vanillaItem, 0.25f);
+        if (mineurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(mineurItem.vanillaItem, "Casque du mineur", 0.25f);
         register("plastron_lourd", "§9Plastron lourd", Items.IRON_CHESTPLATE,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, new AttrBuilder()
@@ -390,24 +392,28 @@ public class ModItems {
         register("jambiere_lourde", "§9Jambière lourde", Items.IRON_LEGGINGS,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, new AttrBuilder()
-                    .armor("jambiere_lourde_armor", 6.0, AttributeModifierSlot.LEGS)
+                    .armor("jambiere_lourde_armor", 23.0, AttributeModifierSlot.LEGS)
                     .speedMult("jambiere_lourde_speed", -0.2, AttributeModifierSlot.LEGS)
                     .jumpMult("jambiere_lourde_jump", -0.2, AttributeModifierSlot.LEGS).build());
                 stack.set(DataComponentTypes.EQUIPPABLE, EquippableComponent.builder(EquipmentSlot.LEGS)
                     .model(net.minecraft.item.equipment.EquipmentAssetKeys.IRON)
                     .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_IRON).swappable(true).build());
             },
-            "§7Des jambières en fer renforcées.", "§7Protection: +6");
+            "§7Des jambières en fer renforcées.", "§7Protection: 23%, Attaque: +95%");
+        var jambiereLourdeItem = ModItems.get("jambiere_lourde");
+        if (jambiereLourdeItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(jambiereLourdeItem.vanillaItem, "Jambière lourde", 0.95f);
         register("bottes_lourdes", "§9Bottes lourdes", Items.IRON_BOOTS,
             stack -> {
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, new AttrBuilder()
-                    .armor("bottes_lourdes_armor", 6.0, AttributeModifierSlot.FEET)
+                    .armor("bottes_lourdes_armor", 14.0, AttributeModifierSlot.FEET)
                     .knockback("bottes_lourdes_kb", 1.0, AttributeModifierSlot.FEET).build());
                 stack.set(DataComponentTypes.EQUIPPABLE, EquippableComponent.builder(EquipmentSlot.FEET)
                     .model(net.minecraft.item.equipment.EquipmentAssetKeys.IRON)
                     .equipSound(SoundEvents.ITEM_ARMOR_EQUIP_IRON).swappable(true).build());
             },
-            "§7Des bottes en fer renforcées.", "§7Annule le recul.", "§7Protection: +6");
+            "§7Des bottes en fer renforcées.", "§7Annule le recul.", "§7Protection: 14%, Attaque: +70%");
+        var bottesLourdesItem = ModItems.get("bottes_lourdes");
+        if (bottesLourdesItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(bottesLourdesItem.vanillaItem, "Bottes lourdes", 0.70f);
         register("plastron_heros", "§ePlastron du héros", Items.GOLDEN_CHESTPLATE,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder().armor("plastron_heros_armor", 8.0, AttributeModifierSlot.CHEST).build()),
@@ -422,36 +428,51 @@ public class ModItems {
                         .swappable(true)
                         .build());
                 stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                    new AttrBuilder().fallDamageMult("cape_voyageur_fall", -1.0, AttributeModifierSlot.CHEST).build());
+                    new AttrBuilder()
+                        .armor("cape_voyageur_armor", 18.0, AttributeModifierSlot.CHEST)
+                        .fallDamageMult("cape_voyageur_fall", -1.0, AttributeModifierSlot.CHEST)
+                        .build());
                 stack.remove(DataComponentTypes.DYED_COLOR);
             },
             "§7Une cape légère permettant de planer.",
             "§7Annule les dégâts de chute.",
             "§7En l'air : SHIFT pour plonger rapidement au sol.",
             "§7En l'air : maintient ESPACE pour descendre très lentement",
-            "§7(léger mal de mer).");
+            "§7(léger mal de mer).",
+            "§7Protection: 18%, Attaque: +70%");
+        var capeVoyageurItem = ModItems.get("cape_du_voyageur");
+        if (capeVoyageurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(capeVoyageurItem.vanillaItem, "Cape du voyageur", 0.70f);
         register("jambiere_voyageur", "§9Jambière du voyageur", Items.LEATHER_LEGGINGS,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                new AttrBuilder().armor("jambiere_voyageur_armor", 5.0, AttributeModifierSlot.LEGS).build()),
-            "§7Des jambières légères.", "§7Accélèrent quand la vie est basse.", "§7Protection: +5");
+                new AttrBuilder().armor("jambiere_voyageur_armor", 13.0, AttributeModifierSlot.LEGS).build()),
+            "§7Des jambières légères.", "§7Accélèrent quand la vie est basse.", "§7Protection: 13%, Attaque: +65%");
+        var jambiereVoyageurItem = ModItems.get("jambiere_voyageur");
+        if (jambiereVoyageurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(jambiereVoyageurItem.vanillaItem, "Jambière du voyageur", 0.65f);
         register("jambiere_chasseur", "§9Jambière du chasseur", Items.CHAINMAIL_LEGGINGS,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                new AttrBuilder().armor("jambiere_chasseur_armor", 7.0, AttributeModifierSlot.LEGS).build()),
-            "§7Des jambières de chasseur.", "§7S'accroupir permet", "§7de se cacher des monstres.", "§7Protection: +7");
+                new AttrBuilder().armor("jambiere_chasseur_armor", 17.0, AttributeModifierSlot.LEGS).build()),
+            "§7Des jambières de chasseur.", "§7S'accroupir permet", "§7de se cacher des monstres.", "§7Protection: 17%, Attaque: +80%");
+        var jambiereChasseurItem = ModItems.get("jambiere_chasseur");
+        if (jambiereChasseurItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(jambiereChasseurItem.vanillaItem, "Jambière du chasseur", 0.80f);
         register("bottes_sept_lieues", "§9Bottes de sept lieues", Items.LEATHER_BOOTS,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder()
-                    .armor("bottes_armor", 3.0, AttributeModifierSlot.FEET)
+                    .armor("bottes_armor", 7.0, AttributeModifierSlot.FEET)
                     .speedMult("bottes_speed", 1.0, AttributeModifierSlot.FEET)
                     .build()),
-            "§7Des bottes légendaires.", "§7Permet de courir très vite.", "§7Protection: +3");
-        register("bottes_apollon", "§6Bottes d'Apollon", Items.GOLDEN_BOOTS,
+            "§7Des bottes légendaires.", "§7Permet de courir très vite.", "§7Protection: 7%, Attaque: +30%");
+        var bottesSeptLieuesItem = ModItems.get("bottes_sept_lieues");
+        if (bottesSeptLieuesItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(bottesSeptLieuesItem.vanillaItem, "Bottes de sept lieues", 0.30f);
+        // Bottes de Mercure (ex-Apollon) : double saut + stats
+        register("bottes_apollon", "§6Bottes de Mercure", Items.GOLDEN_BOOTS,
             stack -> stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
                 new AttrBuilder()
-                    .armor("bottes_apollon_armor", 1.0, AttributeModifierSlot.FEET)
+                    .armor("bottes_apollon_armor", 9.0, AttributeModifierSlot.FEET)
                     .fallDamageMult("bottes_apollon_fall", -1.0, AttributeModifierSlot.FEET)
                     .build()),
-            "§7Des bottes légères.", "§7Permettent d'effectuer un double saut.", "§7Annule les dégâts de chute.", "§7Protection: +1");
+            "§7Des bottes légères.", "§7Permettent d'effectuer un double saut.", "§7Annule les dégâts de chute.", "§7Protection: 9%, Attaque: +40%");
+        var bottesMercureItem = ModItems.get("bottes_apollon");
+        if (bottesMercureItem != null) com.dungeonmod.util.BeerStrengthData.registerArmorAttackBonus(bottesMercureItem.vanillaItem, "Bottes de Mercure", 0.40f);
     }
 
     // ===================== Armes (corps-à-corps / distance) =====================
