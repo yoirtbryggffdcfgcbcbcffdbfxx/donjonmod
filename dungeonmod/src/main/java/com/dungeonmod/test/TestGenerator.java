@@ -47,7 +47,7 @@ public class TestGenerator {
         "Couloir","I3","I2","CulSac","M1","Depart","M2","Prison","Loot1","Fontaine",
         "Puits","Porte2","T1","T2","T3","T4","I4","Porte","CJ1","CJ2","CJ3",
         "IJ2","IJ3","IJ4","MJ1","MJ2","Lootdj1","Lootdj2","Ca1","Ca2","Ca3","Ca4",
-        "Bib1","Bib2","Shop","Porte3","CulDJ","M3","M4","Ogre","MJ3","MJ4","MJ5","PuitDJ","Jardin","Lootdj3","Statue","Centrale","MarchandNoir","Chapelle1","Chapelle2","Crypte1","Crypte2","PrisonC1","PrisonC2","PrisonC3","PrisonC4","PorteGob","CG1","GI2","GI3","GI4","PuitG","MarchG","ArmG","CDG","MG1","MG2","MG3","TresorG"
+        "Bib1","Bib2","Shop","Porte3","CulDJ","M3","M4","Ogre","MJ3","MJ4","MJ5","PuitDJ","Jardin","Lootdj3","Statue","Centrale","MarchandNoir","Chapelle1","Chapelle2","Crypte1","Crypte2","PrisonC1","PrisonC2","PrisonC3","PrisonC4","PorteGob","CG1","GI2","GI3","GI4","PuitG","MarchG","ArmG","CDG","MG1","MG2","MG3","TresorG","M5"
     };
 
     public static final Map<String, Integer> LABEL_TO_TYPE = new HashMap<>();
@@ -179,6 +179,7 @@ public class TestGenerator {
             registerRoom("Loot1", "/test_structures/salle_loot_1.nbt");
             registerRoom("M1", "/test_structures/salle_monstre_1.nbt");
             registerRoom("M2", "/test_structures/salle_monstre_2.nbt");
+            registerRoom("M5", "/test_structures/salle_monstre_5.nbt");
             registerRoom("fontaine", "/test_structures/fontaine.nbt");
             registerRoom("puit", "/test_structures/couloir_puit.nbt");
 
@@ -220,6 +221,7 @@ public class TestGenerator {
             registerRoom("culDJ", "/test_structures/cul_de_sac_donjon_1.nbt");
             registerRoom("M3", "/test_structures/salle_monstre_3.nbt");
             registerRoom("M4", "/test_structures/salle_monstre_4.nbt");
+            // M5 enregistré avec M1/M2 (salle_monstre_5.nbt)
             registerRoom("Ogre", "/test_structures/salle_ogre.nbt");
             registerRoom("PuitDJ", "/test_structures/couloir_puit_donjon_1.nbt");
             registerRoom("Jardin", "/test_structures/salle_jardin.nbt");
@@ -535,6 +537,7 @@ public class TestGenerator {
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
 
+            // M5 = couloir monstre structurel, PAS de spawn pour l'instant
             if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey)) {
                 for (int[] off : normalOffsets) {
                     int rx = rotateX(off[0], off[1], rc.rot);
@@ -680,6 +683,17 @@ public class TestGenerator {
             }
             root.put("goblins", goblins);
 
+            // Positions des puits (compas réparé) — persistées pour survivre à un relog
+            NbtList puits = new NbtList();
+            for (BlockPos p : lastPuitPositions) {
+                NbtCompound t = new NbtCompound();
+                t.putInt("x", p.getX());
+                t.putInt("y", p.getY());
+                t.putInt("z", p.getZ());
+                puits.add(t);
+            }
+            root.put("puits", puits);
+
             NbtIo.write(root, getSaveFile().toPath());
         } catch (Exception e) {
             System.out.println("[TestGenerator] Échec sauvegarde disque: " + e.getMessage());
@@ -713,6 +727,15 @@ public class TestGenerator {
                     if (g.contains("sx")) {
                         DungeonMod.zombieSpawns.put(uuid, new BlockPos(g.getInt("sx"), g.getInt("sy"), g.getInt("sz")));
                     }
+                }
+            }
+
+            lastPuitPositions.clear();
+            if (root.contains("puits")) {
+                NbtList puits = root.getList("puits", 10);
+                for (int i = 0; i < puits.size(); i++) {
+                    NbtCompound t = puits.getCompound(i);
+                    lastPuitPositions.add(new BlockPos(t.getInt("x"), t.getInt("y"), t.getInt("z")));
                 }
             }
 

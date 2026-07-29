@@ -53,20 +53,25 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 |----|-----|------|--------|-------|
 | `plastron_lourd` | Plastron lourd | IRON_CHESTPLATE | 12 | -30% vitesse, -30% saut, +10 absorption max (set 10 HP à l'équipement) |
 | `plastron_heros` | Plastron du héros | GOLDEN_CHESTPLATE | 8 | Reflette les dégâts subis à l'attaquant |
-| `plastron_voyageur` | Plastron du voyageur | LEATHER_CHESTPLATE | 6 | Portée blocs +1.5 (→6), portée entité +1 (→4) |
+| `plastron_chasseur` | Plastron du chasseur | CHAINMAIL_CHESTPLATE | 23 | Kill → +0,5 cœur ; Attaque +125% |
+| `plastron_glouton` | Plastron du glouton | LEATHER_CHESTPLATE | 15 | Manger/boire instantané ; soins aliments ×2 ; durée potions/bières ×2 ; Attaque +40% |
+| `cape_du_voyageur` | Cape du voyageur | LEATHER_CHESTPLATE | 18 | Plane / chute nulle ; Attaque +70% |
 
 ### Jambières (slot LEGS)
 
 | ID | Nom | Item | Armure | Effet |
 |----|-----|------|--------|-------|
-| `jambiere_voyageur` | Jambière du voyageur | LEATHER_LEGGINGS | 5 | +50% vitesse quand ≤4 PV |
-| `jambiere_chasseur` | Jambière du chasseur | CHAINMAIL_LEGGINGS | 7 | Sneak→mode caché (pose SWIMMING), gobelins ignorent, dégâts annulés. Cooldown 2s. |
+| `jambiere_voyageur` | Jambière du voyageur | LEATHER_LEGGINGS | 13 | +50% vitesse quand ≤4 PV ; Attaque +65% |
+| `jambiere_chasseur` | Jambière du chasseur | CHAINMAIL_LEGGINGS | 17 | Sneak→mode caché ; Attaque +80% |
+| `jambiere_lourde` | Jambière lourde | IRON_LEGGINGS | 23 | −20% vitesse/saut ; Attaque +95% |
 
 ### Bottes (slot FEET)
 
 | ID | Nom | Item | Armure | Effet |
 |----|-----|------|--------|-------|
-| `bottes_sept_lieues` | Bottes de sept lieues | LEATHER_BOOTS | 3 | +30% vitesse, +70% saut, 0 dégâts de chute |
+| `bottes_sept_lieues` | Bottes de sept lieues | LEATHER_BOOTS | 7 | +100% vitesse ; Attaque +30% |
+| `bottes_lourdes` | Bottes lourdes | IRON_BOOTS | 14 | Annule le recul ; Attaque +70% |
+| `bottes_apollon` | Bottes de Mercure | GOLDEN_BOOTS | 9 | Double saut, chute nulle ; Attaque +40% |
 
 ### Armes (slot MAINHAND)
 
@@ -92,6 +97,7 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 | `coeur` | Coeur | HEART_OF_THE_SEA | +1 cœur max + soigne 1 cœur |
 | `cle` | Clé | TRIAL_KEY | Ouvre les portes en fer (une utilisation), ouvre aussi les doubles portes |
 | `denier` | Denier | GOLD_NUGGET | Monnaie du jeu |
+| `compas_repare` | Compas réparé | COMPASS | Pointe le **centre** de la salle-puits la plus proche du même étage (lodestone_tracker + textures du compas cassé) |
 
 ## Gobelins
 
@@ -106,7 +112,8 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 
 - **PV max** : 10 (5 cœurs)
 - **Nourriture** : foodLevel=17, saturation=5 (pas de régénération naturelle)
-- **Formule dégâts** : `dégâts × (1 - armure/100)` (remplace la formule vanilla)
+- **Formule dégâts** : `dégâts × (1 - armure/100)` (remplace la formule vanilla) — 1 pt d'attribut ARMOR = 1 % de réduction, cap **100 %**
+- **Plafond ARMOR vanilla = 30** : levé à 100 via `ArmorAttributeCapMixin` (sinon Dent de loup + réduction réelle bloquées à 30 %)
 - **Pas de barre food** (cancel via mixin)
 - **Barre armure** : remplacée par texte "Protection = X%"
 - **Barre vie** : centrée dynamiquement
@@ -178,18 +185,21 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 | `run_client.py` | `gradlew.bat runClient` (client dev) |
 | `clean_build.py` | `gradlew.bat clean build` — recompile TOUT à neuf |
 | `ouvrir_donjon.py [seed]` | Génère le HTML de viz (`DungeonViz`) + validation auto en console |
-| `test_algo.py [nbSeeds] [seedDépart]` | Harnais de régression (`SeedHarness`) : N générations + vérifs auto |
+| `test_algo.py [nb]` | Harnais de régression (`SeedHarness`) : N **échantillons joueur** (seed=0) + seeds dorées + vérifs auto |
+| `test_algo.py --seed S` | Rejoue une seed de SORTIE précise (bug joueur) |
+| `test_algo.py --range [start]` | DEBUG seulement : ancienne plage d'entrée 1..N (ne reflète PAS le joueur) |
 
 ⚠️ **Règle d'or du workflow** : `ouvrir_donjon.py` et `test_algo.py` exécutent les classes de `build/classes/java/main`. **Toujours lancer `clean_build.py` après un pull** — sinon le HTML/harnais tournent sur les VIEILLES classes et "prouvent" à tort que des bugs corrigés existent encore (arrivé 2× en juillet 2026).
 
 ### Harnais de régression (`debug/SeedHarness.java`)
 - Classe pure sans dépendance Minecraft ; compilée par `gradlew build` ; exécutée via `test_algo.py`.
-- Teste toujours les **seeds dorées** (régressions historiques permanentes) :
+- **Sémantique des seeds (IMPORTANT)** : `generateDungeon(seed)` rejette en interne les layouts invalides (retry jusqu'à 100× en mode joueur `seed=0`, 20× en mode seed fixe). Seules les seeds de **SORTIE** (`DungeonResult.seed` / `getLastSeed()`) sont livrées au joueur. Tester la plage d'entrée `1..N` est trompeur (beaucoup de null / layouts jamais donnés au joueur). Le mode par défaut échantillonne donc comme `/teste` : `generateDungeon(0)`, puis valide le résultat réellement produit.
+- Teste toujours les **seeds dorées** (régressions historiques = seeds de SORTIE) :
   - `224237267600147` — couloir à 3-4 connexions (raccords P2/P3 partagés)
   - `827324799543570426` — virage IJ2 à 3 connexions au sud de la Centrale (P4)
   - `227471353010315` — virage IJ2 à 4 connexions au sud (fusion des 2 arbres sud adjacents)
-- Vérifie par seed : génération non nulle · cohérence labels ↔ adjacence (`DungeonAlgo.validateStructure`) · connexité BFS des 2 étages · garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ, lootdj P4).
-- Exit code 0/1 → chainable. **Objectif permanent : SUCCESS 100 %.** Tout nouveau bug d'algo → ajouter sa seed dans `GOLDEN_SEEDS`.
+- Vérifie par donjon : génération non nulle · cohérence labels ↔ adjacence (`DungeonAlgo.validateStructure`) · connexité BFS des 2 étages · garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ, lootdj P4).
+- Exit code 0/1 → chainable. **Objectif permanent : SUCCESS 100 % sur les échantillons joueur.** Tout nouveau bug d'algo → ajouter sa seed de SORTIE dans `GOLDEN_SEEDS`.
 
 ### Invariants structurels de l'algo (RÈGLE D'OR DU LABEL)
 Un label structurel générique (`C1-3`/`I2`/`I3`/`I4`/`cul`, `CJ1-3`/`IJ2-4`/`culDJ`, `CG1`/`GI2-4`/`CDG`) se déduit **uniquement** de l'adjacence finale du nœud :

@@ -6,21 +6,32 @@ import com.dungeonmod.debug.DungeonAlgo.DungeonResult;
 import com.dungeonmod.debug.DungeonAlgo.Point;
 
 /**
- * HARNAIS DE RÉGRESSION PAR SEEDS — qualité automatique de l'algo de génération.
+ * HARNAIS DE RÉGRESSION — qualité automatique de l'algo de génération.
  *
- * Pour chaque seed testée :
+ * IMPORTANT — sémantique des seeds :
+ *   L'algo ({@link DungeonAlgo#generateDungeon}) rejette en interne les layouts
+ *   invalides (retry jusqu'à 100× en mode joueur seed=0, 20× en mode seed fixe).
+ *   Seules les seeds qui SORTENT de l'algo (champ {@code DungeonResult.seed} /
+ *   {@link DungeonAlgo#getLastSeed()}) sont livrées au joueur.
+ *
+ *   Tester la plage séquentielle 1..N est donc trompeur : la plupart de ces
+ *   valeurs d'entrée sont rejetées ou n'atteignent jamais le joueur. Le mode
+ *   par défaut échantillonne donc comme le joueur (seed=0) et valide le
+ *   résultat réellement produit.
+ *
+ * Pour chaque donjon testé :
  *   1. génération non nulle
  *   2. cohérence labels <-> adjacence (DungeonAlgo.validateStructure) sur les 2 étages
  *   3. connexité des 2 étages (BFS : tout nœud étiqueté doit être atteignable)
  *   4. garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ...)
- *   5. espacement : monstres espacés (>= MONSTER_MIN_DIST), Ogre isolé (>= OGRE_MIN_MONSTER_DIST),
- *      culs-de-sac génériques jamais après une ligne droite
  *
- * Usage : java com.dungeonmod.debug.SeedHarness [-n count] [-s startSeed] [-v]
- *   -n : nombre de seeds dans la plage séquentielle (défaut 100)
- *   -s : première seed de la plage (défaut 1)
- *   -v : affiche chaque seed testée
- * Les seeds dorées (régressions historiques) sont TOUJOURS testées en plus.
+ * Usage : java com.dungeonmod.debug.SeedHarness [-n count] [-v] [-range start] [-seed S]
+ *   -n     : nombre de donjons joueur à échantillonner (défaut 100)
+ *   -v     : affiche chaque seed testée
+ *   -range : (opt-in debug) teste aussi la plage séquentielle start .. start+n-1
+ *            en entrée de generateDungeon — NE reflète PAS ce que le joueur reçoit
+ *   -seed  : teste une seed de sortie précise (répétable, ex. seed dorée)
+ * Les seeds dorées (régressions historiques = seeds de SORTIE) sont TOUJOURS testées.
  * Code de sortie : 0 si tout passe, 1 sinon (chainable en CI).
  *
  * NOTE : classe pure — aucune dépendance Minecraft (comme DungeonAlgo/DungeonViz).
@@ -28,8 +39,10 @@ import com.dungeonmod.debug.DungeonAlgo.Point;
 public class SeedHarness {
 
     /**
-     * Seeds dorées : chaque bug identifié devient un cas de régression PERMANENT.
-     * Ajouter ici la seed de tout futur bug d'algo découvert.
+     * Seeds dorées : seeds de SORTIE (dr.seed / getLastSeed()) ayant produit un bug.
+     * Chaque bug identifié devient un cas de régression PERMANENT.
+     * Ajouter ici la seed de SORTIE de tout futur bug d'algo découvert
+     * (pas une valeur d'entrée arbitraire 1..N).
      */
     private static final long[] GOLDEN_SEEDS = {
         224237267600147L,   // couloir à 3-4 connexions (raccords P2/P3 partagés)
@@ -39,37 +52,94 @@ public class SeedHarness {
 
     public static void main(String[] args) {
         int count = 100;
-        long startSeed = 1;
         boolean verbose = false;
+        boolean useRange = false;
+        long rangeStart = 1;
+        List<Long> extraSeeds = new ArrayList<>();
+
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "-n" -> count = Integer.parseInt(args[++i]);
-                case "-s" -> startSeed = Long.parseLong(args[++i]);
                 case "-v" -> verbose = true;
+                case "-range" -> {
+                    useRange = true;
+                    if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+                        rangeStart = Long.parseLong(args[++i]);
+                    }
+                }
+                case "-s", "-seed" -> extraSeeds.add(Long.parseLong(args[++i]));
+                // Compat ancienne CLI : -s <start> sans -range était "plage séquentielle".
+                // On l'ignore volontairement ici (remplacé par l'échantillonnage joueur) ;
+                // utiliser -range <start> pour l'ancien comportement debug.
                 default -> System.out.println("Argument ignoré : " + args[i]);
             }
         }
 
         List<String> failures = new ArrayList<>();
         int total = 0;
+        int genNull = 0;
         long t0 = System.currentTimeMillis();
 
-        // 1. Seeds dorées (régressions historiques) — toujours testées
-        System.out.println("== Seeds dorées (régressions historiques) ==");
+        // 1. Seeds dorées (régressions historiques = seeds de SORTIE) — toujours testées
+        System.out.println("== Seeds dorées (régressions historiques, seeds de SORTIE) ==");
         for (long seed : GOLDEN_SEEDS) {
             total++;
-            failures.addAll(testSeed(seed, verbose));
+            List<String> probs = testOutputSeed(seed, verbose);
+            failures.addAll(probs);
+            for (String p : probs) if (p.contains("GENERATION NULLE")) genNull++;
         }
 
-        // 2. Plage séquentielle
-        System.out.println("== Plage : " + startSeed + " .. " + (startSeed + count - 1) + " (-n " + count + ") ==");
+        // 1b. Seeds explicites (-seed)
+        if (!extraSeeds.isEmpty()) {
+            System.out.println("== Seeds explicites (-seed) ==");
+            for (long seed : extraSeeds) {
+                total++;
+                List<String> probs = testOutputSeed(seed, verbose);
+                failures.addAll(probs);
+                for (String p : probs) if (p.contains("GENERATION NULLE")) genNull++;
+            }
+        }
+
+        // 2. Échantillonnage mode JOUEUR (seed=0) — ce que le joueur reçoit réellement
+        System.out.println("== Echantillonnage joueur : " + count + " generation(s) (seed=0, comme /teste) ==");
+        int playerOk = 0;
         for (int i = 0; i < count; i++) {
-            long seed = startSeed + i;
             total++;
-            failures.addAll(testSeed(seed, verbose));
+            DungeonResult dr = DungeonAlgo.generateDungeon(0);
+            if (dr == null) {
+                genNull++;
+                failures.add("joueur #" + (i + 1) + " : GENERATION NULLE (l'algo n'a rien pu livrer au joueur)");
+                if (verbose) System.out.println("  joueur #" + (i + 1) + " : GENERATION NULLE");
+            } else {
+                long outSeed = dr.seed != 0 ? dr.seed : DungeonAlgo.getLastSeed();
+                List<String> probs = validateResult(dr, outSeed, "joueur#" + (i + 1) + "/seed " + outSeed);
+                failures.addAll(probs);
+                if (probs.isEmpty()) playerOk++;
+                if (verbose) {
+                    if (probs.isEmpty()) {
+                        System.out.println("  joueur #" + (i + 1) + " seed " + outSeed + " : OK");
+                    } else {
+                        for (String p : probs) System.out.println("  " + p);
+                    }
+                }
+            }
             if ((i + 1) % 25 == 0) {
                 long dt = System.currentTimeMillis() - t0;
-                System.out.println("  ... " + (i + 1) + "/" + count + " seeds, " + failures.size() + " probleme(s), " + dt + " ms");
+                System.out.println("  ... " + (i + 1) + "/" + count + " joueur, "
+                        + playerOk + " OK, " + failures.size() + " probleme(s), " + dt + " ms");
+            }
+        }
+
+        // 3. Plage séquentielle (opt-in debug uniquement — ne reflète PAS le joueur)
+        if (useRange) {
+            System.out.println("== DEBUG plage entree : " + rangeStart + " .. "
+                    + (rangeStart + count - 1) + " (NE sont PAS des seeds joueur) ==");
+            for (int i = 0; i < count; i++) {
+                long seed = rangeStart + i;
+                total++;
+                List<String> probs = testInputSeed(seed, verbose);
+                failures.addAll(probs);
+                for (String p : probs) if (p.contains("GENERATION NULLE")) genNull++;
             }
         }
 
@@ -77,14 +147,15 @@ public class SeedHarness {
         System.out.println("=== RÉSUMÉ ===");
         long dtTotal = System.currentTimeMillis() - t0;
         if (failures.isEmpty()) {
-            System.out.println("SUCCESS : " + total + "/" + total + " seeds OK, aucun probleme, en " + dtTotal + " ms.");
+            System.out.println("SUCCESS : " + total + "/" + total + " tests OK"
+                    + " (" + playerOk + "/" + count + " echantillons joueur),"
+                    + " aucun probleme, en " + dtTotal + " ms.");
             System.exit(0);
         }
 
-        int genNull = 0;
-        for (String f : failures) if (f.contains("GENERATION NULLE")) genNull++;
-        System.out.println("FAILURE : " + failures.size() + " probleme(s) sur " + total + " seeds"
-                + " (" + genNull + " generations nulles), en " + dtTotal + " ms :");
+        System.out.println("FAILURE : " + failures.size() + " probleme(s) sur " + total + " tests"
+                + " (" + genNull + " generations nulles, " + playerOk + "/" + count
+                + " echantillons joueur OK), en " + dtTotal + " ms :");
         int shown = 0;
         for (String f : failures) {
             System.out.println("  - " + f);
@@ -96,88 +167,77 @@ public class SeedHarness {
         System.exit(1);
     }
 
-    /** Teste UNE seed et retourne la liste des problèmes trouvés (vide = OK). */
-    private static List<String> testSeed(long seed, boolean verbose) {
-        List<String> problems = new ArrayList<>();
+    /**
+     * Teste une seed de SORTIE : on force generateDungeon(seed) et on valide
+     * le layout produit (reproductibilité d'un bug joueur).
+     */
+    private static List<String> testOutputSeed(long seed, boolean verbose) {
         DungeonResult dr = DungeonAlgo.generateDungeon(seed);
         if (dr == null) {
+            List<String> problems = new ArrayList<>();
             problems.add("seed " + seed + " : GENERATION NULLE");
+            if (verbose) System.out.println("  seed " + seed + " : GENERATION NULLE");
             return problems;
         }
-
-        // 1. Cohérence labels <-> adjacence (les deux étages)
-        problems.addAll(prefix(seed, DungeonAlgo.validateStructure(dr.labels, dr.adj, "ETAGE 0")));
-        if (dr.topLabels != null && dr.p4Adj != null) {
-            problems.addAll(prefix(seed, DungeonAlgo.validateStructure(dr.topLabels, dr.p4Adj, "ETAGE 1")));
-        } else {
-            problems.add("seed " + seed + " : P4 absente (topLabels ou p4Adj null)");
-        }
-
-        // 2. Connexité des deux étages
-        checkConnectivity(problems, dr.labels, dr.adj, "ETAGE 0", seed);
-        checkConnectivity(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", seed);
-
-        // 3. Garanties gameplay
-        checkGuarantees(problems, dr, seed);
-
-        // 4. Règles d'espacement : monstres entre eux, isolement Ogre, culs-de-sac
-        checkSpacingRules(problems, dr.labels, dr.adj, "ETAGE 0", seed, true);
-        if (dr.topLabels != null && dr.p4Adj != null) {
-            checkSpacingRules(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", seed, false);
-        }
-
+        // La seed réellement utilisée peut être seed+outer (retry interne).
+        // On valide le résultat tel quel et on affiche les deux si différentes.
+        long outSeed = dr.seed != 0 ? dr.seed : seed;
+        String tag = (outSeed == seed) ? ("seed " + seed) : ("seed " + seed + "→" + outSeed);
+        List<String> problems = validateResult(dr, outSeed, tag);
         if (verbose) {
-            if (problems.isEmpty()) {
-                System.out.println("seed " + seed + " : OK");
-            } else {
-                for (String p : problems) System.out.println("  " + p);
-            }
+            if (problems.isEmpty()) System.out.println("  " + tag + " : OK");
+            else for (String p : problems) System.out.println("  " + p);
         }
         return problems;
     }
 
-    private static List<String> prefix(long seed, List<String> problems) {
-        List<String> out = new ArrayList<>();
-        for (String p : problems) out.add("seed " + seed + " : " + p);
-        return out;
+    /**
+     * Ancien comportement : seed d'ENTRÉE séquentielle. Conservé uniquement
+     * pour -range (debug). Beaucoup de null / layouts non-joueur sont attendus.
+     */
+    private static List<String> testInputSeed(long seed, boolean verbose) {
+        return testOutputSeed(seed, verbose);
     }
 
-    /** BFS depuis un nœud quelconque : tout nœud ÉTIQUETÉ doit être atteignable. */
-    private static void checkConnectivity(List<String> problems, Map<Point, String> labels,
-                                          Map<Point, Set<Point>> adj, String scope, long seed) {
-        if (labels == null || labels.isEmpty() || adj == null) return;
-        Point start = labels.keySet().iterator().next();
-        Set<Point> visited = new HashSet<>();
-        Deque<Point> stack = new ArrayDeque<>();
-        stack.push(start);
-        visited.add(start);
-        while (!stack.isEmpty()) {
-            Point p = stack.pop();
-            for (Point nb : adj.getOrDefault(p, Collections.emptySet())) {
-                if (visited.add(nb)) stack.push(nb);
-            }
+    /** Valide un DungeonResult déjà généré (chemin joueur ou seed forcée). */
+    private static List<String> validateResult(DungeonResult dr, long seed, String tag) {
+        List<String> problems = new ArrayList<>();
+
+        // 1. Cohérence labels <-> adjacence (les deux étages)
+        problems.addAll(prefix(tag, DungeonAlgo.validateStructure(dr.labels, dr.adj, "ETAGE 0")));
+        if (dr.topLabels != null && dr.p4Adj != null) {
+            problems.addAll(prefix(tag, DungeonAlgo.validateStructure(dr.topLabels, dr.p4Adj, "ETAGE 1")));
+        } else {
+            problems.add(tag + " : P4 absente (topLabels ou p4Adj null)");
         }
-        List<String> unreachable = new ArrayList<>();
-        for (Point p : labels.keySet()) {
-            if (!visited.contains(p)) unreachable.add("(" + p.key() + ")=" + labels.get(p));
+
+        // 2. Connexité des deux étages
+        checkConnectivity(problems, dr.labels, dr.adj, "ETAGE 0", tag);
+        checkConnectivity(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", tag);
+
+        // 3. Garanties gameplay
+        checkGuarantees(problems, dr, tag);
+
+        // 4. Règles d'espacement (conversation 3) : monstres entre eux, isolement Ogre,
+        //    culs-de-sac génériques jamais après une ligne droite.
+        checkSpacingRules(problems, dr.labels, dr.adj, "ETAGE 0", tag, true);
+        if (dr.topLabels != null && dr.p4Adj != null) {
+            checkSpacingRules(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", tag, false);
         }
-        if (!unreachable.isEmpty()) {
-            problems.add("seed " + seed + " : " + scope + " INCONNEXE, " + unreachable.size()
-                    + " noeud(s) inatteignable(s) : ["
-                    + String.join(", ", unreachable.subList(0, Math.min(4, unreachable.size())))
-                    + (unreachable.size() > 4 ? ", ..." : "") + "]");
-        }
+
+        return problems;
     }
 
     /**
      * Règles d'espacement (cahier des charges) :
-     *  - deux salles monstre toujours à distance >= MONSTER_MIN_DIST (2 salles neutres min) ;
+     *  - deux salles monstre (M1-M5, MJ1-MJ5) toujours à distance >= MONSTER_MIN_DIST
+     *    (au moins 2 salles neutres entre elles) ;
      *  - toute salle monstre à distance >= OGRE_MIN_MONSTER_DIST de l'Ogre (3 salles min) ;
      *  - un cul-de-sac générique (cul/culDJ/CDG) jamais après une ligne droite : son parent
      *    à 2 voisins doit être un VIRAGE, pas un couloir droit (intersection = toujours OK).
      */
     private static void checkSpacingRules(List<String> problems, Map<Point, String> labels,
-                                          Map<Point, Set<Point>> adj, String scope, long seed, boolean checkOgre) {
+                                          Map<Point, Set<Point>> adj, String scope, String tag, boolean checkOgre) {
         if (labels == null || labels.isEmpty() || adj == null) return;
 
         List<Point> monsters = new ArrayList<>();
@@ -191,7 +251,7 @@ public class SeedHarness {
             for (int j = i + 1; j < monsters.size(); j++) {
                 int dd = d.getOrDefault(monsters.get(j), Integer.MAX_VALUE);
                 if (dd < DungeonAlgo.MONSTER_MIN_DIST) {
-                    problems.add("seed " + seed + " : " + scope + " monstres trop proches (dist " + dd
+                    problems.add(tag + " : " + scope + " monstres trop proches (dist " + dd
                             + " < " + DungeonAlgo.MONSTER_MIN_DIST + ") : "
                             + labels.get(monsters.get(i)) + " @(" + monsters.get(i).key() + ") <-> "
                             + labels.get(monsters.get(j)) + " @(" + monsters.get(j).key() + ")");
@@ -200,7 +260,7 @@ public class SeedHarness {
             if (checkOgre && ogre != null) {
                 int dd = d.getOrDefault(ogre, Integer.MAX_VALUE);
                 if (dd < DungeonAlgo.OGRE_MIN_MONSTER_DIST) {
-                    problems.add("seed " + seed + " : " + scope + " monstre trop proche de l'Ogre (dist " + dd
+                    problems.add(tag + " : " + scope + " monstre trop proche de l'Ogre (dist " + dd
                             + " < " + DungeonAlgo.OGRE_MIN_MONSTER_DIST + ") : "
                             + labels.get(monsters.get(i)) + " @(" + monsters.get(i).key() + ")");
                 }
@@ -214,33 +274,89 @@ public class SeedHarness {
             Point parent = nb.iterator().next();
             Set<Point> pAdj = adj.getOrDefault(parent, Set.of());
             if (pAdj.size() == 2 && DungeonAlgo.shapeOf(pAdj) == DungeonAlgo.Shape.STRAIGHT) {
-                problems.add("seed " + seed + " : " + scope + " cul-de-sac après une ligne droite @("
+                problems.add(tag + " : " + scope + " cul-de-sac après une ligne droite @("
                         + e.getKey().key() + "), parent @(" + parent.key() + ")=" + labels.get(parent));
             }
         }
     }
 
+    private static List<String> prefix(String tag, List<String> problems) {
+        List<String> out = new ArrayList<>();
+        for (String p : problems) out.add(tag + " : " + p);
+        return out;
+    }
+
+    /**
+     * BFS depuis un nœud quelconque : tout nœud ÉTIQUETÉ doit être atteignable.
+     * Sur l'étage 1, la Centrale est une salle physique 2×2 dont les 4 cellules
+     * hub ne sont pas forcément maillées dans p4Adj (chaque sortie s'accroche à
+     * une cellule différente). On les traite comme un seul super-nœud pour le BFS,
+     * sinon le graphe paraît à tort en plusieurs composantes.
+     */
+    private static void checkConnectivity(List<String> problems, Map<Point, String> labels,
+                                          Map<Point, Set<Point>> adj, String scope, String tag) {
+        if (labels == null || labels.isEmpty() || adj == null) return;
+
+        Set<Point> hub = new HashSet<>();
+        if ("ETAGE 1".equals(scope)) {
+            for (var e : labels.entrySet()) {
+                if ("Centrale".equals(e.getValue())) {
+                    int hx = e.getKey().x(), hz = e.getKey().y();
+                    for (int dx = 0; dx <= 1; dx++)
+                        for (int dz = 0; dz <= 1; dz++)
+                            hub.add(new Point(hx + dx, hz + dz));
+                    break;
+                }
+            }
+        }
+
+        Point start = labels.keySet().iterator().next();
+        Set<Point> visited = new HashSet<>();
+        Deque<Point> stack = new ArrayDeque<>();
+        stack.push(start);
+        visited.add(start);
+        while (!stack.isEmpty()) {
+            Point p = stack.pop();
+            // Voisins graphiques +, si on est dans le hub 2×2, toutes les cellules hub
+            List<Point> expand = new ArrayList<>(adj.getOrDefault(p, Collections.emptySet()));
+            if (hub.contains(p)) expand.addAll(hub);
+            for (Point nb : expand) {
+                if (visited.add(nb)) stack.push(nb);
+            }
+        }
+        List<String> unreachable = new ArrayList<>();
+        for (Point p : labels.keySet()) {
+            if (!visited.contains(p)) unreachable.add("(" + p.key() + ")=" + labels.get(p));
+        }
+        if (!unreachable.isEmpty()) {
+            problems.add(tag + " : " + scope + " INCONNEXE, " + unreachable.size()
+                    + " noeud(s) inatteignable(s) : ["
+                    + String.join(", ", unreachable.subList(0, Math.min(4, unreachable.size())))
+                    + (unreachable.size() > 4 ? ", ..." : "") + "]");
+        }
+    }
+
     /** Invariants gameplay qui DOIVENT tenir quel que soit le layout généré. */
-    private static void checkGuarantees(List<String> problems, DungeonResult dr, long seed) {
+    private static void checkGuarantees(List<String> problems, DungeonResult dr, String tag) {
         Set<String> l0 = new HashSet<>(dr.labels.values());
         Set<String> l1 = dr.topLabels == null ? Set.of() : new HashSet<>(dr.topLabels.values());
 
         // Étage 0 (P1-P3)
-        if (!l0.contains("Prison")) problems.add("seed " + seed + " : ETAGE 0 sans Prison");
+        if (!l0.contains("Prison")) problems.add(tag + " : ETAGE 0 sans Prison");
         if (l0.stream().noneMatch(v -> v != null && (v.equals("Loot1") || v.startsWith("Lootdj")))) {
-            problems.add("seed " + seed + " : ETAGE 0 sans aucun loot");
+            problems.add(tag + " : ETAGE 0 sans aucun loot");
         }
-        if (!l0.contains("Ogre")) problems.add("seed " + seed + " : ETAGE 0 sans Ogre");
-        if (!l0.contains("Centrale")) problems.add("seed " + seed + " : ETAGE 0 sans Centrale");
+        if (!l0.contains("Ogre")) problems.add(tag + " : ETAGE 0 sans Ogre");
+        if (!l0.contains("Centrale")) problems.add(tag + " : ETAGE 0 sans Centrale");
 
         // Étage 1 (P4)
         if (l1.isEmpty()) return; // déjà signalé comme P4 absente
-        if (!l1.contains("Centrale")) problems.add("seed " + seed + " : ETAGE 1 sans Centrale");
-        if (!l1.contains("PorteGob")) problems.add("seed " + seed + " : ETAGE 1 sans PorteGob");
-        if (!l1.contains("MarchandNoir")) problems.add("seed " + seed + " : ETAGE 1 sans MarchandNoir");
-        if (!l1.contains("PuitDJ")) problems.add("seed " + seed + " : ETAGE 1 sans PuitDJ");
+        if (!l1.contains("Centrale")) problems.add(tag + " : ETAGE 1 sans Centrale");
+        if (!l1.contains("PorteGob")) problems.add(tag + " : ETAGE 1 sans PorteGob");
+        if (!l1.contains("MarchandNoir")) problems.add(tag + " : ETAGE 1 sans MarchandNoir");
+        if (!l1.contains("PuitDJ")) problems.add(tag + " : ETAGE 1 sans PuitDJ");
         if (l1.stream().noneMatch(v -> v != null && v.startsWith("Lootdj"))) {
-            problems.add("seed " + seed + " : ETAGE 1 sans aucun lootdj");
+            problems.add(tag + " : ETAGE 1 sans aucun lootdj");
         }
     }
 }
