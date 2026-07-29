@@ -280,6 +280,10 @@ public class DungeonAlgo {
         String startKey;
         int startX, startY;
         Map<Point, Set<Point>> adj;
+        /** Fin du tronc P2 (pour enchaîner M5 → gap → porte2). */
+        Point trunkEnd;
+        /** Direction du dernier pas du tronc (index dans DIR_OFFSET), ou -1. */
+        int trunkEndDir = -1;
     }
 
     private static class TavernResult {
@@ -766,8 +770,14 @@ public class DungeonAlgo {
         }
         Collections.shuffle(cList, rng);
 
-        if (leaves.size() < 6) return null;
-        long availCorr = cList.stream().filter(n -> !pathSet.contains(n)).count();
+        // porte2 déjà placée en fin de tronc (appendP2ExitSequence) — exclure des leaves
+        Point existingPorte2 = findPointByValue(labels, RoomIds.DOOR_2);
+        if (existingPorte2 != null) leaves.remove(existingPorte2);
+
+        // Besoin : ogre + fontaine + m3 + loot (+ culs éventuels) ≥ 4 leaves de branches
+        if (leaves.size() < 4) return null;
+        long availCorr = cList.stream().filter(n -> !pathSet.contains(n)
+                && (labels.get(n) == null || !labels.get(n).equals(RoomIds.MONSTER_5))).count();
         if (availCorr < 2) return null;
 
         Set<Point> monsterSet = new HashSet<>();
@@ -779,38 +789,9 @@ public class DungeonAlgo {
         remain.remove(ogreLeaf);
         Collections.shuffle(remain, rng);
 
+        if (remain.isEmpty()) return null;
         labels.put(remain.get(0), RoomIds.FOUNTAIN);
-        // Porte2 : leaf la plus LOIN (fin de tronc P2), avec chaîne d'ancêtres
-        // assez longue pour M5 + 1–2 cellules d'écart (jamais M5 collé à la porte).
-        Point porte2 = null;
-        int bestScore = -1;
-        for (int i = 1; i < remain.size(); i++) {
-            Point leaf = remain.get(i);
-            int d = dist.getOrDefault(leaf, 0);
-            if (d < 3) continue; // trop court pour M5 + gap + porte
-            // Remonte 2–3 crans : parent/grand-parent doivent permettre un gap
-            Point par = adj.get(leaf).iterator().next();
-            Set<Point> pnb = adj.getOrDefault(par, Set.of());
-            if (pnb.size() < 2) continue;
-            int score = d * 10;
-            // Bonus si parent est couloir droit
-            if (pnb.size() == 2) {
-                List<Point> pnbs = new ArrayList<>(pnb);
-                if (isStraight(pnbs.get(0), pnbs.get(1))) score += 5;
-            }
-            if (score > bestScore) { bestScore = score; porte2 = leaf; }
-        }
-        if (porte2 == null) {
-            // Fallback : leaf la plus loin hors fontaine
-            for (int i = 1; i < remain.size(); i++) {
-                Point leaf = remain.get(i);
-                int d = dist.getOrDefault(leaf, 0);
-                if (d > bestScore) { bestScore = d; porte2 = leaf; }
-            }
-        }
-        if (porte2 == null && remain.size() > 1) porte2 = remain.get(1);
-        if (porte2 == null) return null;
-        labels.put(porte2, RoomIds.DOOR_2);
+        // porte2 déjà posée structurellement — ne pas la re-choisir ici
 
         Point m3Leaf = null;
         for (Point n : remain) {
@@ -2011,14 +1992,14 @@ public class DungeonAlgo {
         }
 
         // Fin de tronc : petites branches latérales (pas dans l'axe principal)
+        Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
         if (!trunkCells.isEmpty()) {
-            Point endPoint = trunkCells.get(trunkCells.size() - 1);
             // une seule mini-branche latérale en fin, pour garder l'axe libre vers M5/porte
             int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-            growMiniTree(endPoint, side, adj, occupied, rng);
+            growMiniTree(trunkEnd, side, adj, occupied, rng);
         }
 
-        // Remplissage jusqu'à la taille cible (priorité tronc)
+        // Remplissage jusqu'à la taille cible (priorité tronc), hors fin d'axe
         int targetSize = PART2_TARGET_MIN + rng.nextInt(PART2_TARGET_MAX - PART2_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) {
@@ -2028,7 +2009,7 @@ public class DungeonAlgo {
         while (adj.size() < targetSize) {
             List<Point[]> candidates = new ArrayList<>();
             for (Point node : adj.keySet()) {
-                if (node.equals(start)) continue;
+                if (node.equals(start) || node.equals(trunkEnd)) continue;
                 int deg = adj.get(node).size();
                 if (deg >= 4) continue;
                 if (deg == 2 && ci3 >= PART2_MAX_I3) continue;
@@ -2050,7 +2031,65 @@ public class DungeonAlgo {
         TreeResult tr = new TreeResult();
         tr.startPoint = start; tr.startKey = start.key();
         tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj;
+        tr.trunkEnd = trunkEnd;
+        tr.trunkEndDir = dir;
         return tr;
+    }
+
+    /**
+     * Appende en FIN de tronc P2 la séquence forcée :
+     *   trunkEnd → M5 → [1–2 C/I2] → porte2
+     * Retourne la position de porte2, ou null si impossible.
+     */
+    private static Point appendP2ExitSequence(Map<Point, Set<Point>> adj, Map<Point, String> labels,
+                                              Point trunkEnd, int trunkEndDir, Set<Point> blocked,
+                                              Random rng) {
+        if (trunkEnd == null || trunkEndDir < 0) return null;
+        Set<Point> occupied = new HashSet<>(adj.keySet());
+        if (blocked != null) occupied.addAll(blocked);
+
+        int dir = trunkEndDir;
+        // Essayer de continuer dans la direction du tronc, sinon pivoter
+        Point cursor = trunkEnd;
+        List<Point> chain = new ArrayList<>(); // M5 + gap cells (sans la porte)
+        int gap = 1 + rng.nextInt(2); // 1 ou 2 cellules entre M5 et porte
+        int need = 1 + gap; // M5 + gap, puis porte après
+
+        for (int i = 0; i < need + 1; i++) { // +1 pour la porte
+            Point next = null;
+            int chosenDir = -1;
+            // Priorité : continuer droit, puis perpendiculaires
+            int[] tryOrder = {dir, (dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4};
+            for (int td : tryOrder) {
+                Point cand = cursor.move(DIR_OFFSET[td]);
+                if (cand.isOutOfBounds() || occupied.contains(cand) || adj.containsKey(cand)) continue;
+                next = cand; chosenDir = td; break;
+            }
+            if (next == null) return null;
+            adj.putIfAbsent(cursor, new HashSet<>());
+            adj.putIfAbsent(next, new HashSet<>());
+            adj.get(cursor).add(next);
+            adj.get(next).add(cursor);
+            occupied.add(next);
+            dir = chosenDir;
+            cursor = next;
+            if (i < need) chain.add(next); // pas la porte dans chain
+            else {
+                // i == need → porte2
+                labels.put(next, RoomIds.DOOR_2);
+                // Labelliser la chaîne : [0]=M5, [1..]=couloirs structurels
+                if (!chain.isEmpty()) {
+                    labels.put(chain.get(0), RoomIds.MONSTER_5);
+                    for (int g = 1; g < chain.size(); g++) {
+                        Point gp = chain.get(g);
+                        Set<Point> gnb = adj.get(gp);
+                        labels.put(gp, labelForNeighbors(gnb, Theme.P12, rng));
+                    }
+                }
+                return next;
+            }
+        }
+        return null;
     }
 
     /**
@@ -2065,12 +2104,45 @@ public class DungeonAlgo {
         for (String doorId : List.of(RoomIds.DOOR_1, RoomIds.DOOR_2)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
+            // Déjà un M5 correctement espacé pour cette porte ?
+            if (hasM5WithGapBeforeDoor(door, labels, adj, startPoint)) {
+                placed++;
+                continue;
+            }
             Point candidate = findM5WithGapBeforeDoor(door, labels, adj, startPoint);
             if (candidate == null) continue;
             labels.put(candidate, RoomIds.MONSTER_5);
             placed++;
         }
         return placed;
+    }
+
+    /** True si un M5 existe déjà à distance 2 ou 3 de la porte (gap 1–2). */
+    private static boolean hasM5WithGapBeforeDoor(Point door, Map<Point, String> labels,
+                                                   Map<Point, Set<Point>> adj, Point startPoint) {
+        Map<Point, Point> parent = bfsParents(startPoint, adj);
+        Point p1 = parent.get(door);
+        Point p2 = p1 != null ? parent.get(p1) : null;
+        Point p3 = p2 != null ? parent.get(p2) : null;
+        for (Point cand : new Point[]{p2, p3}) {
+            if (cand != null && RoomIds.MONSTER_5.equals(labels.get(cand))) return true;
+        }
+        return false;
+    }
+
+    private static Map<Point, Point> bfsParents(Point start, Map<Point, Set<Point>> adj) {
+        Map<Point, Point> parent = new HashMap<>();
+        if (start == null) return parent;
+        Deque<Point> q = new ArrayDeque<>();
+        Set<Point> seen = new HashSet<>();
+        q.add(start); seen.add(start);
+        while (!q.isEmpty()) {
+            Point cur = q.poll();
+            for (Point nb : adj.getOrDefault(cur, Set.of())) {
+                if (seen.add(nb)) { parent.put(nb, cur); q.add(nb); }
+            }
+        }
+        return parent;
     }
 
     /**
@@ -2082,20 +2154,7 @@ public class DungeonAlgo {
                                                   Map<Point, Set<Point>> adj, Point startPoint) {
         if (startPoint == null || door == null) return null;
 
-        Map<Point, Point> parent = new HashMap<>();
-        Deque<Point> q = new ArrayDeque<>();
-        Set<Point> seen = new HashSet<>();
-        q.add(startPoint);
-        seen.add(startPoint);
-        while (!q.isEmpty()) {
-            Point cur = q.poll();
-            for (Point nb : adj.getOrDefault(cur, Set.of())) {
-                if (seen.add(nb)) {
-                    parent.put(nb, cur);
-                    q.add(nb);
-                }
-            }
-        }
+        Map<Point, Point> parent = bfsParents(startPoint, adj);
 
         // Chaîne porte ← p1 ← p2 ← p3 (vers le départ)
         Point p1 = parent.get(door);       // distance 1 — trop proche, gap interdit
@@ -2209,6 +2268,11 @@ public class DungeonAlgo {
             if (sp2.adj.size() < 5) continue;
             for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
+            // Fin de tronc P2 forcée : trunkEnd → M5 → [1–2 C/I2] → porte2
+            Point porte2Key = appendP2ExitSequence(sp1.adj, labels, sp2.trunkEnd, sp2.trunkEndDir,
+                    null, rng);
+            if (porte2Key == null) continue;
+
             int p1Loot = 0; for (String v : labels.values()) if (v.equals(RoomIds.LOOT_1)) p1Loot++;
             int totalTarget = 1 + rng.nextInt(2);
             if (p1Loot > totalTarget) {
@@ -2221,14 +2285,15 @@ public class DungeonAlgo {
             labels = analyzePart2(sp1.adj, tavern.exitPoint, labels, tavern.pathSet, rng);
             if (labels == null) continue;
 
-            Point porte2Key = findPointByValue(labels, RoomIds.DOOR_2);
-            if (porte2Key == null) continue;
+            // porte2 déjà posée par appendP2ExitSequence
+            if (findPointByValue(labels, RoomIds.DOOR_2) == null) continue;
 
             CampResult camp = placeCampAndPath(sp1.adj, porte2Key, rng);
             if (camp == null) continue;
             for (Point e : camp.campPathSet) {
+                if (labels.containsKey(e)) continue; // ne pas écraser M5 / spéciaux
                 Set<Point> nb = sp1.adj.get(e);
-                if (nb.size() == 2) labels.put(e, labelForNeighbors(nb, Theme.P12, rng));
+                if (nb != null && nb.size() == 2) labels.put(e, labelForNeighbors(nb, Theme.P12, rng));
             }
             for (var e : camp.campNodes.entrySet()) labels.put(e.getValue(), e.getKey());
 
