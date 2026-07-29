@@ -486,7 +486,7 @@ public class DungeonMod implements ModInitializer {
                     checkFlecheTimers(player, System.currentTimeMillis());
                     handleTetralame(player);
                     handleDungeonFood(player);
-                    handleBoussoleReparee(player);
+                    handleCompasRepare(player);
                 }
             }
             // Grappin de l'ancre
@@ -569,56 +569,71 @@ public class DungeonMod implements ModInitializer {
         return chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du glouton");
     }
 
-    public static boolean isBoussoleReparee(ItemStack stack) {
+    /** Compas réparé (ex « Boussole réparée » — compat anciens stacks). */
+    public static boolean isCompasRepare(ItemStack stack) {
         if (stack.isEmpty() || !stack.isOf(Items.COMPASS)) return false;
         if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
-        return stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Boussole réparée");
+        String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
+        return name.contains("Compas réparé") || name.contains("Boussole réparée");
     }
 
     /**
-     * Met à jour le lodestone_tracker de chaque boussole réparée pour pointer
-     * le centre du puits le plus proche sur le même étage (bas vs haut du donjon).
-     * tracked=false : pas de lodestone physique requis, le composant reste.
+     * Met à jour le lodestone_tracker de chaque compas réparé pour pointer
+     * le CENTRE géométrique de la salle-puits la plus proche (même étage).
+     * Les salles font CELL×CELL (10×10) ; lastPuitPositions stocke le coin
+     * bas-ouest de la structure — on vise donc le milieu exact de la pièce
+     * (là où se trouve le puits), pas le coin de la structure.
+     * tracked=false : pas de lodestone physique requis.
      */
-    private static void handleBoussoleReparee(ServerPlayerEntity player) {
+    private static void handleCompasRepare(ServerPlayerEntity player) {
         var puits = com.dungeonmod.test.TestGenerator.lastPuitPositions;
         if (puits == null || puits.isEmpty()) return;
+
+        // Taille réelle des salles placées (10 par défaut)
+        final int cell = Math.max(1, com.dungeonmod.test.TestGenerator.getStructSizeX());
+        // Centre géométrique : coin + cell/2 (ex. 10 → +5 = milieu de la pièce)
+        final int half = cell / 2;
 
         int originY = com.dungeonmod.test.TestGenerator.getLastOriginY();
         // Étage bas = autour de originY ; étage haut (P4) = originY + 10
         boolean playerTop = player.getY() >= originY + 5.0;
 
-        BlockPos best = null;
+        BlockPos bestCorner = null;
         double bestDist = Double.MAX_VALUE;
         double px = player.getX();
         double pz = player.getZ();
         for (BlockPos p : puits) {
             boolean puitTop = p.getY() >= originY + 5;
             if (puitTop != playerTop) continue;
-            // Centre de la salle 10×10
-            double cx = p.getX() + 5.0;
-            double cz = p.getZ() + 5.0;
+            // Distance au centre réel de la salle (pas au coin de la structure)
+            double cx = p.getX() + half + 0.5;
+            double cz = p.getZ() + half + 0.5;
             double d = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
             if (d < bestDist) {
                 bestDist = d;
-                best = p;
+                bestCorner = p;
             }
         }
-        if (best == null) {
-            // Fallback : puit le plus proche tous étages (ne devrait pas arriver en donjon)
+        if (bestCorner == null) {
+            // Fallback : puit le plus proche tous étages
             for (BlockPos p : puits) {
-                double cx = p.getX() + 5.0;
-                double cz = p.getZ() + 5.0;
+                double cx = p.getX() + half + 0.5;
+                double cz = p.getZ() + half + 0.5;
                 double d = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
                 if (d < bestDist) {
                     bestDist = d;
-                    best = p;
+                    bestCorner = p;
                 }
             }
         }
-        if (best == null) return;
+        if (bestCorner == null) return;
 
-        BlockPos target = best.add(5, 1, 5); // centre de la salle, un peu au-dessus du sol
+        // Bloc au centre de la salle (milieu X/Z), hauteur sol + 1 pour l'eau du puits
+        BlockPos target = new BlockPos(
+            bestCorner.getX() + half,
+            bestCorner.getY() + 1,
+            bestCorner.getZ() + half
+        );
         var dim = player.getWorld().getRegistryKey();
         var global = net.minecraft.util.math.GlobalPos.create(dim, target);
         var newTracker = new net.minecraft.component.type.LodestoneTrackerComponent(
@@ -626,14 +641,19 @@ public class DungeonMod implements ModInitializer {
 
         for (int i = 0; i < player.getInventory().size(); i++) {
             ItemStack stack = player.getInventory().getStack(i);
-            if (!isBoussoleReparee(stack)) continue;
+            if (!isCompasRepare(stack)) continue;
+            // Migre l'ancien nom / modèle vers « Compas réparé »
+            var cn = stack.get(DataComponentTypes.CUSTOM_NAME);
+            if (cn != null && cn.getString().contains("Boussole réparée")) {
+                stack.set(DataComponentTypes.CUSTOM_NAME, Text.literal("§aCompas réparé"));
+                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "compas_repare"));
+            }
             var cur = stack.get(DataComponentTypes.LODESTONE_TRACKER);
             if (cur != null && cur.target().isPresent()) {
                 var gp = cur.target().get();
                 if (gp.pos().equals(target) && gp.dimension().equals(dim)) continue;
             }
             stack.set(DataComponentTypes.LODESTONE_TRACKER, newTracker);
-            // Force le client à re-lire le composant (ITEM_MODEL déjà posé à la création)
             player.getInventory().setStack(i, stack);
         }
     }

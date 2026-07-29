@@ -1,0 +1,239 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:compass",
+    "target": "lodestone",
+    "wobble": true,
+    "scale": 1.0,
+    "entries": [
+      {
+        "threshold": 0.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_00"
+        }
+      },
+      {
+        "threshold": 0.03125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_01"
+        }
+      },
+      {
+        "threshold": 0.0625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_02"
+        }
+      },
+      {
+        "threshold": 0.09375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_03"
+        }
+      },
+      {
+        "threshold": 0.125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_04"
+        }
+      },
+      {
+        "threshold": 0.15625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_05"
+        }
+      },
+      {
+        "threshold": 0.1875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_06"
+        }
+      },
+      {
+        "threshold": 0.21875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_07"
+        }
+      },
+      {
+        "threshold": 0.25,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_08"
+        }
+      },
+      {
+        "threshold": 0.28125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_09"
+        }
+      },
+      {
+        "threshold": 0.3125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_10"
+        }
+      },
+      {
+        "threshold": 0.34375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_11"
+        }
+      },
+      {
+        "threshold": 0.375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_12"
+        }
+      },
+      {
+        "threshold": 0.40625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_13"
+        }
+      },
+      {
+        "threshold": 0.4375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_14"
+        }
+      },
+      {
+        "threshold": 0.46875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_15"
+        }
+      },
+      {
+        "threshold": 0.5,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_16"
+        }
+      },
+      {
+        "threshold": 0.53125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_17"
+        }
+      },
+      {
+        "threshold": 0.5625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_18"
+        }
+      },
+      {
+        "threshold": 0.59375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_19"
+        }
+      },
+      {
+        "threshold": 0.625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_20"
+        }
+      },
+      {
+        "threshold": 0.65625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_21"
+        }
+      },
+      {
+        "threshold": 0.6875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_22"
+        }
+      },
+      {
+        "threshold": 0.71875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_23"
+        }
+      },
+      {
+        "threshold": 0.75,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_24"
+        }
+      },
+      {
+        "threshold": 0.78125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_25"
+        }
+      },
+      {
+        "threshold": 0.8125,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_26"
+        }
+      },
+      {
+        "threshold": 0.84375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_27"
+        }
+      },
+      {
+        "threshold": 0.875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_28"
+        }
+      },
+      {
+        "threshold": 0.90625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_29"
+        }
+      },
+      {
+        "threshold": 0.9375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_30"
+        }
+      },
+      {
+        "threshold": 0.96875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "dungeonmod:item/compas_repare_31"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "dungeonmod:item/compas_repare_00"
+    }
+  }
+}

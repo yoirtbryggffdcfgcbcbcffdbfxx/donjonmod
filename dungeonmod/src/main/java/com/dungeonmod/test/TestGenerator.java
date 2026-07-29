@@ -680,7 +680,7 @@ public class TestGenerator {
             }
             root.put("goblins", goblins);
 
-            // Positions des puits (boussole réparée) — persistées pour survivre à un relog
+            // Positions des puits (compas réparé) — persistées pour survivre à un relog
             NbtList puits = new NbtList();
             for (BlockPos p : lastPuitPositions) {
                 NbtCompound t = new NbtCompound();

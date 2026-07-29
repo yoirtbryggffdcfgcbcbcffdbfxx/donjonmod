@@ -97,7 +97,7 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 | `coeur` | Coeur | HEART_OF_THE_SEA | +1 cœur max + soigne 1 cœur |
 | `cle` | Clé | TRIAL_KEY | Ouvre les portes en fer (une utilisation), ouvre aussi les doubles portes |
 | `denier` | Denier | GOLD_NUGGET | Monnaie du jeu |
-| `boussole_reparee` | Boussole réparée | COMPASS | Pointe le puits le plus proche du même étage (lodestone_tracker + textures du compas cassé) |
+| `compas_repare` | Compas réparé | COMPASS | Pointe le **centre** de la salle-puits la plus proche du même étage (lodestone_tracker + textures du compas cassé) |
 
 ## Gobelins
 

@@ -246,11 +246,11 @@ public class ModItems {
         register("compas_casse", "§7Compas cassé", Items.COMPASS,
             stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "compas_casse")),
             "§7Une aiguille qui tourne sans fin...");
-        register("boussole_reparee", "§aBoussole réparée", Items.COMPASS,
-            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "boussole_reparee")),
-            "§7Une boussole réparée.",
-            "§7Pointe vers le puits le plus proche",
-            "§7sur le même étage.");
+        register("compas_repare", "§aCompas réparé", Items.COMPASS,
+            stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "compas_repare")),
+            "§7Un compas réparé.",
+            "§7Pointe vers le centre du puits",
+            "§7le plus proche sur le même étage.");
         register("anneau_basique", "§7Anneau basique", Items.IRON_NUGGET,
             stack -> stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "anneau_basique")),
             "§7Un simple anneau de fer.");
