@@ -18,13 +18,24 @@ public class DungeonAlgo {
     private static final int PART1_MAX_I4 = 1;
     private static final int PART1_STRAIGHT_WEIGHT = 1;
 
-    // 24-30 : 5 feuilles (ogre/fontaine/m3/m1/loot) + 3 couloirs monstre (M2/M4/M5) à caser,
-    // avec espacement >= 3 entre tous les monstres et l'Ogre.
-    private static final int PART2_TARGET_MIN = 24;
-    private static final int PART2_TARGET_MAX = 30;
+    // Arbre P2 nettement agrandi (correctif "GENERATION NULLE" /teste, conversation 4) :
+    // il faut caser 5 feuilles (ogre/fontaine/m3/m1/loot) + 3 couloirs monstre (M2/M4/M5)
+    // avec espacement >= 3 entre tous les monstres ET >= 4 entre l'Ogre et chaque monstre
+    // (monstres hérités de P1 inclus). Avec l'ancienne taille 24-30 (tronc 8-12), le diamètre
+    // de l'arbre était trop faible : feuilles/couloirs trop proches => analyzePart2 retournait
+    // null presque à chaque tentative (echec massif -> GENERATION NULLE cote joueur).
+    //
+    // Un tronc plus long donne PLUS de points de branche (donc plus de feuilles, une branche
+    // laterale etant tiree a proba 0.55 le long du tronc) et un diametre plus grand : l'Ogre,
+    // pose sur la feuille la plus eloignee de la sortie de taverne, se retrouve naturellement
+    // a >= 4 des autres monstres. Un target plus grand fait que la passe de remplissage
+    // ALLONGE les branches (couloirs plus longs) => plus de distance entre salles => les
+    // contraintes d'espacement deviennent faciles a satisfaire, donc beaucoup moins de rejets.
+    private static final int PART2_TARGET_MIN = 38;
+    private static final int PART2_TARGET_MAX = 50;
     private static final int PART2_MAX_I3 = 4;
-    private static final int PART2_TRUNK_MIN = 8;
-    private static final int PART2_TRUNK_MAX = 12;
+    private static final int PART2_TRUNK_MIN = 12;
+    private static final int PART2_TRUNK_MAX = 18;
     /**
      * Max de segments COLINÉAIRES d'affilée dans l'ADJACENCE (géométrie pure),
      * pas "nombre de labels C". Compte aussi le passage tout droit à travers
