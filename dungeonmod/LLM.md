@@ -169,3 +169,45 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 - **Item definitions** : `assets/dungeonmod/items/*.json`
 - **Textures entité** : `assets/dungeonmod/textures/entity/*.png`
 - **Lang** : `assets/dungeonmod/lang/fr_fr.json`, `en_us.json`
+
+## Outils qualité de l'algo (ajout juil. 2026)
+
+### Scripts à la racine de `dungeonmod/`
+| Script | Effet |
+|---|---|
+| `run_client.py` | `gradlew.bat runClient` (client dev) |
+| `clean_build.py` | `gradlew.bat clean build` — recompile TOUT à neuf |
+| `ouvrir_donjon.py [seed]` | Génère le HTML de viz (`DungeonViz`) + validation auto en console |
+| `test_algo.py [nbSeeds] [seedDépart]` | Harnais de régression (`SeedHarness`) : N générations + vérifs auto |
+
+⚠️ **Règle d'or du workflow** : `ouvrir_donjon.py` et `test_algo.py` exécutent les classes de `build/classes/java/main`. **Toujours lancer `clean_build.py` après un pull** — sinon le HTML/harnais tournent sur les VIEILLES classes et "prouvent" à tort que des bugs corrigés existent encore (arrivé 2× en juillet 2026).
+
+### Harnais de régression (`debug/SeedHarness.java`)
+- Classe pure sans dépendance Minecraft ; compilée par `gradlew build` ; exécutée via `test_algo.py`.
+- Teste toujours les **seeds dorées** (régressions historiques permanentes) :
+  - `224237267600147` — couloir à 3-4 connexions (raccords P2/P3 partagés)
+  - `827324799543570426` — virage IJ2 à 3 connexions au sud de la Centrale (P4)
+  - `227471353010315` — virage IJ2 à 4 connexions au sud (fusion des 2 arbres sud adjacents)
+- Vérifie par seed : génération non nulle · cohérence labels ↔ adjacence (`DungeonAlgo.validateStructure`) · connexité BFS des 2 étages · garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ, lootdj P4).
+- Exit code 0/1 → chainable. **Objectif permanent : SUCCESS 100 %.** Tout nouveau bug d'algo → ajouter sa seed dans `GOLDEN_SEEDS`.
+
+### Invariants structurels de l'algo (RÈGLE D'OR DU LABEL)
+Un label structurel générique (`C1-3`/`I2`/`I3`/`I4`/`cul`, `CJ1-3`/`IJ2-4`/`culDJ`, `CG1`/`GI2-4`/`CDG`) se déduit **uniquement** de l'adjacence finale du nœud :
+- Source unique : `DungeonAlgo.shapeOf(voisins)` → `Shape`, puis `shapeLabel(shape, theme, rng)` (thèmes `P12`, `DJ`, `GOBLIN`).
+- Après TOUTE mutation du graphe suivant une classification : `reclassifyGeneric(labels, adj, rng)` (passe finale en fin P4 et fin de `generateDungeon`).
+- Vérification : `DungeonAlgo.validateStructure(labels, adj, scope)` (appelée par DungeonViz et SeedHarness).
+- **P4 : les chaînes initiales (`f1`/`f2`) des 5 arbres sont réservées dans `globalOccupied` AVANT toute croissance** (`reservedChains`). Ne JAMAIS poser une cellule sans vérifier/réserver l'occupation : c'est la cause corrigée de la "fusion du sud" (deux arbres partageant une cellule → voisinages fusionnés au merge `addAll`). Garde anti-fusion : retry si deux arbres partagent une cellule.
+
+## Note pour les agents IA (Arena.ai) — récupération du sandbox
+
+Le sandbox Arena peut être **re-cloné entre les tours** (déjà 2 occurrences, juillet 2026). Symptômes : branche locale revenue sur le vieux commit `a471d63`, travail récent présent en "modifications non commitées", refspec fetch limité à `main`, reflog = clone frais. **C'EST NORMAL — ne pas paniquer** : le serveur GitHub garde le bon état, et un commit greffé sur le vieux socle serait refusé par le push de toute façon (`fetch first`).
+
+Procédure éprouvée :
+1. Sauvegarde : `tar czf /home/user/worktree_backup.tgz --exclude=.git .`
+2. `git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"` puis `git fetch origin`
+3. `git log --oneline origin/arena/019fa7b9-donjonmod` (la branche de session officielle)
+4. `git reset origin/arena/019fa7b9-donjonmod` (mode mixed — préserve le working tree intact)
+5. `git status` : ne doivent rester que les vraies nouvelles différences ; restaurer le reste via `git restore <fichier>`
+6. Committer UNIQUEMENT le delta réel voulu, pusher seulement sur `arena/019fa7b9-donjonmod` (jamais ailleurs). En cas de doute : `git ls-remote origin`.
+
+Contraintes sandbox connues : **pas de JDK**, apt vide pour Java, réseau externe bloqué (seul GitHub passe) → aucune compilation/exécution Java côté agent. Validations de substitution : équilibre des accolades/parenthèses (Python), greps croisés, audit structurel du `dungeon_viz.html` (tooltips = coordonnées, cellSize=80, +23 offset, Centrale +40), puis demander à l'utilisateur : `python clean_build.py`.

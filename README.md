@@ -59,6 +59,18 @@ Pipeline : `debug/DungeonAlgo.java` (logique pure, sans dépendance Minecraft) �
 
 ---
 
+## 🧪 Qualité de l'algo — scripts
+
+| Script | Effet |
+|---|---|
+| `clean_build.py` | `gradlew clean build` complet — **à lancer après chaque pull** (sinon les scripts de test tournent sur les vieilles classes !) |
+| `ouvrir_donjon.py [seed]` | Génère `dungeon_viz.html` + affiche la validation structure dans la console (0 incohérence attendu) |
+| `test_algo.py [nb] [seedDépart]` | **Harnais de régression** : N seeds + seeds dorées historiques ; vérifie cohérence labels↔adjacence, connexité, garanties gameplay. Objectif : *SUCCESS 100 %* |
+
+Détails et invariants de l'algo : `dungeonmod/LLM.md`.
+
+---
+
 ## ⚙️ Règles de gameplay
 
 - **PV max : 10** (5 cœurs), **pas de régénération naturelle** (nourriture neutralisée)
@@ -107,7 +119,7 @@ donjonmod/
 │   └── donjoncraft-brainstorming.odt   ← game design original
 └── dungeonmod/                   ← le mod
     ├── build.gradle / gradlew.bat / gradle.properties
-    ├── run_client.py · ouvrir_donjon.py · check_nbt.py
+    ├── run_client.py · clean_build.py · ouvrir_donjon.py · test_algo.py · check_nbt.py
     ├── *.md                      ← docs internes (table ci-dessous)
     ├── dungeon_viz.html          ← dernier donjon généré (visualisation)
     └── src/main/
