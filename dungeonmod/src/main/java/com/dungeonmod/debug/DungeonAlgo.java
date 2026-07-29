@@ -158,14 +158,7 @@ public class DungeonAlgo {
 
     /** Déduit la forme d'un nœud depuis son ensemble de voisins. */
     public static Shape shapeOf(Set<Point> neighbors) {
-        int deg = neighbors == null ? 0 : neighbors.size();
-        if (deg <= 1) return Shape.DEAD_END;
-        if (deg == 2) {
-            Iterator<Point> it = neighbors.iterator();
-            return isStraight(it.next(), it.next()) ? Shape.STRAIGHT : Shape.TURN;
-        }
-        if (deg == 3) return Shape.CROSS_3;
-        return Shape.CROSS_4;
+        return DungeonLabels.shapeOf(neighbors);
     }
 
     /** Thème visuel d'un étage : P1/P2, donjon (P3/P4) ou village gobelin. */
@@ -173,50 +166,22 @@ public class DungeonAlgo {
 
     /** Mapping UNIQUE forme + thème -> identifiant de salle. */
     private static String shapeLabel(Shape shape, Theme theme, Random rng) {
-        return switch (shape) {
-            case DEAD_END -> switch (theme) {
-                case P12 -> RoomIds.DEAD_END; case DJ -> RoomIds.DEAD_END_DJ; case GOBLIN -> RoomIds.GOBLIN_DEAD_END;
-            };
-            case STRAIGHT -> switch (theme) {
-                case P12 -> pickC(rng); case DJ -> pickCJ(rng); case GOBLIN -> RoomIds.GOBLIN_CORRIDOR;
-            };
-            case TURN -> switch (theme) {
-                case P12 -> RoomIds.CORRIDOR_TURN; case DJ -> RoomIds.CORRIDOR_TURN_J; case GOBLIN -> RoomIds.GOBLIN_TURN;
-            };
-            case CROSS_3 -> switch (theme) {
-                case P12 -> RoomIds.INTERSECTION_3; case DJ -> RoomIds.INTERSECTION_3_J; case GOBLIN -> RoomIds.GOBLIN_I3;
-            };
-            case CROSS_4 -> switch (theme) {
-                case P12 -> RoomIds.INTERSECTION_4; case DJ -> RoomIds.INTERSECTION_4_J; case GOBLIN -> RoomIds.GOBLIN_I4;
-            };
-        };
+        return DungeonLabels.shapeLabel(shape, theme, rng);
     }
 
     /** Raccourci : label structurel déduit directement de l'adjacence du nœud. */
     private static String labelForNeighbors(Set<Point> neighbors, Theme theme, Random rng) {
-        return shapeLabel(shapeOf(neighbors), theme, rng);
+        return DungeonLabels.labelForNeighbors(neighbors, theme, rng);
     }
 
     /** Vrai si le label structurel correspond exactement à la forme géométrique. */
     public static boolean shapeMatchesLabel(Shape shape, String label) {
-        return switch (shape) {
-            case DEAD_END -> label.equals(RoomIds.DEAD_END) || label.equals(RoomIds.DEAD_END_DJ) || label.equals(RoomIds.GOBLIN_DEAD_END);
-            case STRAIGHT -> RoomPools.CORRIDORS_P1_P2.contains(label) || RoomPools.CORRIDORS_P3_P4.contains(label) || label.equals(RoomIds.GOBLIN_CORRIDOR);
-            case TURN -> label.equals(RoomIds.CORRIDOR_TURN) || label.equals(RoomIds.CORRIDOR_TURN_J) || label.equals(RoomIds.GOBLIN_TURN);
-            case CROSS_3 -> label.equals(RoomIds.INTERSECTION_3) || label.equals(RoomIds.INTERSECTION_3_J) || label.equals(RoomIds.GOBLIN_I3);
-            case CROSS_4 -> label.equals(RoomIds.INTERSECTION_4) || label.equals(RoomIds.INTERSECTION_4_J) || label.equals(RoomIds.GOBLIN_I4);
-        };
+        return DungeonLabels.shapeMatchesLabel(shape, label);
     }
 
     /** Thème d'un label structurel générique, ou null si c'est une salle spéciale. */
     private static Theme genericThemeOf(String label) {
-        if (label == null) return null;
-        switch (label) {
-            case "C1", "C2", "C3", "I2", "I3", "I4", "cul": return Theme.P12;
-            case "CJ1", "CJ2", "CJ3", "IJ2", "IJ3", "IJ4", "culDJ": return Theme.DJ;
-            case "CG1", "GI2", "GI3", "GI4", "CDG": return Theme.GOBLIN;
-            default: return null;
-        }
+        return DungeonLabels.genericThemeOf(label);
     }
 
     /**
@@ -227,20 +192,7 @@ public class DungeonAlgo {
      * @return le nombre de labels corrigés.
      */
     private static int reclassifyGeneric(Map<Point, String> labels, Map<Point, Set<Point>> adj, Random rng) {
-        List<Point> sorted = new ArrayList<>(labels.keySet());
-        sorted.sort(Comparator.comparingInt(Point::x).thenComparingInt(Point::y));
-        int fixes = 0;
-        for (Point p : sorted) {
-            String current = labels.get(p);
-            Theme theme = genericThemeOf(current);
-            if (theme == null) continue;
-            Set<Point> nb = adj.get(p);
-            Shape actual = shapeOf(nb);
-            if (shapeMatchesLabel(actual, current)) continue;
-            labels.put(p, shapeLabel(actual, theme, rng));
-            fixes++;
-        }
-        return fixes;
+        return DungeonLabels.reclassifyGeneric(labels, adj, rng);
     }
 
     /**
@@ -249,20 +201,7 @@ public class DungeonAlgo {
      * de bord — DungeonViz l'appelle après chaque génération.
      */
     public static List<String> validateStructure(Map<Point, String> labels, Map<Point, Set<Point>> adj, String scope) {
-        List<String> problems = new ArrayList<>();
-        List<Point> sorted = new ArrayList<>(labels.keySet());
-        sorted.sort(Comparator.comparingInt(Point::x).thenComparingInt(Point::y));
-        for (Point p : sorted) {
-            String label = labels.get(p);
-            if (genericThemeOf(label) == null) continue;
-            Set<Point> nb = adj.getOrDefault(p, Set.of());
-            Shape actual = shapeOf(nb);
-            if (!shapeMatchesLabel(actual, label)) {
-                problems.add(scope + " @ (" + p.key() + ") : label '" + label + "' mais adjacence=" + actual
-                        + " (" + nb.size() + " voisins : " + nb.stream().map(Point::key).sorted().toList() + ")");
-            }
-        }
-        return problems;
+        return DungeonLabels.validateStructure(labels, adj, scope);
     }
 
     // ===================== Inner classes =====================
