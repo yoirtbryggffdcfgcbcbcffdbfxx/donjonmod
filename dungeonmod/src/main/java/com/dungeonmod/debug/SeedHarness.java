@@ -348,6 +348,9 @@ public class SeedHarness {
         }
         if (!l0.contains("Ogre")) problems.add(tag + " : ETAGE 0 sans Ogre");
         if (!l0.contains("Centrale")) problems.add(tag + " : ETAGE 0 sans Centrale");
+        // M5 : une avant porte1 (chemin taverne) + une en P2 (couloir droit) = 2 attendues.
+        long nbM5 = dr.labels.values().stream().filter(v -> "M5".equals(v)).count();
+        if (nbM5 < 2) problems.add(tag + " : ETAGE 0 avec seulement " + nbM5 + " M5 (2 attendues)");
 
         // Étage 1 (P4)
         if (l1.isEmpty()) return; // déjà signalé comme P4 absente

@@ -18,8 +18,10 @@ public class DungeonAlgo {
     private static final int PART1_MAX_I4 = 1;
     private static final int PART1_STRAIGHT_WEIGHT = 1;
 
-    private static final int PART2_TARGET_MIN = 23;
-    private static final int PART2_TARGET_MAX = 29;
+    // 24-30 : 5 feuilles (ogre/fontaine/m3/m1/loot) + 3 couloirs monstre (M2/M4/M5) à caser,
+    // avec espacement >= 3 entre tous les monstres et l'Ogre.
+    private static final int PART2_TARGET_MIN = 24;
+    private static final int PART2_TARGET_MAX = 30;
     private static final int PART2_MAX_I3 = 4;
     private static final int PART2_TRUNK_MIN = 8;
     private static final int PART2_TRUNK_MAX = 12;
@@ -1028,17 +1030,17 @@ public class DungeonAlgo {
         Point existingPorte2 = findPointByValue(labels, RoomIds.DOOR_2);
         if (existingPorte2 != null) leaves.remove(existingPorte2);
 
-        // Besoin : ogre + fontaine + m3 + loot (+ culs éventuels) ≥ 4 leaves de branches
-        if (leaves.size() < 4) return null;
-        long availCorr = cList.stream().filter(n -> !pathSet.contains(n)
-                && (labels.get(n) == null || !labels.get(n).equals(RoomIds.MONSTER_5))).count();
-        if (availCorr < 2) return null;
+        // Besoin : ogre + fontaine + m3 + m1 + loot ≥ 5 feuilles de branches.
+        if (leaves.size() < 5) return null;
+        // Et 3 couloirs droits LIBRES pour M2 + M4 + M5 (hors chemin taverne).
+        long availCorr = cList.stream().filter(n -> !pathSet.contains(n) && labels.get(n) == null).count();
+        if (availCorr < 3) return null;
 
         // ESPACEMENT MONSTRES + ISOLEMENT OGRE (règles dures, conversation 3) : toute salle
         // monstre est à distance >= MONSTER_MIN_DIST des autres ET à distance
         // >= OGRE_MIN_MONSTER_DIST de l'Ogre. L'Ogre reste posé sur la feuille la plus
         // éloignée possible de la sortie de taverne. Infaisable => rejet (null => retry).
-        Set<Point> monsters = monsterPoints(labels); // M1-M4 hérités de P1 + M5 de la sortie de tronc
+        Set<Point> monsters = monsterPoints(labels); // M1-M4 hérités de P1
         Set<Point> monsterSet = new HashSet<>();
 
         List<Point> ogreCands = new ArrayList<>(leaves);
@@ -1069,6 +1071,17 @@ public class DungeonAlgo {
         if (m3Leaf == null) return null;
         labels.put(m3Leaf, RoomIds.MONSTER_3); monsterSet.add(m3Leaf); monsters.add(m3Leaf);
 
+        // M1 (feuille) : OBLIGATOIRE en P2, espacement respecté, sinon rejet (null => retry).
+        Point m1Leaf = null;
+        for (Point n : remain) {
+            if (labels.containsKey(n)) continue;
+            if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+            if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+            m1Leaf = n; break;
+        }
+        if (m1Leaf == null) return null;
+        labels.put(m1Leaf, RoomIds.MONSTER_1); monsterSet.add(m1Leaf); monsters.add(m1Leaf);
+
         Point lootLeaf = null;
         for (Point n : remain) {
             if (labels.containsKey(n)) continue;
@@ -1080,8 +1093,7 @@ public class DungeonAlgo {
 
         for (Point n : remain) { if (!labels.containsKey(n)) labels.put(n, RoomIds.DEAD_END); }
 
-        // M4 reste optionnelle (sémantique de la vraie version conservée) mais respecte
-        // l'espacement : si aucun couloir éligible n'existe, elle n'est pas posée.
+        // M4 (couloir droit) : OBLIGATOIRE en P2, espacement respecté, sinon rejet (null).
         Point m4Corr = null;
         for (Point n : cList) {
             if (pathSet.contains(n) || labels.containsKey(n)) continue;
@@ -1089,31 +1101,32 @@ public class DungeonAlgo {
             if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
             m4Corr = n; break;
         }
-        if (m4Corr != null) { labels.put(m4Corr, RoomIds.MONSTER_4); monsterSet.add(m4Corr); monsters.add(m4Corr); }
+        if (m4Corr == null) return null;
+        labels.put(m4Corr, RoomIds.MONSTER_4); monsterSet.add(m4Corr); monsters.add(m4Corr);
 
-        // Monstre supplémentaire (optionnel, comme avant) : M1 (feuille) ou M2 (couloir)
-        // selon le tirage, filtré par l'espacement, avec repli sur l'autre variante.
-        boolean useM1 = rng.nextBoolean();
-        Point extraMonster = null; String extraLabel = null;
-        for (int variant = 0; variant < 2 && extraMonster == null; variant++) {
-            boolean tryLeaf = (variant == 0) == useM1;
-            if (tryLeaf) {
-                for (Point n : remain) {
-                    if (labels.containsKey(n)) continue;
-                    if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
-                    if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
-                    extraMonster = n; extraLabel = RoomIds.MONSTER_1; break;
-                }
-            } else {
-                for (Point n : cList) {
-                    if (n.equals(m4Corr) || pathSet.contains(n) || labels.containsKey(n)) continue;
-                    if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
-                    if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
-                    extraMonster = n; extraLabel = RoomIds.MONSTER_2; break;
-                }
-            }
+        // M2 (couloir droit) : OBLIGATOIRE en P2, espacement respecté, sinon rejet (null).
+        Point m2Corr = null;
+        for (Point n : cList) {
+            if (pathSet.contains(n) || labels.containsKey(n)) continue;
+            if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+            if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+            m2Corr = n; break;
         }
-        if (extraMonster != null) { labels.put(extraMonster, extraLabel); monsterSet.add(extraMonster); monsters.add(extraMonster); }
+        if (m2Corr == null) return null;
+        labels.put(m2Corr, RoomIds.MONSTER_2); monsterSet.add(m2Corr); monsters.add(m2Corr);
+
+        // M5 (couloir droit) : n'est PLUS avant porte2 — elle est OBLIGATOIRE n'importe où
+        // sur une ligne droite de la zone P2 (hors chemin taverne), espacement respecté,
+        // sinon rejet (null => retry amont).
+        Point m5Corr = null;
+        for (Point n : cList) {
+            if (pathSet.contains(n) || labels.containsKey(n)) continue;
+            if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+            if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+            m5Corr = n; break;
+        }
+        if (m5Corr == null) return null;
+        labels.put(m5Corr, RoomIds.MONSTER_5); monsterSet.add(m5Corr); monsters.add(m5Corr);
 
         List<Point> remC = new ArrayList<>();
         for (Point n : cList) { if (!labels.containsKey(n)) remC.add(n); }
@@ -1125,7 +1138,8 @@ public class DungeonAlgo {
                     for (Point nb : adj.get(n)) {
                         String lbl = labels.get(nb);
                         if (lbl != null && (lbl.equals(RoomIds.OGRE) || lbl.equals(RoomIds.FOUNTAIN) || lbl.equals(RoomIds.LOOT_1)
-                            || lbl.equals(RoomIds.MONSTER_1) || lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_3) || lbl.equals(RoomIds.MONSTER_4))) {
+                            || lbl.equals(RoomIds.MONSTER_1) || lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_3) || lbl.equals(RoomIds.MONSTER_4)
+                            || lbl.equals(RoomIds.MONSTER_5))) {
                             adjSpecial = true; break;
                         }
                     }
@@ -1143,7 +1157,7 @@ public class DungeonAlgo {
             if (labels.containsKey(n)) continue;
             for (Point nb : adj.get(n)) {
                 String lbl = labels.get(nb);
-                if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_4) || lbl.equals(RoomIds.WELL))) {
+                if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_4) || lbl.equals(RoomIds.MONSTER_5) || lbl.equals(RoomIds.WELL))) {
                     toI2.add(n); break;
                 }
             }
@@ -2285,7 +2299,7 @@ public class DungeonAlgo {
      * P2 = arbre à tronc + branches (comme P3).
      * La limite de "droite" porte sur l'ADJACENCE colinéaire
      * ({@link #PART2_MAX_COLINEAR_RUN} segments alignés max), pas sur les labels.
-     * Fin de tronc réservée : M5 → 1-2 C/I2 (deg2 only) → porte2 → camp.
+     * Fin de tronc réservée : 1-2 C/I2 (deg2 only) → porte2 → camp (plus de M5 ici).
      */
     private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked, Random rng) {
         return generatePart2TrunkTree(startPoint, blocked, rng);
@@ -2412,7 +2426,7 @@ public class DungeonAlgo {
             trunkCells.add(n);
             c = n;
 
-            // Branches latérales (pas sur la toute fin : réservée M5/porte)
+            // Branches latérales (pas sur la toute fin : réservée pour l'approche de porte2)
             // growMiniTree peut allonger une droite via une I3 : on borne après coup
             if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
@@ -2507,8 +2521,11 @@ public class DungeonAlgo {
 
     /**
      * Appende en FIN de tronc P2 la séquence forcée :
-     *   trunkEnd → M5 → [1–2 cellules deg2 : C ou I2 uniquement] → porte2
-     * Jamais d'intersection (I3/I4) dans le gap.
+     *   trunkEnd → [1–2 cellules deg2 : C ou I2 uniquement] → porte2
+     * Jamais d'intersection (I3/I4).
+     * (Historiquement la 1re cellule était une M5 ; la M5 de P2 se pose désormais
+     *  n'importe où sur un couloir droit dans analyzePart2, et l'approche de porte2
+     *  redevient de simples couloirs.)
      * Retourne la position de porte2, ou null si impossible.
      */
     private static Point appendP2ExitSequence(Map<Point, Set<Point>> adj, Map<Point, String> labels,
@@ -2520,26 +2537,23 @@ public class DungeonAlgo {
 
         int dir = trunkEndDir;
         Point cursor = trunkEnd;
-        List<Point> chain = new ArrayList<>(); // M5 + gap (sans la porte)
-        int gap = 1 + rng.nextInt(2); // 1 ou 2 cellules entre M5 et porte
-        int need = 1 + gap; // M5 + gap
+        List<Point> chain = new ArrayList<>(); // cellules intermédiaires (sans la porte)
+        int gap = 1 + rng.nextInt(2); // 1 ou 2 cellules d'approche avant la porte
+        int need = gap; // uniquement le gap, plus de cellule spéciale
 
-        // Pose la chaîne M5 + gap + porte EN LIGNE (ou avec virages deg2 uniquement).
+        // Pose la chaîne d'approche + porte EN LIGNE (ou avec virages deg2 uniquement).
         // Chaque nœud de la chaîne (sauf la porte leaf) doit finir en deg 2 → C ou I2.
         for (int i = 0; i < need + 1; i++) {
             Point next = null;
             int chosenDir = -1;
-            // Pour le gap, on autorise droit ou virage, mais PAS de 3ᵉ voisin plus tard.
+            // Pour l'approche, on autorise droit ou virage, mais PAS de 3ᵉ voisin plus tard.
             // On pose d'abord tout droit pour garantir deg2, virage optionnel entre cellules.
             int[] tryOrder;
             if (i == 0) {
-                // M5 : continuer dans l'axe du tronc en priorité
+                // 1re cellule : continuer dans l'axe du tronc en priorité
                 tryOrder = new int[]{dir, (dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4};
-            } else if (i < need) {
-                // gap : droit ou virage (I2 ok), jamais forcer un I3
-                tryOrder = new int[]{dir, (dir + 1) % 4, (dir + 3) % 4};
             } else {
-                // porte : droit ou virage
+                // approche / porte : droit ou virage (I2 ok), jamais forcer un I3
                 tryOrder = new int[]{dir, (dir + 1) % 4, (dir + 3) % 4};
             }
             for (int td : tryOrder) {
@@ -2566,20 +2580,16 @@ public class DungeonAlgo {
                 // Porte2 = leaf (deg 1)
                 labels.put(next, RoomIds.DOOR_2);
                 // Vérifier géométrie : chaque cellule de la chaîne doit être deg 2
-                // (M5 et gap = couloir droit ou virage, JAMAIS intersection)
+                // (approche = couloir droit ou virage, JAMAIS intersection)
                 for (Point gp : chain) {
                     if (adj.getOrDefault(gp, Set.of()).size() != 2) return null;
                 }
-                // Labels : M5 puis C/I2 selon adjacence
-                if (!chain.isEmpty()) {
-                    labels.put(chain.get(0), RoomIds.MONSTER_5);
-                    for (int g = 1; g < chain.size(); g++) {
-                        Point gp = chain.get(g);
-                        // deg2 → STRAIGHT ou TURN uniquement
-                        Shape sh = shapeOf(adj.get(gp));
-                        if (sh != Shape.STRAIGHT && sh != Shape.TURN) return null;
-                        labels.put(gp, shapeLabel(sh, Theme.P12, rng));
-                    }
+                // Labels : couloirs génériques C/I2 selon adjacence (plus de M5 ici —
+                // la M5 de P2 se pose ailleurs sur une ligne droite, dans analyzePart2).
+                for (Point gp : chain) {
+                    Shape sh = shapeOf(adj.get(gp));
+                    if (sh != Shape.STRAIGHT && sh != Shape.TURN) return null;
+                    labels.put(gp, shapeLabel(sh, Theme.P12, rng));
                 }
                 return next;
             }
@@ -2588,15 +2598,17 @@ public class DungeonAlgo {
     }
 
     /**
-     * Place M5 (couloir monstre DROIT) sur le chemin intérieur vers porte1 et porte2,
+     * Place M5 (couloir monstre DROIT) sur le chemin intérieur vers porte1 UNIQUEMENT,
      * avec 1–2 cellules (C ou I2) entre M5 et la porte — jamais côte à côte.
-     * Parcours : … → M5 → [1–2 C/I2] → porte → chemin → taverne/camp.
-     * @return nombre de M5 placés (idéal 2)
+     * Parcours : … → M5 → [1–2 C/I2] → porte → chemin → taverne.
+     * (Plus de M5 avant porte2 : le campement garde un chemin basique, et la M5 de P2
+     *  est posée sur un couloir droit quelconque de la zone dans analyzePart2.)
+     * @return nombre de M5 placés (idéal 1)
      */
     private static int placeMonster5OnDoorPaths(Map<Point, String> labels, Map<Point, Set<Point>> adj,
                                                  Point startPoint) {
         int placed = 0;
-        for (String doorId : List.of(RoomIds.DOOR_1, RoomIds.DOOR_2)) {
+        for (String doorId : List.of(RoomIds.DOOR_1)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
             // Déjà un M5 correctement espacé pour cette porte ?
@@ -2770,7 +2782,7 @@ public class DungeonAlgo {
             if (sp2.adj.size() < 5) continue;
             for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
-            // Fin de tronc P2 forcée : trunkEnd → M5 → [1–2 C/I2] → porte2
+            // Fin de tronc P2 forcée : trunkEnd → [1–2 C/I2] → porte2 (approche simple)
             Point porte2Key = appendP2ExitSequence(sp1.adj, labels, sp2.trunkEnd, sp2.trunkEndDir,
                     null, rng);
             if (porte2Key == null) continue;
@@ -2828,10 +2840,11 @@ public class DungeonAlgo {
                 }
                 if (!p4Ok) continue;
 
-                // M5 : couloir droit AVANT porte1/porte2 avec 1–2 C/I2 d'écart (sans mobs)
-                // Parcours : … → M5 → [1–2 C/I2] → porte → chemin → taverne / campement
+                // M5 "chemin P1" : couloir droit AVANT porte1 avec 1–2 C/I2 d'écart (sans mobs)
+                // Parcours : … → M5 → [1–2 C/I2] → porte → chemin taverne
+                // (l'autre M5, en P2 sur un couloir droit, est posée dans analyzePart2)
                 int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
-                if (m5 < 2) continue; // M5 obligatoire sur les 2 portes (gap inclus)
+                if (m5 < 1) continue; // M5 obligatoire avant porte1 (gap inclus)
 
                 // Garde-fou FINAL : après M5 + chemins taverne/camp + P3, aucune droite
                 // géométrique de l'adj (I3/M5/porte/couloirs comptés) ne doit dépasser
