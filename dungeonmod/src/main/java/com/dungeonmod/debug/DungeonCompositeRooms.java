@@ -50,14 +50,14 @@ final class DungeonCompositeRooms {
 
     static final Spec PRISON_CENTRAL = Spec.builder()
             .entry(0, 0)
-            .exit(0, -1)
+            .exit(0, 1)
             .label(0, 0, DungeonAlgo.RoomIds.PRISON_C1)
             .label(1, 0, DungeonAlgo.RoomIds.PRISON_C2)
-            .label(1, -1, DungeonAlgo.RoomIds.PRISON_C3)
-            .label(0, -1, DungeonAlgo.RoomIds.PRISON_C4)
+            .label(1, 1, DungeonAlgo.RoomIds.PRISON_C3)
+            .label(0, 1, DungeonAlgo.RoomIds.PRISON_C4)
             .edge(0, 0, 1, 0)
-            .edge(1, 0, 1, -1)
-            .edge(1, -1, 0, -1)
+            .edge(1, 0, 1, 1)
+            .edge(1, 1, 0, 1)
             .build();
 
     record LocalPoint(int forward, int side) {}
