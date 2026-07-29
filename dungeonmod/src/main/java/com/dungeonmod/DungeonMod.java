@@ -486,6 +486,7 @@ public class DungeonMod implements ModInitializer {
                     checkFlecheTimers(player, System.currentTimeMillis());
                     handleTetralame(player);
                     handleDungeonFood(player);
+                    handleBoussoleReparee(player);
                 }
             }
             // Grappin de l'ancre
@@ -566,6 +567,75 @@ public class DungeonMod implements ModInitializer {
         if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return false;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return false;
         return chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du glouton");
+    }
+
+    public static boolean isBoussoleReparee(ItemStack stack) {
+        if (stack.isEmpty() || !stack.isOf(Items.COMPASS)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        return stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Boussole réparée");
+    }
+
+    /**
+     * Met à jour le lodestone_tracker de chaque boussole réparée pour pointer
+     * le centre du puits le plus proche sur le même étage (bas vs haut du donjon).
+     * tracked=false : pas de lodestone physique requis, le composant reste.
+     */
+    private static void handleBoussoleReparee(ServerPlayerEntity player) {
+        var puits = com.dungeonmod.test.TestGenerator.lastPuitPositions;
+        if (puits == null || puits.isEmpty()) return;
+
+        int originY = com.dungeonmod.test.TestGenerator.getLastOriginY();
+        // Étage bas = autour de originY ; étage haut (P4) = originY + 10
+        boolean playerTop = player.getY() >= originY + 5.0;
+
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
+        double px = player.getX();
+        double pz = player.getZ();
+        for (BlockPos p : puits) {
+            boolean puitTop = p.getY() >= originY + 5;
+            if (puitTop != playerTop) continue;
+            // Centre de la salle 10×10
+            double cx = p.getX() + 5.0;
+            double cz = p.getZ() + 5.0;
+            double d = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
+            if (d < bestDist) {
+                bestDist = d;
+                best = p;
+            }
+        }
+        if (best == null) {
+            // Fallback : puit le plus proche tous étages (ne devrait pas arriver en donjon)
+            for (BlockPos p : puits) {
+                double cx = p.getX() + 5.0;
+                double cz = p.getZ() + 5.0;
+                double d = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = p;
+                }
+            }
+        }
+        if (best == null) return;
+
+        BlockPos target = best.add(5, 1, 5); // centre de la salle, un peu au-dessus du sol
+        var dim = player.getWorld().getRegistryKey();
+        var global = net.minecraft.util.math.GlobalPos.create(dim, target);
+        var newTracker = new net.minecraft.component.type.LodestoneTrackerComponent(
+            java.util.Optional.of(global), false);
+
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            if (!isBoussoleReparee(stack)) continue;
+            var cur = stack.get(DataComponentTypes.LODESTONE_TRACKER);
+            if (cur != null && cur.target().isPresent()) {
+                var gp = cur.target().get();
+                if (gp.pos().equals(target) && gp.dimension().equals(dim)) continue;
+            }
+            stack.set(DataComponentTypes.LODESTONE_TRACKER, newTracker);
+            // Force le client à re-lire le composant (ITEM_MODEL déjà posé à la création)
+            player.getInventory().setStack(i, stack);
+        }
     }
 
     public static boolean isBiere(ItemStack stack) {
