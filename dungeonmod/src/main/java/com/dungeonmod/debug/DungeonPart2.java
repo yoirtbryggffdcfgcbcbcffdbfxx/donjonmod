@@ -20,9 +20,9 @@ final class DungeonPart2 {
     private DungeonPart2() {}
 
     static Map<Point, String> analyzePart2(Map<Point, Set<Point>> adj, Point exitPoint,
-                                                    Map<Point, String> labels, Set<Point> pathSet, Random rng) {
+                                                    Map<Point, String> existingLabels, Set<Point> pathSet, Random rng) {
         DungeonLabelState labelState = new DungeonLabelState();
-        labelState.putSpecials(labels); // labels existants P1 + taverne + approche porte2
+        labelState.putSpecials(existingLabels); // labels déjà posés : P1 + taverne + approche porte2
         labelState.setTheme(exitPoint, Theme.P12);
         // Sortie de taverne : on conserve le timing historique de son choix de variante.
         labelState.putSpecial(exitPoint, DungeonLabels.labelForNeighbors(adj.get(exitPoint), Theme.P12, rng));
