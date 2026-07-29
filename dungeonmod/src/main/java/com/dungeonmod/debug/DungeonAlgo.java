@@ -20,8 +20,12 @@ public class DungeonAlgo {
     private static final int PART2_MAX_I3 = 4;
     private static final int PART2_TRUNK_MIN = 8;
     private static final int PART2_TRUNK_MAX = 12;
-    /** Max cellules droites d'affilée sur le tronc P2 avant virage forcé. */
-    private static final int PART2_TRUNK_MAX_STRAIGHT = 3;
+    /**
+     * Max de segments COLINÉAIRES d'affilée dans l'adjacence (géométrie),
+     * pas "nombre de labels C". Au-delà → virage forcé.
+     * Ex. A—B—C—D alignés = 3 segments → ok ; un 4ᵉ segment droit interdit.
+     */
+    private static final int PART2_MAX_COLINEAR_RUN = 3;
 
     private static final int PART3_TARGET = 45;
     private static final int PART3_MAX_IJ3 = 3;
@@ -1913,23 +1917,45 @@ public class DungeonAlgo {
     }
 
     /**
-     * P2 = arbre à tronc + branches (comme P3), avec virage forcé au plus tard
-     * après {@link #PART2_TRUNK_MAX_STRAIGHT} cellules droites.
-     * La fin de tronc est réservée plus tard pour : M5 → 1-2 C/I2 → porte2 → camp.
+     * P2 = arbre à tronc + branches (comme P3).
+     * La limite de "droite" porte sur l'ADJACENCE colinéaire
+     * ({@link #PART2_MAX_COLINEAR_RUN} segments alignés max), pas sur les labels.
+     * Fin de tronc réservée : M5 → 1-2 C/I2 (deg2 only) → porte2 → camp.
      */
     private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked, Random rng) {
         return generatePart2TrunkTree(startPoint, blocked, rng);
     }
 
+    /**
+     * Compte combien de segments colinéaires d'affilée se terminent en {@code node}
+     * en venant de {@code from} (direction from→node). 1 = premier segment de la run.
+     */
+    private static int colinearRunLength(Point from, Point node, Map<Point, Point> cameFrom) {
+        int dx = node.x() - from.x();
+        int dy = node.y() - from.y();
+        int run = 1;
+        Point cur = from;
+        Point prev = cameFrom.get(from);
+        while (prev != null && run < 16) {
+            int pdx = cur.x() - prev.x();
+            int pdy = cur.y() - prev.y();
+            if (pdx != dx || pdy != dy) break; // virage géométrique
+            run++;
+            cur = prev;
+            prev = cameFrom.get(cur);
+        }
+        return run;
+    }
+
     private static TreeResult generatePart2TrunkTree(Point startPt, Set<Point> blocked, Random rng) {
         Map<Point, Set<Point>> adj = new HashMap<>();
         Set<Point> occupied = new HashSet<>(blocked != null ? blocked : Set.of());
+        Map<Point, Point> cameFrom = new HashMap<>(); // pour mesurer les runs colinéaires
 
         Point start = startPt != null ? startPt : new Point(GRID_SIZE / 2, GRID_SIZE / 2);
         adj.put(start, new HashSet<>());
         occupied.add(start);
 
-        // Direction initiale : s'éloigner du blocage (sortie taverne)
         List<int[]> dirs = new ArrayList<>(Arrays.asList(DIR_OFFSET));
         Collections.shuffle(dirs, rng);
         int dir = -1;
@@ -1951,20 +1977,20 @@ public class DungeonAlgo {
 
         Point c = start.move(DIR_OFFSET[dir]);
         addEdge(adj, occupied, start, c);
+        cameFrom.put(c, start);
         List<Point> trunkCells = new ArrayList<>();
         trunkCells.add(c);
 
         int trunkTarget = PART2_TRUNK_MIN + rng.nextInt(PART2_TRUNK_MAX - PART2_TRUNK_MIN + 1);
-        int stepsSinceTurn = 1;
 
         for (int t = 1; t < trunkTarget; t++) {
-            stepsSinceTurn++;
-            // Virage : possible après ≥2 droits, FORCÉ après max 3 droits d'affilée
-            boolean forceTurn = stepsSinceTurn >= PART2_TRUNK_MAX_STRAIGHT;
-            boolean maybeTurn = stepsSinceTurn >= 2 && rng.nextFloat() < 0.40f;
+            // Run colinéaire actuelle si on continue dans `dir`
+            int runIfStraight = colinearRunLength(c, c.move(DIR_OFFSET[dir]), cameFrom);
+            // Si on est déjà à la limite, FORCER un virage (contrainte géométrique)
+            boolean forceTurn = runIfStraight >= PART2_MAX_COLINEAR_RUN;
+            boolean maybeTurn = runIfStraight >= 2 && rng.nextFloat() < 0.40f;
             if (forceTurn || maybeTurn) {
                 dir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                stepsSinceTurn = 0;
             }
 
             Point n = c.move(DIR_OFFSET[dir]);
@@ -1972,34 +1998,52 @@ public class DungeonAlgo {
                 int od = dir;
                 boolean found = false;
                 for (int a = 0; a < 4; a++) {
-                    dir = (od + a) % 4;
-                    n = c.move(DIR_OFFSET[dir]);
-                    if (!n.isOutOfBounds() && !occupied.contains(n)) { found = true; break; }
+                    int td = (od + a) % 4;
+                    // Même en fallback, refuser un 4ᵉ segment colinéaire
+                    int run = colinearRunLength(c, c.move(DIR_OFFSET[td]), cameFrom);
+                    if (run > PART2_MAX_COLINEAR_RUN) continue;
+                    Point cand = c.move(DIR_OFFSET[td]);
+                    if (!cand.isOutOfBounds() && !occupied.contains(cand)) {
+                        dir = td; n = cand; found = true; break;
+                    }
                 }
                 if (!found) break;
-                stepsSinceTurn = 0;
+            } else {
+                // Double-check géométrique même si la case est libre
+                int run = colinearRunLength(c, n, cameFrom);
+                if (run > PART2_MAX_COLINEAR_RUN) {
+                    // forcer un virage
+                    boolean turned = false;
+                    for (int side : new int[]{1, 3}) {
+                        int td = (dir + side) % 4;
+                        Point cand = c.move(DIR_OFFSET[td]);
+                        if (!cand.isOutOfBounds() && !occupied.contains(cand)) {
+                            dir = td; n = cand; turned = true; break;
+                        }
+                    }
+                    if (!turned) break;
+                }
             }
 
             addEdge(adj, occupied, c, n);
+            cameFrom.put(n, c);
             trunkCells.add(n);
             c = n;
 
-            // Branches latérales le long du tronc (pas sur la toute fin : réservée M5/porte)
+            // Branches latérales (pas sur la toute fin : réservée M5/porte)
             if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
                 growMiniTree(n, pDir, adj, occupied, rng);
             }
         }
 
-        // Fin de tronc : petites branches latérales (pas dans l'axe principal)
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
         if (!trunkCells.isEmpty()) {
-            // une seule mini-branche latérale en fin, pour garder l'axe libre vers M5/porte
             int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
             growMiniTree(trunkEnd, side, adj, occupied, rng);
         }
 
-        // Remplissage jusqu'à la taille cible (priorité tronc), hors fin d'axe
+        // Remplissage : refuse d'allonger une run colinéaire au-delà de la limite
         int targetSize = PART2_TARGET_MIN + rng.nextInt(PART2_TARGET_MAX - PART2_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) {
@@ -2017,6 +2061,24 @@ public class DungeonAlgo {
                 for (int[] d : DIR_OFFSET) {
                     Point next = node.move(d);
                     if (next.isOutOfBounds() || occupied.contains(next)) continue;
+                    // Contrainte géométrique : pas plus de MAX segments colinéaires
+                    // (seulement si le nœud a déjà un "cameFrom" / un voisin unique pour la run)
+                    Point back = cameFrom.get(node);
+                    if (back != null) {
+                        int run = colinearRunLength(node, next, cameFrom);
+                        if (run > PART2_MAX_COLINEAR_RUN) continue;
+                    } else if (deg == 1) {
+                        // un seul voisin : c'est le "from"
+                        Point only = adj.get(node).iterator().next();
+                        int dx = next.x() - node.x(), dy = next.y() - node.y();
+                        int pdx = node.x() - only.x(), pdy = node.y() - only.y();
+                        if (dx == pdx && dy == pdy) {
+                            // poursuivrait une droite — compter via cameFrom synthétique
+                            Map<Point, Point> tmp = new HashMap<>(cameFrom);
+                            tmp.putIfAbsent(node, only);
+                            if (colinearRunLength(node, next, tmp) > PART2_MAX_COLINEAR_RUN) continue;
+                        }
+                    }
                     int w = trunkCells.contains(node) ? 2 : 1;
                     for (int wi = 0; wi < w; wi++) candidates.add(new Point[]{node, next});
                 }
@@ -2024,6 +2086,7 @@ public class DungeonAlgo {
             if (candidates.isEmpty()) break;
             Point[] choice = candidates.get(rng.nextInt(candidates.size()));
             addEdge(adj, occupied, choice[0], choice[1]);
+            cameFrom.putIfAbsent(choice[1], choice[0]);
             int nd = adj.get(choice[0]).size();
             if (nd == 3) ci3++; else if (nd == 4) ci4++;
         }
@@ -2038,7 +2101,8 @@ public class DungeonAlgo {
 
     /**
      * Appende en FIN de tronc P2 la séquence forcée :
-     *   trunkEnd → M5 → [1–2 C/I2] → porte2
+     *   trunkEnd → M5 → [1–2 cellules deg2 : C ou I2 uniquement] → porte2
+     * Jamais d'intersection (I3/I4) dans le gap.
      * Retourne la position de porte2, ou null si impossible.
      */
     private static Point appendP2ExitSequence(Map<Point, Set<Point>> adj, Map<Point, String> labels,
@@ -2049,23 +2113,36 @@ public class DungeonAlgo {
         if (blocked != null) occupied.addAll(blocked);
 
         int dir = trunkEndDir;
-        // Essayer de continuer dans la direction du tronc, sinon pivoter
         Point cursor = trunkEnd;
-        List<Point> chain = new ArrayList<>(); // M5 + gap cells (sans la porte)
+        List<Point> chain = new ArrayList<>(); // M5 + gap (sans la porte)
         int gap = 1 + rng.nextInt(2); // 1 ou 2 cellules entre M5 et porte
-        int need = 1 + gap; // M5 + gap, puis porte après
+        int need = 1 + gap; // M5 + gap
 
-        for (int i = 0; i < need + 1; i++) { // +1 pour la porte
+        // Pose la chaîne M5 + gap + porte EN LIGNE (ou avec virages deg2 uniquement).
+        // Chaque nœud de la chaîne (sauf la porte leaf) doit finir en deg 2 → C ou I2.
+        for (int i = 0; i < need + 1; i++) {
             Point next = null;
             int chosenDir = -1;
-            // Priorité : continuer droit, puis perpendiculaires
-            int[] tryOrder = {dir, (dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4};
+            // Pour le gap, on autorise droit ou virage, mais PAS de 3ᵉ voisin plus tard.
+            // On pose d'abord tout droit pour garantir deg2, virage optionnel entre cellules.
+            int[] tryOrder;
+            if (i == 0) {
+                // M5 : continuer dans l'axe du tronc en priorité
+                tryOrder = new int[]{dir, (dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4};
+            } else if (i < need) {
+                // gap : droit ou virage (I2 ok), jamais forcer un I3
+                tryOrder = new int[]{dir, (dir + 1) % 4, (dir + 3) % 4};
+            } else {
+                // porte : droit ou virage
+                tryOrder = new int[]{dir, (dir + 1) % 4, (dir + 3) % 4};
+            }
             for (int td : tryOrder) {
                 Point cand = cursor.move(DIR_OFFSET[td]);
                 if (cand.isOutOfBounds() || occupied.contains(cand) || adj.containsKey(cand)) continue;
                 next = cand; chosenDir = td; break;
             }
             if (next == null) return null;
+
             adj.putIfAbsent(cursor, new HashSet<>());
             adj.putIfAbsent(next, new HashSet<>());
             adj.get(cursor).add(next);
@@ -2073,17 +2150,26 @@ public class DungeonAlgo {
             occupied.add(next);
             dir = chosenDir;
             cursor = next;
-            if (i < need) chain.add(next); // pas la porte dans chain
-            else {
-                // i == need → porte2
+
+            if (i < need) {
+                chain.add(next);
+            } else {
+                // Porte2 = leaf (deg 1)
                 labels.put(next, RoomIds.DOOR_2);
-                // Labelliser la chaîne : [0]=M5, [1..]=couloirs structurels
+                // Vérifier géométrie : chaque cellule de la chaîne doit être deg 2
+                // (M5 et gap = couloir droit ou virage, JAMAIS intersection)
+                for (Point gp : chain) {
+                    if (adj.getOrDefault(gp, Set.of()).size() != 2) return null;
+                }
+                // Labels : M5 puis C/I2 selon adjacence
                 if (!chain.isEmpty()) {
                     labels.put(chain.get(0), RoomIds.MONSTER_5);
                     for (int g = 1; g < chain.size(); g++) {
                         Point gp = chain.get(g);
-                        Set<Point> gnb = adj.get(gp);
-                        labels.put(gp, labelForNeighbors(gnb, Theme.P12, rng));
+                        // deg2 → STRAIGHT ou TURN uniquement
+                        Shape sh = shapeOf(adj.get(gp));
+                        if (sh != Shape.STRAIGHT && sh != Shape.TURN) return null;
+                        labels.put(gp, shapeLabel(sh, Theme.P12, rng));
                     }
                 }
                 return next;
@@ -2195,26 +2281,30 @@ public class DungeonAlgo {
                 || lbl.equals(RoomIds.CORRIDOR_TURN);
     }
 
-    /** Vérifie que les nœuds strictement entre from et door (via parent) sont des couloirs. */
+    /**
+     * Gap M5↔porte : UNIQUEMENT deg 2 (couloir droit C ou virage I2).
+     * Jamais d'intersection I3/I4, jamais de salle spéciale.
+     */
     private static boolean gapCellsAreCorridors(Point from, Point door, Map<Point, Point> parent,
                                                  Map<Point, String> labels, Map<Point, Set<Point>> adj) {
         Point cur = parent.get(door);
         int guard = 0;
         while (cur != null && !cur.equals(from) && guard++ < 8) {
+            Set<Point> nb = adj.getOrDefault(cur, Set.of());
+            // STRICT géométrie : deg 2 seulement → C ou I2, jamais intersection
+            if (nb.size() != 2) return false;
+            Shape sh = shapeOf(nb);
+            if (sh != Shape.STRAIGHT && sh != Shape.TURN) return false;
+
             String lbl = labels.get(cur);
             if (lbl != null) {
-                boolean structural = RoomPools.CORRIDORS_P1_P2.contains(lbl)
+                boolean okGap = RoomPools.CORRIDORS_P1_P2.contains(lbl)
                         || lbl.equals(RoomIds.CORRIDOR_TURN)
                         || lbl.equals(RoomIds.WELL)
-                        || lbl.equals(RoomIds.MONSTER_4)
-                        || lbl.equals(RoomIds.INTERSECTION_3)
-                        || lbl.equals(RoomIds.INTERSECTION_4)
-                        || lbl.equals("I2") || lbl.equals("I3") || lbl.equals("I4");
-                // Salle spéciale dans le gap (hors structurel) → refuse
-                if (!structural && genericThemeOf(lbl) == null) return false;
+                        || lbl.equals("I2");
+                // Refuse I3/I4/M*/spéciales dans le gap
+                if (!okGap) return false;
             }
-            Set<Point> nb = adj.getOrDefault(cur, Set.of());
-            if (nb.size() < 2 || nb.size() > 3) return false;
             cur = parent.get(cur);
         }
         return cur != null && cur.equals(from);
