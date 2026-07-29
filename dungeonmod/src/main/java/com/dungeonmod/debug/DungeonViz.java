@@ -24,6 +24,7 @@ public class DungeonViz {
         ROOM_COLORS.put("cul",      "#616161"); ROOM_LABELS.put("cul",      "Cul-de-sac");
         ROOM_COLORS.put("M1",       "#E53935"); ROOM_LABELS.put("M1",       "Monstre 1");
         ROOM_COLORS.put("M2",       "#C62828"); ROOM_LABELS.put("M2",       "Monstre 2");
+        ROOM_COLORS.put("M5",       "#B71C1C"); ROOM_LABELS.put("M5",       "Monstre 5");
         ROOM_COLORS.put("Prison",   "#B71C1C"); ROOM_LABELS.put("Prison",   "Prison");
         ROOM_COLORS.put("Loot1",    "#FFD600"); ROOM_LABELS.put("Loot1",    "Loot");
         ROOM_COLORS.put("fontaine", "#42A5F5"); ROOM_LABELS.put("fontaine", "Fontaine");

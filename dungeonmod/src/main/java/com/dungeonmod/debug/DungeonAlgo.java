@@ -44,6 +44,8 @@ public class DungeonAlgo {
         public static final String MONSTER_2 = "M2";
         public static final String MONSTER_3 = "M3";
         public static final String MONSTER_4 = "M4";
+        /** Couloir monstre placé juste avant porte1 / porte2. */
+        public static final String MONSTER_5 = "M5";
         public static final String WELL = "puit";
         public static final String FOUNTAIN = "fontaine";
         public static final String OGRE = "Ogre";
@@ -310,6 +312,7 @@ public class DungeonAlgo {
         reg(RoomIds.DEAD_END,       "Cul de sac",    "N",    false);
         reg(RoomIds.MONSTER_1,      "Cul de sac",    "N",    false);
         reg(RoomIds.MONSTER_2,      "Couloir droit", "NS",   true);
+        reg(RoomIds.MONSTER_5,      "Couloir droit", "NS",   true);
         reg("C1",                   "Couloir droit", "NS",   true);
         reg("C2",                   "Couloir droit", "NS",   true);
         reg("C3",                   "Couloir droit", "NS",   true);
@@ -340,6 +343,7 @@ public class DungeonAlgo {
         reg(RoomIds.DEAD_END_DJ,    "Cul de sac",    "N",    false);
         reg(RoomIds.MONSTER_3,      "Cul de sac",    "N",    false);
         reg(RoomIds.MONSTER_4,      "Couloir droit", "NS",   true);
+        // M5 déjà enregistré plus haut (couloir avant portes)
         reg(RoomIds.OGRE,           "Cul de sac",    "N",    false);
         reg("MJ3",                  "Cul de sac",    "N",    false);
         reg("MJ4",                  "Couloir droit", "NS",   true);
@@ -1850,6 +1854,92 @@ public class DungeonAlgo {
         return generateRawTree(PART2_TARGET_MIN, PART2_TARGET_MAX, PART2_MAX_I3, 1, PART2_STRAIGHT_WEIGHT, startPoint, blocked, rng);
     }
 
+    /**
+     * Place M5 (couloir monstre) juste AVANT porte1 et porte2, côté intérieur
+     * du donjon (voisin de la porte vers le départ). Préfère un couloir droit
+     * de degré 2 non déjà spécial ; sinon remonte d'un cran sur le chemin.
+     * @return nombre de M5 placés (0..2)
+     */
+    private static int placeMonster5BeforeDoors(Map<Point, String> labels, Map<Point, Set<Point>> adj,
+                                                 Point startPoint) {
+        int placed = 0;
+        for (String doorId : List.of(RoomIds.DOOR_1, RoomIds.DOOR_2)) {
+            Point door = findPointByValue(labels, doorId);
+            if (door == null) continue;
+            Point candidate = findCorridorBeforeDoor(door, labels, adj, startPoint);
+            if (candidate == null) continue;
+            String cur = labels.get(candidate);
+            // Ne pas écraser salles spéciales (M2 prison, puit, taverne…)
+            if (cur != null && !RoomPools.CORRIDORS_P1_P2.contains(cur)
+                    && !cur.equals(RoomIds.CORRIDOR_TURN)
+                    && !cur.equals(RoomIds.MONSTER_4)
+                    && !cur.equals(RoomIds.MONSTER_2)
+                    && !cur.equals(RoomIds.WELL)) {
+                // déjà spécial non-couloir → skip
+                if (!cur.startsWith("C") && !cur.equals("I2")) continue;
+            }
+            // Autorise remplacement d'un simple C1-3 / I2 / éventuellement M4 générique de couloir
+            if (cur == null || RoomPools.CORRIDORS_P1_P2.contains(cur)
+                    || cur.equals(RoomIds.CORRIDOR_TURN)
+                    || cur.equals(RoomIds.MONSTER_4)
+                    || cur.equals(RoomIds.WELL)
+                    || cur.equals("I2")) {
+                labels.put(candidate, RoomIds.MONSTER_5);
+                placed++;
+            }
+        }
+        return placed;
+    }
+
+    /**
+     * Remonte depuis la porte vers le départ : premier nœud de degré 2
+     * formant un passage (idéalement droit) non encore M5.
+     */
+    private static Point findCorridorBeforeDoor(Point door, Map<Point, String> labels,
+                                                 Map<Point, Set<Point>> adj, Point startPoint) {
+        // BFS depuis start pour avoir le parent "vers l'intérieur" de la porte
+        Map<Point, Point> parent = new HashMap<>();
+        Deque<Point> q = new ArrayDeque<>();
+        Set<Point> seen = new HashSet<>();
+        if (startPoint == null) return null;
+        q.add(startPoint);
+        seen.add(startPoint);
+        while (!q.isEmpty()) {
+            Point cur = q.poll();
+            for (Point nb : adj.getOrDefault(cur, Set.of())) {
+                if (seen.add(nb)) {
+                    parent.put(nb, cur);
+                    q.add(nb);
+                }
+            }
+        }
+        // Remonte depuis la porte : parent immédiat, puis grand-parent si besoin
+        Point step = parent.get(door);
+        for (int hops = 0; hops < 3 && step != null; hops++) {
+            if (step.equals(startPoint)) break;
+            Set<Point> nb = adj.getOrDefault(step, Set.of());
+            if (nb.size() == 2) {
+                // Couloir (droit ou virage) : candidat
+                String lbl = labels.get(step);
+                if (lbl == null || RoomPools.CORRIDORS_P1_P2.contains(lbl)
+                        || lbl.equals(RoomIds.CORRIDOR_TURN)
+                        || lbl.equals(RoomIds.MONSTER_4)
+                        || lbl.equals(RoomIds.WELL)
+                        || lbl.equals("I2")
+                        || lbl.equals(RoomIds.MONSTER_2)) {
+                    // Évite d'écraser le M2 collé à la Prison
+                    if (lbl != null && lbl.equals(RoomIds.MONSTER_2)) {
+                        step = parent.get(step);
+                        continue;
+                    }
+                    return step;
+                }
+            }
+            step = parent.get(step);
+        }
+        return null;
+    }
+
     // ===================== Public Main API =====================
 
     private static long lastSeed = 0;
@@ -1949,6 +2039,9 @@ public class DungeonAlgo {
                     }
                 }
                 if (!p4Ok) continue;
+
+                // M5 : couloir monstre juste avant porte1 et porte2 (côté intérieur)
+                placeMonster5BeforeDoors(labels, sp1.adj, sp1.startPoint);
 
                 // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
                 // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
