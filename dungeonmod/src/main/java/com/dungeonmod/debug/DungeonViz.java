@@ -318,6 +318,7 @@ public class DungeonViz {
         }
 
         int attempts = 0;
+        DungeonFailureLog.reset();
         while (true) {
             attempts++;
             DungeonAlgo.DungeonResult result = DungeonAlgo.generateDungeon(seed);
@@ -338,6 +339,7 @@ public class DungeonViz {
                         System.out.println("Validation structure : " + probs.size() + " incoherence(s) !");
                         for (String p : probs) System.out.println("  - " + p);
                     }
+                    DungeonFailureLog.printSummary("résumé ouvrir_donjon");
                 } catch (IOException e) {
                     System.err.println("Erreur ecriture: " + e.getMessage());
                 }

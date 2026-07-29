@@ -50,6 +50,11 @@ public class SeedHarness {
         227471353010315L    // virage IJ2 à 4 connexions au sud (fusion des 2 arbres sud adjacents)
     };
 
+    /** Même garde que /teste : relance des batches complets si generateDungeon(0) revient null. */
+    private static final int MAX_PLAYER_BATCHES = 50;
+
+    private record PlayerGeneration(DungeonResult result, int batches) {}
+
     public static void main(String[] args) {
         int count = 100;
         boolean verbose = false;
@@ -79,6 +84,7 @@ public class SeedHarness {
         int total = 0;
         int genNull = 0;
         long t0 = System.currentTimeMillis();
+        DungeonFailureLog.reset();
 
         // 1. Seeds dorées (régressions historiques = seeds de SORTIE) — toujours testées
         System.out.println("== Seeds dorées (régressions historiques, seeds de SORTIE) ==");
@@ -103,9 +109,16 @@ public class SeedHarness {
         // 2. Échantillonnage mode JOUEUR (seed=0) — ce que le joueur reçoit réellement
         System.out.println("== Echantillonnage joueur : " + count + " generation(s) (seed=0, comme /teste) ==");
         int playerOk = 0;
+        int playerBatchTotal = 0;
+        int playerBatchMax = 0;
+        int playerBatchRetries = 0;
         for (int i = 0; i < count; i++) {
             total++;
-            DungeonResult dr = DungeonAlgo.generateDungeon(0);
+            PlayerGeneration pg = generatePlayerLikeDungeon();
+            DungeonResult dr = pg.result();
+            playerBatchTotal += pg.batches();
+            playerBatchMax = Math.max(playerBatchMax, pg.batches());
+            playerBatchRetries += Math.max(0, pg.batches() - 1);
             if (dr == null) {
                 genNull++;
                 failures.add("joueur #" + (i + 1) + " : GENERATION NULLE (l'algo n'a rien pu livrer au joueur)");
@@ -117,7 +130,8 @@ public class SeedHarness {
                 if (probs.isEmpty()) playerOk++;
                 if (verbose) {
                     if (probs.isEmpty()) {
-                        System.out.println("  joueur #" + (i + 1) + " seed " + outSeed + " : OK");
+                        System.out.println("  joueur #" + (i + 1) + " seed " + outSeed
+                                + " : OK (batchs=" + pg.batches() + ")");
                     } else {
                         for (String p : probs) System.out.println("  " + p);
                     }
@@ -125,8 +139,11 @@ public class SeedHarness {
             }
             if ((i + 1) % 25 == 0) {
                 long dt = System.currentTimeMillis() - t0;
+                double avgBatches = playerBatchTotal / (double) (i + 1);
                 System.out.println("  ... " + (i + 1) + "/" + count + " joueur, "
-                        + playerOk + " OK, " + failures.size() + " probleme(s), " + dt + " ms");
+                        + playerOk + " OK, " + failures.size() + " probleme(s), batch moy="
+                        + String.format(java.util.Locale.ROOT, "%.2f", avgBatches)
+                        + ", batch max=" + playerBatchMax + ", " + dt + " ms");
             }
         }
 
@@ -142,6 +159,17 @@ public class SeedHarness {
                 for (String p : probs) if (p.contains("GENERATION NULLE")) genNull++;
             }
         }
+
+        System.out.println();
+        if (count > 0) {
+            double avgBatches = playerBatchTotal / (double) count;
+            System.out.println("=== BATCHS JOUEUR (/teste) ===");
+            System.out.println("batch moyen=" + String.format(java.util.Locale.ROOT, "%.2f", avgBatches)
+                    + ", batch max=" + playerBatchMax
+                    + ", retries batch=" + playerBatchRetries
+                    + " sur " + count + " echantillon(s)");
+        }
+        DungeonFailureLog.printSummary("résumé test_algo");
 
         System.out.println();
         System.out.println("=== RÉSUMÉ ===");
@@ -165,6 +193,14 @@ public class SeedHarness {
             }
         }
         System.exit(1);
+    }
+
+    private static PlayerGeneration generatePlayerLikeDungeon() {
+        for (int batch = 1; batch <= MAX_PLAYER_BATCHES; batch++) {
+            DungeonResult dr = DungeonAlgo.generateDungeon(0);
+            if (dr != null) return new PlayerGeneration(dr, batch);
+        }
+        return new PlayerGeneration(null, MAX_PLAYER_BATCHES);
     }
 
     /**
