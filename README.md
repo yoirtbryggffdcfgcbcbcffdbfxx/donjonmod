@@ -65,7 +65,7 @@ Pipeline : `debug/DungeonAlgo.java` (logique pure, sans dépendance Minecraft) �
 |---|---|
 | `clean_build.py` | `gradlew clean build` complet — **à lancer après chaque pull** (sinon les scripts de test tournent sur les vieilles classes !) |
 | `ouvrir_donjon.py [seed]` | Génère `dungeon_viz.html` + affiche la validation structure dans la console (0 incohérence attendu) |
-| `test_algo.py [nb] [seedDépart]` | **Harnais de régression** : N seeds + seeds dorées historiques ; vérifie cohérence labels↔adjacence, connexité, garanties gameplay. Objectif : *SUCCESS 100 %* |
+| `test_algo.py [nb]` | **Harnais de régression** : N échantillons **mode joueur** (seed=0, comme `/teste`) + seeds dorées de SORTIE ; vérifie cohérence labels↔adjacence, connexité, garanties gameplay. Objectif : *SUCCESS 100 %*. ⚠️ ne pas tester 1..N en entrée — l'algo rejette déjà les mauvaises seeds avant de les livrer au joueur |
 
 Détails et invariants de l'algo : `dungeonmod/LLM.md`.
 

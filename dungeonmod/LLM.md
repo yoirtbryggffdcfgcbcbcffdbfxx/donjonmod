@@ -178,18 +178,21 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 | `run_client.py` | `gradlew.bat runClient` (client dev) |
 | `clean_build.py` | `gradlew.bat clean build` — recompile TOUT à neuf |
 | `ouvrir_donjon.py [seed]` | Génère le HTML de viz (`DungeonViz`) + validation auto en console |
-| `test_algo.py [nbSeeds] [seedDépart]` | Harnais de régression (`SeedHarness`) : N générations + vérifs auto |
+| `test_algo.py [nb]` | Harnais de régression (`SeedHarness`) : N **échantillons joueur** (seed=0) + seeds dorées + vérifs auto |
+| `test_algo.py --seed S` | Rejoue une seed de SORTIE précise (bug joueur) |
+| `test_algo.py --range [start]` | DEBUG seulement : ancienne plage d'entrée 1..N (ne reflète PAS le joueur) |
 
 ⚠️ **Règle d'or du workflow** : `ouvrir_donjon.py` et `test_algo.py` exécutent les classes de `build/classes/java/main`. **Toujours lancer `clean_build.py` après un pull** — sinon le HTML/harnais tournent sur les VIEILLES classes et "prouvent" à tort que des bugs corrigés existent encore (arrivé 2× en juillet 2026).
 
 ### Harnais de régression (`debug/SeedHarness.java`)
 - Classe pure sans dépendance Minecraft ; compilée par `gradlew build` ; exécutée via `test_algo.py`.
-- Teste toujours les **seeds dorées** (régressions historiques permanentes) :
+- **Sémantique des seeds (IMPORTANT)** : `generateDungeon(seed)` rejette en interne les layouts invalides (retry jusqu'à 100× en mode joueur `seed=0`, 20× en mode seed fixe). Seules les seeds de **SORTIE** (`DungeonResult.seed` / `getLastSeed()`) sont livrées au joueur. Tester la plage d'entrée `1..N` est trompeur (beaucoup de null / layouts jamais donnés au joueur). Le mode par défaut échantillonne donc comme `/teste` : `generateDungeon(0)`, puis valide le résultat réellement produit.
+- Teste toujours les **seeds dorées** (régressions historiques = seeds de SORTIE) :
   - `224237267600147` — couloir à 3-4 connexions (raccords P2/P3 partagés)
   - `827324799543570426` — virage IJ2 à 3 connexions au sud de la Centrale (P4)
   - `227471353010315` — virage IJ2 à 4 connexions au sud (fusion des 2 arbres sud adjacents)
-- Vérifie par seed : génération non nulle · cohérence labels ↔ adjacence (`DungeonAlgo.validateStructure`) · connexité BFS des 2 étages · garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ, lootdj P4).
-- Exit code 0/1 → chainable. **Objectif permanent : SUCCESS 100 %.** Tout nouveau bug d'algo → ajouter sa seed dans `GOLDEN_SEEDS`.
+- Vérifie par donjon : génération non nulle · cohérence labels ↔ adjacence (`DungeonAlgo.validateStructure`) · connexité BFS des 2 étages · garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ, lootdj P4).
+- Exit code 0/1 → chainable. **Objectif permanent : SUCCESS 100 % sur les échantillons joueur.** Tout nouveau bug d'algo → ajouter sa seed de SORTIE dans `GOLDEN_SEEDS`.
 
 ### Invariants structurels de l'algo (RÈGLE D'OR DU LABEL)
 Un label structurel générique (`C1-3`/`I2`/`I3`/`I4`/`cul`, `CJ1-3`/`IJ2-4`/`culDJ`, `CG1`/`GI2-4`/`CDG`) se déduit **uniquement** de l'adjacence finale du nœud :
