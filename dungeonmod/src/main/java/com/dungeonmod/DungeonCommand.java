@@ -127,7 +127,11 @@ public class DungeonCommand {
 
         BlockPos genPos = new BlockPos(genX, genY, genZ);
         try {
-            TestGenerator.generateRandomCave(world, genPos, maxRooms);
+            boolean generated = TestGenerator.generateRandomCave(world, genPos, maxRooms);
+            if (!generated) {
+                source.sendError(Text.literal("§cAucun donjon valide généré. Réessaie /teste."));
+                return 0;
+            }
 
             // Nettoyer les sacs des joueurs dans le donjon
             for (ServerPlayerEntity p : source.getServer().getPlayerManager().getPlayerList()) {
@@ -204,7 +208,11 @@ public class DungeonCommand {
         BlockPos pos = rawPos.add(-cx / 2, 0, -cz / 2);
 
         try {
-            TestGenerator.generateRandomCave(world, pos, 40, seed);
+            boolean generated = TestGenerator.generateRandomCave(world, pos, 40, seed);
+            if (!generated) {
+                source.sendError(Text.literal("§cSeed invalide et aucune génération produite."));
+                return 0;
+            }
             long usedSeed = TestGenerator.getLastSeed();
             source.sendFeedback(() -> Text.literal("§eSeed " + usedSeed + " §7— Généré !"), true);
         } catch (Exception e) {
@@ -394,7 +402,11 @@ public class DungeonCommand {
 
         BlockPos genPos = new BlockPos(ox, oy, oz);
         try {
-            TestGenerator.generateRandomCave(world, genPos, 40);
+            boolean generated = TestGenerator.generateRandomCave(world, genPos, 40);
+            if (!generated) {
+                source.sendError(Text.literal("§cAucun donjon valide généré. Réessaie /teste test."));
+                return 0;
+            }
             player.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(10.0);
             player.setHealth(10.0f);
             long usedSeed = TestGenerator.getLastSeed();
