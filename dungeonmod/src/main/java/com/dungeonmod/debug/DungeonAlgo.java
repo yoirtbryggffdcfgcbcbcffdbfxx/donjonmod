@@ -625,6 +625,7 @@ public class DungeonAlgo {
 
     private static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
+        // Direction sortante porte → chemin (alignée sur l'entrée intérieure)
         int dx = porte.x() - parent.x(), dy = porte.y() - parent.y();
 
         int maxLen = 2 + rng.nextInt(4);
@@ -633,7 +634,8 @@ public class DungeonAlgo {
         List<Point> pathCells = new ArrayList<>();
 
         for (int i = 0; i < maxLen; i++) {
-            boolean goStraight = (i == 0) || (!lastStraight && rng.nextBoolean());
+            // i=0 et i=1 OBLIGATOIREMENT droits : cellule [0] = M5 couloir droit (deg2 colinéaire)
+            boolean goStraight = (i <= 1) || (!lastStraight && rng.nextBoolean());
             int ndx = dx, ndy = dy;
             if (!goStraight) {
                 int[][] perp = {{dy, -dx}, {-dy, dx}};
@@ -651,6 +653,7 @@ public class DungeonAlgo {
             pathCells.add(next); cx = next.x(); cy = next.y();
             lastStraight = goStraight;
         }
+        // Besoin d'au moins 2 cellules : [0]=M5 droit, [1+]=chemin vers taverne
         if (pathCells.size() < 2) return null;
 
         Point t1 = new Point(cx + dx, cy + dy);
@@ -880,7 +883,8 @@ public class DungeonAlgo {
         List<Point> pathCells = new ArrayList<>();
 
         for (int i = 0; i < maxLen; i++) {
-            boolean goStraight = (i == 0) || (!lastStraight && rng.nextBoolean());
+            // i=0 et i=1 OBLIGATOIREMENT droits : cellule [0] = M5 couloir droit (deg2 colinéaire)
+            boolean goStraight = (i <= 1) || (!lastStraight && rng.nextBoolean());
             int ndx = dx, ndy = dy;
             if (!goStraight) {
                 int[][] perp = {{dy, -dx}, {-dy, dx}};
@@ -898,6 +902,7 @@ public class DungeonAlgo {
             pathCells.add(next); cx = next.x(); cy = next.y();
             lastStraight = goStraight;
         }
+        // Besoin d'au moins 2 cellules : [0]=M5 droit, [1+]=chemin vers campement
         if (pathCells.size() < 2) return null;
 
         Point c1 = new Point(cx + dx, cy + dy);
@@ -1855,20 +1860,20 @@ public class DungeonAlgo {
     }
 
     /**
-     * Place M5 (couloir monstre DROIT, comme M2/M4) juste AVANT porte1 et porte2,
-     * côté intérieur du donjon — ordonné sur le parcours :
-     *   … → M5 → porte → chemin cellules → taverne / campement
+     * Place M5 (couloir monstre DROIT, comme M2/M4) comme PREMIÈRE cellule
+     * du chemin sortant après porte1 et porte2 :
+     *   … → porte → M5 → chemin cellules → taverne / campement
      * Uniquement sur un nœud de degré 2 colinéaire (pas de virage I2).
-     * N'écrase jamais Prison / M2-prison / salles spéciales non-couloir.
-     * @return nombre de M5 placés (0..2, idéalement 2)
+     * Pas de mobs dans M5 (structure seule).
+     * @return nombre de M5 placés (0..2, idéalement 2 — obligatoire si chemins OK)
      */
-    private static int placeMonster5BeforeDoors(Map<Point, String> labels, Map<Point, Set<Point>> adj,
+    private static int placeMonster5OnDoorPaths(Map<Point, String> labels, Map<Point, Set<Point>> adj,
                                                  Point startPoint) {
         int placed = 0;
         for (String doorId : List.of(RoomIds.DOOR_1, RoomIds.DOOR_2)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
-            Point candidate = findStraightCorridorBeforeDoor(door, labels, adj, startPoint);
+            Point candidate = findFirstStraightCellAfterDoor(door, labels, adj, startPoint);
             if (candidate == null) continue;
             labels.put(candidate, RoomIds.MONSTER_5);
             placed++;
@@ -1877,68 +1882,70 @@ public class DungeonAlgo {
     }
 
     /**
-     * Remonte depuis la porte vers le départ : premier nœud de degré 2
-     * formant un COULOIR DROIT (voisins colinéaires), remplaçable.
-     * Priorité au voisin immédiat de la porte (juste avant la porte).
+     * Voisin de la porte du côté CHEMIN (opposé au départ) : première cellule
+     * du path taverne/camp. Doit être un couloir DROIT (deg 2 colinéaire).
      */
-    private static Point findStraightCorridorBeforeDoor(Point door, Map<Point, String> labels,
+    private static Point findFirstStraightCellAfterDoor(Point door, Map<Point, String> labels,
                                                          Map<Point, Set<Point>> adj, Point startPoint) {
         if (startPoint == null || door == null) return null;
 
-        // BFS depuis start → parent[node] = voisin vers le départ
-        Map<Point, Point> parent = new HashMap<>();
+        // BFS depuis start pour identifier le voisin "intérieur" de la porte
+        Set<Point> reachableFromStart = new HashSet<>();
         Deque<Point> q = new ArrayDeque<>();
-        Set<Point> seen = new HashSet<>();
         q.add(startPoint);
-        seen.add(startPoint);
+        reachableFromStart.add(startPoint);
         while (!q.isEmpty()) {
             Point cur = q.poll();
+            // Ne pas traverser la porte elle-même : on veut le côté intérieur seulement
+            if (cur.equals(door)) continue;
             for (Point nb : adj.getOrDefault(cur, Set.of())) {
-                if (seen.add(nb)) {
-                    parent.put(nb, cur);
-                    q.add(nb);
-                }
+                if (reachableFromStart.add(nb)) q.add(nb);
             }
         }
 
-        // Labels qu'on a le droit d'écraser pour mettre M5 (couloirs "génériques")
-        java.util.function.Predicate<String> replaceable = lbl ->
-            lbl == null
-            || RoomPools.CORRIDORS_P1_P2.contains(lbl)
-            || lbl.equals(RoomIds.WELL)
-            || lbl.equals(RoomIds.MONSTER_4)
-            || lbl.equals(RoomIds.MONSTER_5); // idempotent
-
-        // Remonte porte → intérieur : parent immédiat d'abord, puis +1/+2 hops
-        Point step = parent.get(door);
-        for (int hops = 0; hops < 3 && step != null; hops++) {
-            if (step.equals(startPoint)) break;
-            Set<Point> nb = adj.getOrDefault(step, Set.of());
-            // STRICT : couloir droit uniquement (deg 2 + colinéaire), comme M2/M4
-            if (nb.size() == 2) {
-                List<Point> nbs = new ArrayList<>(nb);
-                if (isStraight(nbs.get(0), nbs.get(1))) {
-                    String lbl = labels.get(step);
-                    // Jamais M2 (garde prison), jamais salles spéciales
-                    if (lbl != null && (lbl.equals(RoomIds.MONSTER_2)
-                            || lbl.equals(RoomIds.PRISON)
-                            || lbl.equals(RoomIds.START)
-                            || lbl.equals(RoomIds.LOOT_1)
-                            || lbl.equals(RoomIds.MONSTER_1)
-                            || lbl.equals(RoomIds.MONSTER_3)
-                            || lbl.equals(RoomIds.FOUNTAIN)
-                            || lbl.equals(RoomIds.OGRE)
-                            || lbl.startsWith("T")
-                            || lbl.startsWith("Ca"))) {
-                        step = parent.get(step);
-                        continue;
-                    }
-                    if (replaceable.test(lbl)) {
-                        return step;
-                    }
+        // Candidats = voisins de la porte PAS du côté départ (= côté chemin)
+        List<Point> pathSide = new ArrayList<>();
+        for (Point nb : adj.getOrDefault(door, Set.of())) {
+            if (!reachableFromStart.contains(nb)) pathSide.add(nb);
+        }
+        // Fallback : si BFS a tout vu (graphe connecté sans coupure),
+        // prendre le voisin qui n'est PAS le parent vers le départ.
+        if (pathSide.isEmpty()) {
+            Map<Point, Point> parent = new HashMap<>();
+            Deque<Point> q2 = new ArrayDeque<>();
+            Set<Point> seen = new HashSet<>();
+            q2.add(startPoint); seen.add(startPoint);
+            while (!q2.isEmpty()) {
+                Point cur = q2.poll();
+                for (Point nb : adj.getOrDefault(cur, Set.of())) {
+                    if (seen.add(nb)) { parent.put(nb, cur); q2.add(nb); }
                 }
             }
-            step = parent.get(step);
+            Point interior = parent.get(door);
+            for (Point nb : adj.getOrDefault(door, Set.of())) {
+                if (!nb.equals(interior)) pathSide.add(nb);
+            }
+        }
+
+        for (Point cand : pathSide) {
+            Set<Point> nb = adj.getOrDefault(cand, Set.of());
+            // STRICT : couloir droit uniquement (deg 2 + colinéaire), comme M2/M4
+            if (nb.size() != 2) continue;
+            List<Point> nbs = new ArrayList<>(nb);
+            if (!isStraight(nbs.get(0), nbs.get(1))) continue;
+
+            String lbl = labels.get(cand);
+            // N'écrase pas taverne / camp / salles spéciales
+            if (lbl != null && (lbl.startsWith("T") || lbl.startsWith("Ca")
+                    || lbl.equals(RoomIds.OGRE) || lbl.equals(RoomIds.PRISON)
+                    || lbl.equals(RoomIds.START) || lbl.equals(RoomIds.FOUNTAIN)
+                    || lbl.equals(RoomIds.LOOT_1) || lbl.equals(RoomIds.MONSTER_1)
+                    || lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_3))) {
+                continue;
+            }
+            // OK : C1-3, I2 ne devrait pas arriver (on a filtré colinéaire),
+            // WELL, M4, null, ou déjà M5
+            return cand;
         }
         return null;
     }
@@ -2043,8 +2050,10 @@ public class DungeonAlgo {
                 }
                 if (!p4Ok) continue;
 
-                // M5 : couloir monstre juste avant porte1 et porte2 (côté intérieur)
-                placeMonster5BeforeDoors(labels, sp1.adj, sp1.startPoint);
+                // M5 : 1ʳᵉ cellule des chemins porte→taverne et porte2→camp (couloir droit, sans mobs)
+                // Parcours : … → porte → M5 → chemin cellules → taverne / campement
+                int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
+                if (m5 < 2) continue; // M5 obligatoire sur les 2 chemins
 
                 // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
                 // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
