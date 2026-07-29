@@ -1528,8 +1528,8 @@ public class DungeonAlgo {
                 if (ncx.isOutOfBounds() || globalOccupied.contains(ncx)) break;
                 globalOccupied.add(ncx); adj.put(ncx, new HashSet<>());
                 adj.get(pv).add(ncx); adj.get(ncx).add(pv);
-                // Chemin de crypte (étage P4) : thème donjon, pas P1/P2 !
-                topLabels.put(ncx, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN_J : pickCJ(rng));
+                // Chemin chapelle -> crypte : couloirs thème P1/P2 (C/I2), demande du dev.
+                topLabels.put(ncx, s == turnAt - 1 ? RoomIds.CORRIDOR_TURN : pickC(rng));
                 pv = ncx; curr = ncx;
             }
             for (int s = 0; s < 2; s++) {
