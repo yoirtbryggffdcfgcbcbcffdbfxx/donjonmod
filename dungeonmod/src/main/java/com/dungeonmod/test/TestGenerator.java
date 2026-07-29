@@ -680,6 +680,17 @@ public class TestGenerator {
             }
             root.put("goblins", goblins);
 
+            // Positions des puits (boussole réparée) — persistées pour survivre à un relog
+            NbtList puits = new NbtList();
+            for (BlockPos p : lastPuitPositions) {
+                NbtCompound t = new NbtCompound();
+                t.putInt("x", p.getX());
+                t.putInt("y", p.getY());
+                t.putInt("z", p.getZ());
+                puits.add(t);
+            }
+            root.put("puits", puits);
+
             NbtIo.write(root, getSaveFile().toPath());
         } catch (Exception e) {
             System.out.println("[TestGenerator] Échec sauvegarde disque: " + e.getMessage());
@@ -713,6 +724,15 @@ public class TestGenerator {
                     if (g.contains("sx")) {
                         DungeonMod.zombieSpawns.put(uuid, new BlockPos(g.getInt("sx"), g.getInt("sy"), g.getInt("sz")));
                     }
+                }
+            }
+
+            lastPuitPositions.clear();
+            if (root.contains("puits")) {
+                NbtList puits = root.getList("puits", 10);
+                for (int i = 0; i < puits.size(); i++) {
+                    NbtCompound t = puits.getCompound(i);
+                    lastPuitPositions.add(new BlockPos(t.getInt("x"), t.getInt("y"), t.getInt("z")));
                 }
             }
 
