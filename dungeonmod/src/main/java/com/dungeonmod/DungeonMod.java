@@ -111,6 +111,18 @@ public class DungeonMod implements ModInitializer {
             com.dungeonmod.network.BuyPayload.ID, com.dungeonmod.network.BuyPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
             com.dungeonmod.network.SellPayload.ID, com.dungeonmod.network.SellPayload.CODEC);
+        net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry.playC2S().register(
+            com.dungeonmod.network.JumpStatePayload.ID, com.dungeonmod.network.JumpStatePayload.CODEC);
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
+            com.dungeonmod.network.JumpStatePayload.ID, (payload, context) -> {
+                // Mémorise si le joueur maintient la touche espace (cape du voyageur)
+                if (payload.jumping()) capeJumpHeld.add(context.player().getUuid());
+                else capeJumpHeld.remove(context.player().getUuid());
+            });
+
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
+            (handler, server) -> capeJumpHeld.remove(handler.player.getUuid()));
 
         net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.registerGlobalReceiver(
             com.dungeonmod.network.OpenShopPayload.ID, (payload, context) -> {
@@ -348,64 +360,8 @@ public class DungeonMod implements ModInitializer {
                 }
             }
 
-            if (isFlask(stack) && isBlessedFlask(stack)) {
-                if (!world.isClient()) {
-                    if (player instanceof ServerPlayerEntity sp) {
-                        holyWaterTimers.put(sp.getUuid(), System.currentTimeMillis() + 8000);
-                    }
-                    transformFlaskToNormal(player, hand, stack);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isApple(stack)) {
-                if (!world.isClient()) {
-                    player.heal(1.0f);
-                    if (!player.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isPotato(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
-                    sp.heal(2.0f);
-                    sp.addStatusEffect(new StatusEffectInstance(
-                        StatusEffects.NAUSEA, 200, 0, false, false));
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isSteak(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
-                    sp.heal(6.0f);
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
-            }
-
-            if (isBiere(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
-                    if (stack.isOf(Items.POTION)) {
-                        sp.addStatusEffect(new StatusEffectInstance(
-                            StatusEffects.NAUSEA, 400, 0, false, false));
-                        com.dungeonmod.util.BeerStrengthData.applyBoost(sp, "brune", 1.5f, 400);
-                    } else {
-                        com.dungeonmod.util.BeerStrengthData.applyBoost(sp, "viking", 2.5f, 600);
-                    }
-                    if (!sp.isCreative()) {
-                        ItemStack chope = new ItemStack(Items.GLASS_BOTTLE);
-                        chope.set(DataComponentTypes.CUSTOM_NAME, net.minecraft.text.Text.literal("§7Chope de bière"));
-                        chope.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "chope_biere"));
-                        if (hand.equals(net.minecraft.util.Hand.MAIN_HAND)) {
-                            player.getInventory().setStack(player.getInventory().selectedSlot, chope);
-                        } else {
-                            player.getInventory().setStack(40, chope);
-                        }
-                    }
-                }
-                return ActionResult.SUCCESS;
-            }
+            // Pomme / patate / steack / chair gobelin / bière / fiole bénite :
+            // animations vanilla + effets via DungeonConsumableMixin (plus d'instantané ici).
 
             if (isEgg(stack)) {
                 if (!world.isClient() && player instanceof ServerPlayerEntity sp) {
@@ -530,6 +486,7 @@ public class DungeonMod implements ModInitializer {
                     checkFlecheTimers(player, System.currentTimeMillis());
                     handleTetralame(player);
                     handleDungeonFood(player);
+                    handleCompasRepare(player);
                 }
             }
             // Grappin de l'ancre
@@ -592,6 +549,113 @@ public class DungeonMod implements ModInitializer {
         if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
         String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
         return name.contains("Steack cru");
+    }
+
+    /** Chair de gobelin crue (BEEF) ou cuite (COOKED_BEEF). */
+    public static boolean isGoblinMeat(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        if (!stack.isOf(Items.BEEF) && !stack.isOf(Items.COOKED_BEEF)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
+        return name.contains("Chair de gobelin");
+    }
+
+    /** Plastron du glouton équipé (slot chest). */
+    public static boolean hasGloutonChestplate(PlayerEntity player) {
+        if (player == null) return false;
+        ItemStack chest = player.getInventory().getArmorStack(2);
+        if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return false;
+        if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        return chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du glouton");
+    }
+
+    /** Compas réparé (ex « Boussole réparée » — compat anciens stacks). */
+    public static boolean isCompasRepare(ItemStack stack) {
+        if (stack.isEmpty() || !stack.isOf(Items.COMPASS)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        String name = stack.get(DataComponentTypes.CUSTOM_NAME).getString();
+        return name.contains("Compas réparé") || name.contains("Boussole réparée");
+    }
+
+    /**
+     * Met à jour le lodestone_tracker de chaque compas réparé pour pointer
+     * le CENTRE géométrique de la salle-puits la plus proche (même étage).
+     * Les salles font CELL×CELL (10×10) ; lastPuitPositions stocke le coin
+     * bas-ouest de la structure — on vise donc le milieu exact de la pièce
+     * (là où se trouve le puits), pas le coin de la structure.
+     * tracked=false : pas de lodestone physique requis.
+     */
+    private static void handleCompasRepare(ServerPlayerEntity player) {
+        var puits = com.dungeonmod.test.TestGenerator.lastPuitPositions;
+        if (puits == null || puits.isEmpty()) return;
+
+        // Taille réelle des salles placées (10 par défaut)
+        final int cell = Math.max(1, com.dungeonmod.test.TestGenerator.getStructSizeX());
+        // Centre géométrique : coin + cell/2 (ex. 10 → +5 = milieu de la pièce)
+        final int half = cell / 2;
+
+        int originY = com.dungeonmod.test.TestGenerator.getLastOriginY();
+        // Étage bas = autour de originY ; étage haut (P4) = originY + 10
+        boolean playerTop = player.getY() >= originY + 5.0;
+
+        BlockPos bestCorner = null;
+        double bestDist = Double.MAX_VALUE;
+        double px = player.getX();
+        double pz = player.getZ();
+        for (BlockPos p : puits) {
+            boolean puitTop = p.getY() >= originY + 5;
+            if (puitTop != playerTop) continue;
+            // Distance au centre réel de la salle (pas au coin de la structure)
+            double cx = p.getX() + half + 0.5;
+            double cz = p.getZ() + half + 0.5;
+            double d = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
+            if (d < bestDist) {
+                bestDist = d;
+                bestCorner = p;
+            }
+        }
+        if (bestCorner == null) {
+            // Fallback : puit le plus proche tous étages
+            for (BlockPos p : puits) {
+                double cx = p.getX() + half + 0.5;
+                double cz = p.getZ() + half + 0.5;
+                double d = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestCorner = p;
+                }
+            }
+        }
+        if (bestCorner == null) return;
+
+        // Bloc au centre de la salle (milieu X/Z), hauteur sol + 1 pour l'eau du puits
+        BlockPos target = new BlockPos(
+            bestCorner.getX() + half,
+            bestCorner.getY() + 1,
+            bestCorner.getZ() + half
+        );
+        var dim = player.getWorld().getRegistryKey();
+        var global = net.minecraft.util.math.GlobalPos.create(dim, target);
+        var newTracker = new net.minecraft.component.type.LodestoneTrackerComponent(
+            java.util.Optional.of(global), false);
+
+        for (int i = 0; i < player.getInventory().size(); i++) {
+            ItemStack stack = player.getInventory().getStack(i);
+            if (!isCompasRepare(stack)) continue;
+            // Migre l'ancien nom / modèle vers « Compas réparé »
+            var cn = stack.get(DataComponentTypes.CUSTOM_NAME);
+            if (cn != null && cn.getString().contains("Boussole réparée")) {
+                stack.set(DataComponentTypes.CUSTOM_NAME, Text.literal("§aCompas réparé"));
+                stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("dungeonmod", "compas_repare"));
+            }
+            var cur = stack.get(DataComponentTypes.LODESTONE_TRACKER);
+            if (cur != null && cur.target().isPresent()) {
+                var gp = cur.target().get();
+                if (gp.pos().equals(target) && gp.dimension().equals(dim)) continue;
+            }
+            stack.set(DataComponentTypes.LODESTONE_TRACKER, newTracker);
+            player.getInventory().setStack(i, stack);
+        }
     }
 
     public static boolean isBiere(ItemStack stack) {
@@ -829,8 +893,11 @@ public class DungeonMod implements ModInitializer {
     }
 
     public static boolean isBlessedFlask(ItemStack stack) {
-        return stack.isOf(Items.GLASS_BOTTLE) && stack.contains(DataComponentTypes.CUSTOM_NAME) && 
-            stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Fiole d'eau bénite");
+        // Creative/ModItems = POTION ; transform fontaine = GLASS_BOTTLE
+        if (stack.isEmpty()) return false;
+        if (!stack.isOf(Items.GLASS_BOTTLE) && !stack.isOf(Items.POTION)) return false;
+        if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
+        return stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Fiole d'eau bénite");
     }
 
     private static boolean isNearWater(World world, BlockPos pos) {
@@ -1223,14 +1290,44 @@ public class DungeonMod implements ModInitializer {
         }
     }
 
+    // ===================== Cape du voyageur =====================
+
+    /** Joueurs maintenant la touche ESPACE enfoncée (signalé par JumpStatePayload). */
+    public static final java.util.Set<java.util.UUID> capeJumpHeld = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    // Vitesses de la cape (blocs/tick) — référence : la chute lente vanilla descend à ~0.8
+    private static final double CAPE_DIVE_SPEED = -3.5;   // SHIFT en l'air : plongée rapide vers le sol
+    private static final double CAPE_HOVER_SPEED = -0.05; // ESPACE maintenu : descente ultra lente
+
     private static void handleVoyageurCape(ServerPlayerEntity player) {
         var chest = player.getInventory().getArmorStack(2);
-        if (chest.isEmpty() || !chest.isOf(Items.ELYTRA)) return;
+        if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return;
         if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Cape du voyageur")) return;
 
         player.addStatusEffect(new StatusEffectInstance(
             StatusEffects.SLOW_FALLING, 15, 0, true, false, false));
+
+        // Contrôles aériens (inactifs au sol et en vol plané élytra)
+        if (player.isOnGround() || player.isGliding()) return;
+
+        double vx = player.getVelocity().x;
+        double vy = player.getVelocity().y;
+        double vz = player.getVelocity().z;
+
+        if (player.isSneaking()) {
+            // SHIFT en l'air : plongée rapide vers le sol
+            player.setVelocity(vx, CAPE_DIVE_SPEED, vz);
+            player.velocityModified = true;
+        } else if (capeJumpHeld.contains(player.getUuid())) {
+            // ESPACE maintenu : descente ultra lente + léger mal de mer
+            if (vy < CAPE_HOVER_SPEED) {
+                player.setVelocity(vx, CAPE_HOVER_SPEED, vz);
+                player.velocityModified = true;
+            }
+            player.addStatusEffect(new StatusEffectInstance(
+                StatusEffects.NAUSEA, 100, 0, true, false, false));
+        }
     }
 
     private static boolean hasVoyageurLeggings(ServerPlayerEntity player) {
@@ -1354,7 +1451,8 @@ public class DungeonMod implements ModInitializer {
     }
 
     private static final java.util.Map<java.util.UUID, Long> flechePause = new java.util.HashMap<>();
-    private static final java.util.Map<java.util.UUID, Long> holyWaterTimers = new java.util.HashMap<>();
+    /** Timers eau bénite (uuid → expireAt ms). Public pour DungeonConsumableMixin. */
+    public static final java.util.Map<java.util.UUID, Long> holyWaterTimers = new java.util.HashMap<>();
     private static final java.util.Map<java.util.UUID, Long> holyWaterLastHeal = new java.util.HashMap<>();
 
     private static void checkFlecheTimers(ServerPlayerEntity player, long now) {

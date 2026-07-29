@@ -5,6 +5,7 @@ build/
 # IDE
 .idea/
 *.iml
+.vscode/
 
 # Minecraft
 run/
@@ -14,14 +15,11 @@ out/
 *.log
 *.hprof
 
-# Submodules
-oneblock-mod/
+# Module futur (hors repo)
 dungeon-lobby/
 
-# Documents
+# Documents de travail temporaires
 *.txt
 *.html
 *.odt
-
-# Python
-algodonjonpython/
+dungeonmod/dungeon_viz.html

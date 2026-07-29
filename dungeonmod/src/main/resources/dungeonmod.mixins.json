@@ -11,6 +11,8 @@
     "ZombieEntityMixin",
     "ItemStackMixin",
     "DamageUtilMixin",
+    "ArmorAttributeCapMixin",
+    "DungeonConsumableMixin",
     "LivingEntityDamageMixin",
     "PlayerAttackMixin",
     "LivingEntityPoseMixin",

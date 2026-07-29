@@ -22,10 +22,11 @@ public class VoyageurMixin {
         if (!(source.getAttacker() instanceof PlayerEntity player)) return;
 
         var chest = player.getInventory().getArmorStack(2);
-        if (chest.isEmpty() || !chest.isOf(Items.LEATHER_CHESTPLATE)) return;
+        if (chest.isEmpty() || !chest.isOf(Items.CHAINMAIL_CHESTPLATE)) return;
         if (!chest.contains(DataComponentTypes.CUSTOM_NAME)) return;
         if (!chest.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Plastron du chasseur")) return;
 
+        // 1 HP = 0,5 coeur
         player.heal(1.0f);
     }
 }

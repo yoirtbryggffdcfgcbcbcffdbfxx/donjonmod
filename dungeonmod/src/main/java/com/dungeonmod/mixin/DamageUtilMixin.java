@@ -9,6 +9,10 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(DamageUtil.class)
 public class DamageUtilMixin {
 
+    /**
+     * @reason Remplace la formule de dégâts vanilla : dégâts × (1 - armure/100)
+     *         (1 point d'armure = 1 % de réduction, formule propre au donjon).
+     */
     @Overwrite
     public static float getDamageLeft(LivingEntity entity, float amount, DamageSource source, float armor, float toughness) {
         if (armor < 0.0f) armor = 0.0f;
