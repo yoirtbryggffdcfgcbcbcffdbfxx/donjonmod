@@ -219,7 +219,11 @@ final class DungeonPart2 {
             Point straight = new Point(cx + dx, cy + dy);
             boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                     && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-            boolean goStraight = straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f);
+            // La première cellule après porte2 doit continuer dans l'axe : la structure
+            // "porte2" réutilise une porte/couloir droit, pas un virage. Si impossible,
+            // on rejette ce layout et le retry amont régénère une approche compatible.
+            if (i == 0 && !straightOk) return null;
+            boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
             int ndx = dx, ndy = dy;
             if (!goStraight) {
                 int[][] perp = {{dy, -dx}, {-dy, dx}};
@@ -532,19 +536,19 @@ final class DungeonPart2 {
                 chain.add(next);
             } else {
                 // Porte2 = leaf (deg 1)
-                labels.put(next, RoomIds.DOOR_2);
                 // Vérifier géométrie : chaque cellule de la chaîne doit être deg 2
                 // (approche = couloir droit ou virage, JAMAIS intersection)
                 for (Point gp : chain) {
                     if (adj.getOrDefault(gp, Set.of()).size() != 2) return null;
-                }
-                // Labels : couloirs génériques C/I2 selon adjacence (plus de M5 ici —
-                // la M5 de P2 se pose ailleurs sur une ligne droite, dans analyzePart2).
-                for (Point gp : chain) {
                     Shape sh = DungeonLabels.shapeOf(adj.get(gp));
                     if (sh != Shape.STRAIGHT && sh != Shape.TURN) return null;
-                    labels.put(gp, DungeonLabels.shapeLabel(sh, Theme.P12, rng));
                 }
+                // Même modèle que P1/P2 : les cellules d'approche sont génériques P12,
+                // porte2 est un special, puis on construit les labels finaux du segment.
+                DungeonLabelState labelState = new DungeonLabelState();
+                labelState.setTheme(chain, Theme.P12);
+                labelState.putSpecial(next, RoomIds.DOOR_2);
+                labels.putAll(labelState.buildLabels(adj, rng, chain));
                 return next;
             }
         }

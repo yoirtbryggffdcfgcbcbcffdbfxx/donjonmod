@@ -240,7 +240,11 @@ final class DungeonPart1 {
             Point straight = new Point(cx + dx, cy + dy);
             boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                     && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-            boolean goStraight = straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f);
+            // La première cellule après la porte doit continuer dans l'axe : la structure
+            // "porte" est un couloir droit, pas un virage. Si l'axe dépasse la limite
+            // colinéaire, on rejette ce layout et on laisse le retry amont choisir mieux.
+            if (i == 0 && !straightOk) return null;
+            boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
             // Si droit impossible ou non choisi → virage
             int ndx = dx, ndy = dy;
             if (!goStraight) {
