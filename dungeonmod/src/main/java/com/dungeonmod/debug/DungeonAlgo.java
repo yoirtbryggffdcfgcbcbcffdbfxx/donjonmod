@@ -1136,22 +1136,69 @@ public class DungeonAlgo {
         for (int b = 0; b < Math.min(2, ad.size()); b++) {
             int bDir = ad.get(b);
             Point bk = e.move(DIR_OFFSET[bDir]);
+            if (colinearRunAfterEdge(e, bk, adj) > MAX_COLINEAR_RUN) continue;
             addEdge(adj, occupied, e, bk);
 
             int bl = 3 + rng.nextInt(4);
-            int cDir = bDir; Point c = bk; int st = 0;
+            int cDir = bDir; Point c = bk;
             for (int s = 0; s < bl; s++) {
-                st++;
-                if (st >= 2 && rng.nextFloat() < 0.3) {
+                boolean mustTurn = colinearRunAfterEdge(c, c.move(DIR_OFFSET[cDir]), adj) > MAX_COLINEAR_RUN;
+                if (mustTurn || rng.nextFloat() < 0.3f) {
                     cDir = (cDir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                    st = 0;
                 }
                 Point nn = c.move(DIR_OFFSET[cDir]);
                 if (nn.isOutOfBounds() || occupied.contains(nn)) break;
+                if (colinearRunAfterEdge(c, nn, adj) > MAX_COLINEAR_RUN) {
+                    boolean ok = false;
+                    for (int side : new int[]{1, 3}) {
+                        int td = (cDir + side) % 4;
+                        Point cand = c.move(DIR_OFFSET[td]);
+                        if (cand.isOutOfBounds() || occupied.contains(cand)) continue;
+                        if (colinearRunAfterEdge(c, cand, adj) > MAX_COLINEAR_RUN) continue;
+                        cDir = td; nn = cand; ok = true; break;
+                    }
+                    if (!ok) break;
+                }
                 addEdge(adj, occupied, c, nn);
                 c = nn;
             }
         }
+    }
+
+    /**
+     * Longueur max d'une run colinéaire dans l'adj (segments = arêtes alignées).
+     * Parcourt tous les axes cardinaux depuis chaque nœud.
+     * Une droite I3—C—C—I2 = 3 segments ; au-delà de {@link #MAX_COLINEAR_RUN} → invalide.
+     */
+    private static int maxColinearRunInGraph(Map<Point, Set<Point>> adj) {
+        int max = 0;
+        // Pour chaque arête, mesurer la run complète sur son axe (évite double-comptage partiel)
+        Set<String> seenAxes = new HashSet<>();
+        for (Point p : adj.keySet()) {
+            for (Point nb : adj.getOrDefault(p, Set.of())) {
+                int dx = Integer.signum(nb.x() - p.x());
+                int dy = Integer.signum(nb.y() - p.y());
+                if (Math.abs(dx) + Math.abs(dy) != 1) continue;
+                // Normaliser l'axe pour ne le traiter qu'une fois (direction + point d'ancrage min)
+                int ndx = dx, ndy = dy;
+                if (ndx < 0 || (ndx == 0 && ndy < 0)) { ndx = -ndx; ndy = -ndy; }
+                // Ancre = extrémité "minimale" de la run
+                Point cur = p;
+                while (adj.getOrDefault(cur, Set.of()).contains(cur.move(-ndx, -ndy))) {
+                    cur = cur.move(-ndx, -ndy);
+                }
+                String key = cur.key() + "|" + ndx + "," + ndy;
+                if (!seenAxes.add(key)) continue;
+                int run = colinearRunInAdj(cur, ndx, ndy, adj);
+                if (run > max) max = run;
+            }
+        }
+        return max;
+    }
+
+    /** True si aucune droite géométrique de l'adj ne dépasse MAX_COLINEAR_RUN. */
+    private static boolean respectsColinearLimit(Map<Point, Set<Point>> adj) {
+        return maxColinearRunInGraph(adj) <= MAX_COLINEAR_RUN;
     }
 
     private static TreeResult generateTrunkTree(int targetMin, int targetMax,
@@ -2542,6 +2589,12 @@ public class DungeonAlgo {
                 // Parcours : … → M5 → [1–2 C/I2] → porte → chemin → taverne / campement
                 int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
                 if (m5 < 2) continue; // M5 obligatoire sur les 2 portes (gap inclus)
+
+                // Garde-fou FINAL : après M5 + chemins taverne/camp + P3, aucune droite
+                // géométrique de l'adj (I3/M5/porte/couloirs comptés) ne doit dépasser
+                // MAX_COLINEAR_RUN segments. Couvre le cas :
+                //   I3—C—I3—M5—C—porte—C—C—virage  → run trop longue → retry
+                if (!respectsColinearLimit(sp1.adj)) continue;
 
                 // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
                 // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
