@@ -13,6 +13,8 @@ import com.dungeonmod.debug.DungeonAlgo.Point;
  *   2. cohérence labels <-> adjacence (DungeonAlgo.validateStructure) sur les 2 étages
  *   3. connexité des 2 étages (BFS : tout nœud étiqueté doit être atteignable)
  *   4. garanties gameplay (Prison, loot, Ogre, Centrale, PorteGob, MarchandNoir, PuitDJ...)
+ *   5. espacement : monstres espacés (>= MONSTER_MIN_DIST), Ogre isolé (>= OGRE_MIN_MONSTER_DIST),
+ *      culs-de-sac génériques jamais après une ligne droite
  *
  * Usage : java com.dungeonmod.debug.SeedHarness [-n count] [-s startSeed] [-v]
  *   -n : nombre de seeds dans la plage séquentielle (défaut 100)
@@ -118,6 +120,12 @@ public class SeedHarness {
         // 3. Garanties gameplay
         checkGuarantees(problems, dr, seed);
 
+        // 4. Règles d'espacement : monstres entre eux, isolement Ogre, culs-de-sac
+        checkSpacingRules(problems, dr.labels, dr.adj, "ETAGE 0", seed, true);
+        if (dr.topLabels != null && dr.p4Adj != null) {
+            checkSpacingRules(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", seed, false);
+        }
+
         if (verbose) {
             if (problems.isEmpty()) {
                 System.out.println("seed " + seed + " : OK");
@@ -158,6 +166,57 @@ public class SeedHarness {
                     + " noeud(s) inatteignable(s) : ["
                     + String.join(", ", unreachable.subList(0, Math.min(4, unreachable.size())))
                     + (unreachable.size() > 4 ? ", ..." : "") + "]");
+        }
+    }
+
+    /**
+     * Règles d'espacement (cahier des charges) :
+     *  - deux salles monstre toujours à distance >= MONSTER_MIN_DIST (2 salles neutres min) ;
+     *  - toute salle monstre à distance >= OGRE_MIN_MONSTER_DIST de l'Ogre (3 salles min) ;
+     *  - un cul-de-sac générique (cul/culDJ/CDG) jamais après une ligne droite : son parent
+     *    à 2 voisins doit être un VIRAGE, pas un couloir droit (intersection = toujours OK).
+     */
+    private static void checkSpacingRules(List<String> problems, Map<Point, String> labels,
+                                          Map<Point, Set<Point>> adj, String scope, long seed, boolean checkOgre) {
+        if (labels == null || labels.isEmpty() || adj == null) return;
+
+        List<Point> monsters = new ArrayList<>();
+        Point ogre = null;
+        for (var e : labels.entrySet()) {
+            if (DungeonAlgo.isMonsterLabel(e.getValue())) monsters.add(e.getKey());
+            if ("Ogre".equals(e.getValue())) ogre = e.getKey();
+        }
+        for (int i = 0; i < monsters.size(); i++) {
+            Map<Point, Integer> d = DungeonAlgo.bfsDistances(adj, monsters.get(i));
+            for (int j = i + 1; j < monsters.size(); j++) {
+                int dd = d.getOrDefault(monsters.get(j), Integer.MAX_VALUE);
+                if (dd < DungeonAlgo.MONSTER_MIN_DIST) {
+                    problems.add("seed " + seed + " : " + scope + " monstres trop proches (dist " + dd
+                            + " < " + DungeonAlgo.MONSTER_MIN_DIST + ") : "
+                            + labels.get(monsters.get(i)) + " @(" + monsters.get(i).key() + ") <-> "
+                            + labels.get(monsters.get(j)) + " @(" + monsters.get(j).key() + ")");
+                }
+            }
+            if (checkOgre && ogre != null) {
+                int dd = d.getOrDefault(ogre, Integer.MAX_VALUE);
+                if (dd < DungeonAlgo.OGRE_MIN_MONSTER_DIST) {
+                    problems.add("seed " + seed + " : " + scope + " monstre trop proche de l'Ogre (dist " + dd
+                            + " < " + DungeonAlgo.OGRE_MIN_MONSTER_DIST + ") : "
+                            + labels.get(monsters.get(i)) + " @(" + monsters.get(i).key() + ")");
+                }
+            }
+        }
+
+        for (var e : labels.entrySet()) {
+            if (!DungeonAlgo.isGenericDeadEnd(e.getValue())) continue;
+            Set<Point> nb = adj.getOrDefault(e.getKey(), Set.of());
+            if (nb.size() != 1) continue;
+            Point parent = nb.iterator().next();
+            Set<Point> pAdj = adj.getOrDefault(parent, Set.of());
+            if (pAdj.size() == 2 && DungeonAlgo.shapeOf(pAdj) == DungeonAlgo.Shape.STRAIGHT) {
+                problems.add("seed " + seed + " : " + scope + " cul-de-sac après une ligne droite @("
+                        + e.getKey().key() + "), parent @(" + parent.key() + ")=" + labels.get(parent));
+            }
         }
     }
 

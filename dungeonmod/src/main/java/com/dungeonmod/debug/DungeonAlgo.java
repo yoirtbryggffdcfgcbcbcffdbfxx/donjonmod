@@ -9,14 +9,16 @@ public class DungeonAlgo {
     public static final int[][] DIR_OFFSET = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
     public static final int GRID_SIZE = 400;
 
-    private static final int PART1_TARGET_MIN = 20;
-    private static final int PART1_TARGET_MAX = 26;
+    // Arbres légèrement agrandis : plus de place pour respecter l'espacement des salles
+    // monstres (>= 2 salles neutres entre elles) et l'isolement de l'Ogre sans rejet massif.
+    private static final int PART1_TARGET_MIN = 24;
+    private static final int PART1_TARGET_MAX = 30;
     private static final int PART1_MAX_I3 = 3;
     private static final int PART1_MAX_I4 = 1;
     private static final int PART1_STRAIGHT_WEIGHT = 1;
 
-    private static final int PART2_TARGET_MIN = 18;
-    private static final int PART2_TARGET_MAX = 25;
+    private static final int PART2_TARGET_MIN = 23;
+    private static final int PART2_TARGET_MAX = 29;
     private static final int PART2_MAX_I3 = 4;
     private static final int PART2_STRAIGHT_WEIGHT = 1;
 
@@ -199,6 +201,167 @@ public class DungeonAlgo {
             case "CG1", "GI2", "GI3", "GI4", "CDG": return Theme.GOBLIN;
             default: return null;
         }
+    }
+
+    // ===================== Règles d'espacement (monstres / Ogre / culs-de-sac) =====================
+
+    /** Distance min entre DEUX salles monstre : 3 => au moins 2 salles neutres entre elles. */
+    public static final int MONSTER_MIN_DIST = 3;
+    /** Distance min entre l'OGRE et toute salle monstre : 4 => au moins 3 salles neutres. */
+    public static final int OGRE_MIN_MONSTER_DIST = 4;
+
+    /** Vrai si le label est une salle monstre (M1-M4 des grottes, MJ1-MJ5 du donjon). */
+    public static boolean isMonsterLabel(String v) {
+        if (v == null) return false;
+        return v.equals(RoomIds.MONSTER_1) || v.equals(RoomIds.MONSTER_2)
+            || v.equals(RoomIds.MONSTER_3) || v.equals(RoomIds.MONSTER_4)
+            || RoomPools.LEAF_MONSTERS_P3_P4.contains(v) || RoomPools.CORRIDOR_MONSTERS_P3_P4.contains(v);
+    }
+
+    /** Vrai pour les culs-de-sac GÉNÉRIQUES (jamais les salles spéciales en cul-de-sac). */
+    public static boolean isGenericDeadEnd(String v) {
+        return RoomIds.DEAD_END.equals(v) || RoomIds.DEAD_END_DJ.equals(v) || RoomIds.GOBLIN_DEAD_END.equals(v);
+    }
+
+    /** Tous les points actuellement étiquetés comme salle monstre. */
+    private static Set<Point> monsterPoints(Map<Point, String> labels) {
+        Set<Point> out = new HashSet<>();
+        for (var e : labels.entrySet()) if (isMonsterLabel(e.getValue())) out.add(e.getKey());
+        return out;
+    }
+
+    /** Distances BFS depuis src (en nombre de salles traversées). */
+    public static Map<Point, Integer> bfsDistances(Map<Point, Set<Point>> adj, Point src) {
+        Map<Point, Integer> dist = new HashMap<>();
+        if (src == null) return dist;
+        Queue<Point> q = new ArrayDeque<>();
+        dist.put(src, 0); q.add(src);
+        while (!q.isEmpty()) {
+            Point p = q.poll();
+            int d = dist.get(p);
+            for (Point nb : adj.getOrDefault(p, Set.of())) {
+                if (!dist.containsKey(nb)) { dist.put(nb, d + 1); q.add(nb); }
+            }
+        }
+        return dist;
+    }
+
+    /** Vrai si cand est à distance >= minDist de CHAQUE cible (BFS borné à minDist - 1). */
+    private static boolean isFarFromAll(Map<Point, Set<Point>> adj, Point cand, Collection<Point> targets, int minDist) {
+        if (targets == null || targets.isEmpty()) return true;
+        Set<Point> remaining = new HashSet<>(targets);
+        remaining.remove(cand);
+        if (remaining.isEmpty()) return true;
+        Map<Point, Integer> dist = new HashMap<>();
+        Queue<Point> q = new ArrayDeque<>();
+        dist.put(cand, 0); q.add(cand);
+        while (!q.isEmpty()) {
+            Point p = q.poll();
+            int d = dist.get(p);
+            if (d >= minDist) return true; // rien découvert ensuite ne peut plus être trop proche
+            for (Point nb : adj.getOrDefault(p, Set.of())) {
+                if (dist.containsKey(nb)) continue;
+                dist.put(nb, d + 1);
+                if (remaining.remove(nb) && d + 1 < minDist) return false; // cible trop proche
+                q.add(nb);
+            }
+        }
+        return true;
+    }
+
+    /** Premier candidat (liste pré-mélangée => aléatoire) à distance >= minDist des cibles. */
+    private static Point firstFar(Map<Point, Set<Point>> adj, List<Point> candidates, Collection<Point> targets, int minDist) {
+        for (Point c : candidates) if (isFarFromAll(adj, c, targets, minDist)) return c;
+        return null;
+    }
+
+    /** Cellule in-bounds et inoccupée par le graphe. */
+    private static boolean isFreeCell(Map<Point, Set<Point>> adj, Point p) {
+        return !p.isOutOfBounds() && !adj.containsKey(p);
+    }
+
+    /** Déplace une feuille cul-de-sac : retire leaf et raccroche target à newParent. */
+    private static void moveDeadEnd(Map<Point, String> labels, Map<Point, Set<Point>> adj,
+                                    Point leaf, Point oldParent, Point newParent, Point target) {
+        adj.get(oldParent).remove(leaf);
+        adj.remove(leaf);
+        Set<Point> t = new HashSet<>();
+        t.add(newParent);
+        adj.put(target, t);
+        adj.get(newParent).add(target);
+        String lbl = labels.remove(leaf);
+        labels.put(target, lbl);
+    }
+
+    /**
+     * PASSE CUL-DE-SAC (règle gameplay) : un cul-de-sac générique (cul / culDJ / CDG) ne doit
+     * JAMAIS terminer une ligne droite — il ne peut suivre qu'un virage ou une intersection.
+     * Pour chaque cul fautif (parent droit, 2 voisins), on tente :
+     *   1) de déplacer sa cellule sur un voisin LATÉRAL libre du parent (le parent devient virage) ;
+     *   2) sinon de le rattacher au GRAND-PARENT générique (qui devient intersection — l'ancien
+     *      parent, privé de sa feuille, devient lui-même un cul valide après cette intersection).
+     * Un parent SPÉCIAL droit (puit, M2/M4, MJ2/4...) ne peut pas être courbé : la passe échoue
+     * alors (false) et le layout est rejeté par l'appelant (retry en amont).
+     * Invariant : seules des feuilles bougent — AUCUNE distance entre les autres salles ne change.
+     */
+    private static boolean enforceDeadEndAfterTurn(Map<Point, String> labels, Map<Point, Set<Point>> adj, Random rng) {
+        boolean fixed;
+        do {
+            fixed = false;
+            List<Point> sorted = new ArrayList<>(labels.keySet());
+            sorted.sort(Comparator.comparingInt(Point::x).thenComparingInt(Point::y));
+            for (Point leaf : sorted) {
+                String lbl = labels.get(leaf);
+                if (!isGenericDeadEnd(lbl)) continue;
+                Set<Point> nb = adj.get(leaf);
+                if (nb == null || nb.size() != 1) continue;
+                Point parent = nb.iterator().next();
+                Set<Point> pAdj = adj.get(parent);
+                if (pAdj == null || pAdj.size() != 2) continue; // intersection (ou cas exotique) : déjà valide
+                if (shapeOf(pAdj) != Shape.STRAIGHT) continue;  // virage : déjà valide
+                String parentLbl = labels.get(parent);
+                if (parentLbl == null) continue;                 // cellule structurelle non étiquetée : on laisse
+                Point gp = null;
+                for (Point q : pAdj) if (!q.equals(leaf)) { gp = q; break; }
+                if (gp == null) continue;
+
+                boolean moved = false;
+                // 1) Rebascule latérale du cul : le parent (générique) devient un virage.
+                if (genericThemeOf(parentLbl) != null) {
+                    int dx = parent.x() - gp.x(), dy = parent.y() - gp.y();
+                    List<Point> laterals = new ArrayList<>();
+                    Point l1 = new Point(parent.x() - dy, parent.y() + dx);
+                    Point l2 = new Point(parent.x() + dy, parent.y() - dx);
+                    if (isFreeCell(adj, l1)) laterals.add(l1);
+                    if (isFreeCell(adj, l2)) laterals.add(l2);
+                    if (!laterals.isEmpty()) {
+                        Point target = laterals.get(rng.nextInt(laterals.size()));
+                        moveDeadEnd(labels, adj, leaf, parent, parent, target);
+                        moved = true;
+                    }
+                }
+                // 2) Rattachement au grand-parent : il devient intersection ; l'ancien parent
+                //    générique, désormais feuille, devient un cul-de-sac valide à son tour.
+                if (!moved && genericThemeOf(parentLbl) != null && genericThemeOf(labels.get(gp)) != null
+                        && adj.get(gp).size() <= 3) {
+                    List<Point> opts = new ArrayList<>();
+                    for (int[] d : DIR_OFFSET) {
+                        Point q = gp.move(d);
+                        if (!q.equals(parent) && isFreeCell(adj, q)) opts.add(q);
+                    }
+                    if (!opts.isEmpty()) {
+                        Point target = opts.get(rng.nextInt(opts.size()));
+                        moveDeadEnd(labels, adj, leaf, parent, gp, target);
+                        moved = true;
+                    }
+                }
+                if (!moved) return false; // parent spécial droit ou aucune cellule libre : retry
+                fixed = true;             // carte mutée : on recommence un scan complet
+                break;
+            }
+        } while (fixed);
+        reclassifyGeneric(labels, adj, rng);
+        return true;
     }
 
     /**
@@ -548,12 +711,22 @@ public class DungeonAlgo {
         Point prisonParent = adj.get(prison).iterator().next();
         labels.put(prisonParent, RoomIds.MONSTER_2);
         labels.put(others.get(1), RoomIds.LOOT_1);
-        labels.put(others.get(2), RoomIds.MONSTER_1);
+
+        // ESPACEMENT MONSTRES (règle dure) : chaque salle monstre M1-M4 doit être à distance
+        // >= MONSTER_MIN_DIST des autres (au moins 2 salles neutres entre elles). Si le layout
+        // ne permet pas de la respecter, il est rejeté (return null => retry amont).
+        Set<Point> monsters = new HashSet<>();
+        monsters.add(prisonParent);
+        List<Point> freeLeaves = new ArrayList<>();
+        for (int i = 2; i < others.size(); i++) freeLeaves.add(others.get(i));
+        Collections.shuffle(freeLeaves, rng);
+
+        Point m1 = firstFar(adj, freeLeaves, monsters, MONSTER_MIN_DIST);
+        if (m1 == null) return null;
+        labels.put(m1, RoomIds.MONSTER_1);
+        monsters.add(m1);
+        freeLeaves.remove(m1);
         boolean isM4 = rng.nextBoolean();
-        
-        if (others.size() > 3) {
-            for (int i = 3; i < others.size(); i++) labels.put(others.get(i), RoomIds.DEAD_END);
-        }
 
         List<Point> cNodes = new ArrayList<>(), i2Nodes = new ArrayList<>(), i3Nodes = new ArrayList<>(), i4Nodes = new ArrayList<>();
         for (var e : adj.entrySet()) {
@@ -567,15 +740,36 @@ public class DungeonAlgo {
             else if (deg == 4) i4Nodes.add(e.getKey());
         }
 
-        Point m4Point = null;
-        if (isM4) {
-            for (Point n : cNodes) { if (!labels.containsKey(n)) { m4Point = n; break; } }
+        // 2e salle monstre de P1 : M4 (couloir) ou M3 (feuille) selon le tirage, avec repli
+        // sur l'autre variante si l'espacement est impossible. Échec des deux => rejet (null).
+        String secondMonster = null;
+        for (int variant = 0; variant < 2 && secondMonster == null; variant++) {
+            boolean tryCorr = (variant == 0) == isM4;
+            if (tryCorr) {
+                List<Point> validC = new ArrayList<>();
+                for (Point n : cNodes) {
+                    if (!labels.containsKey(n) && isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) validC.add(n);
+                }
+                if (!validC.isEmpty()) {
+                    Point m4Point = validC.get(rng.nextInt(validC.size()));
+                    labels.put(m4Point, RoomIds.MONSTER_4);
+                    monsters.add(m4Point);
+                    secondMonster = RoomIds.MONSTER_4;
+                }
+            } else {
+                Point m3 = firstFar(adj, freeLeaves, monsters, MONSTER_MIN_DIST);
+                if (m3 != null) {
+                    labels.put(m3, RoomIds.MONSTER_3);
+                    monsters.add(m3);
+                    freeLeaves.remove(m3);
+                    secondMonster = RoomIds.MONSTER_3;
+                }
+            }
         }
-        if (m4Point != null) {
-            labels.put(m4Point, RoomIds.MONSTER_4);
-        } else if (others.size() > 3) {
-            labels.put(others.get(3), RoomIds.MONSTER_3);
-        }
+        if (secondMonster == null) return null;
+
+        // Les feuilles non utilisées deviennent des culs-de-sac génériques.
+        for (Point n : freeLeaves) labels.put(n, RoomIds.DEAD_END);
 
         for (Point n : cNodes) {
             if (!labels.containsKey(n)) { labels.put(n, RoomIds.WELL); break; }
@@ -614,6 +808,8 @@ public class DungeonAlgo {
                 }
             }
         }
+        // Règle cul-de-sac : jamais au bout d'une ligne droite (virage/intersection requis).
+        if (!enforceDeadEndAfterTurn(labels, adj, rng)) return null;
         return labels;
     }
 
@@ -717,11 +913,22 @@ public class DungeonAlgo {
         long availCorr = cList.stream().filter(n -> !pathSet.contains(n)).count();
         if (availCorr < 2) return null;
 
-        Set<Point> monsterSet = new HashSet<>();
+        // ESPACEMENT MONSTRES + ISOLEMENT OGRE (règles dures) : toute salle monstre est à
+        // distance >= MONSTER_MIN_DIST des autres ET à distance >= OGRE_MIN_MONSTER_DIST de
+        // l'Ogre. L'Ogre reste posé sur la feuille la plus éloignée de la sortie de taverne.
+        // Infaisable => rejet du layout (return null => retry amont), plus aucun fallback.
+        Set<Point> monsters = monsterPoints(labels); // M1/M2 (+M3/M4) hérités de P1
 
-        Point ogreLeaf = null; int maxDist = -1;
-        for (Point n : leaves) { int d = dist.getOrDefault(n, 0); if (d > maxDist) { maxDist = d; ogreLeaf = n; } }
-        labels.put(ogreLeaf, RoomIds.OGRE); monsterSet.add(ogreLeaf);
+        List<Point> ogreCands = new ArrayList<>(leaves);
+        // Tri par distance décroissante à la sortie : l'Ogre reste la feuille la plus éloignée.
+        ogreCands.sort(Comparator.comparingInt((Point n) -> -dist.getOrDefault(n, 0)));
+        Point ogreLeaf = null;
+        for (Point n : ogreCands) {
+            if (isFarFromAll(adj, n, monsters, OGRE_MIN_MONSTER_DIST)) { ogreLeaf = n; break; }
+        }
+        if (ogreLeaf == null) return null;
+        labels.put(ogreLeaf, RoomIds.OGRE);
+        Map<Point, Integer> ogreDist = bfsDistances(adj, ogreLeaf);
         List<Point> remain = new ArrayList<>(leaves);
         remain.remove(ogreLeaf);
         Collections.shuffle(remain, rng);
@@ -732,16 +939,17 @@ public class DungeonAlgo {
         Point m3Leaf = null;
         for (Point n : remain) {
             if (labels.containsKey(n)) continue;
-            boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
-            if (!hasAdj) { m3Leaf = n; break; }
+            if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+            if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+            m3Leaf = n; break;
         }
-        if (m3Leaf == null) { for (Point n : remain) { if (!labels.containsKey(n)) { m3Leaf = n; break; } } }
-        labels.put(m3Leaf, RoomIds.MONSTER_3); monsterSet.add(m3Leaf);
+        if (m3Leaf == null) return null;
+        labels.put(m3Leaf, RoomIds.MONSTER_3); monsters.add(m3Leaf);
 
         Point lootLeaf = null;
         for (Point n : remain) {
             if (labels.containsKey(n)) continue;
-            boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
+            boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsters.contains(nb)) { hasAdj = true; break; }
             if (!hasAdj) { lootLeaf = n; break; }
         }
         if (lootLeaf == null) { for (Point n : remain) { if (!labels.containsKey(n)) { lootLeaf = n; break; } } }
@@ -751,34 +959,38 @@ public class DungeonAlgo {
 
         Point m4Corr = null;
         for (Point n : cList) {
-            if (!pathSet.contains(n) && !labels.containsKey(n)) {
-                boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
-                if (!hasAdj) { m4Corr = n; break; }
-            }
+            if (pathSet.contains(n) || labels.containsKey(n)) continue;
+            if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+            if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+            m4Corr = n; break;
         }
-        if (m4Corr == null) { for (Point n : cList) { if (!pathSet.contains(n) && !labels.containsKey(n)) { m4Corr = n; break; } } }
-        if (m4Corr != null) { labels.put(m4Corr, RoomIds.MONSTER_4); monsterSet.add(m4Corr); }
+        if (m4Corr == null) return null;
+        labels.put(m4Corr, RoomIds.MONSTER_4); monsters.add(m4Corr);
 
+        // Monstre supplémentaire : M1 (feuille) ou M2 (couloir) selon le tirage, avec repli
+        // sur l'autre variante si l'espacement est impossible. Échec des deux => rejet (null).
         boolean useM1 = rng.nextBoolean();
-        Point extraMonster = null;
-        if (useM1) {
-            for (Point n : remain) {
-                if (!labels.containsKey(n)) {
-                    boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
-                    if (!hasAdj) { extraMonster = n; break; }
+        Point extraMonster = null; String extraLabel = null;
+        for (int variant = 0; variant < 2 && extraMonster == null; variant++) {
+            boolean tryLeaf = (variant == 0) == useM1;
+            if (tryLeaf) {
+                for (Point n : remain) {
+                    if (labels.containsKey(n)) continue;
+                    if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+                    if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+                    extraMonster = n; extraLabel = RoomIds.MONSTER_1; break;
+                }
+            } else {
+                for (Point n : cList) {
+                    if (pathSet.contains(n) || labels.containsKey(n)) continue;
+                    if (ogreDist.getOrDefault(n, Integer.MAX_VALUE) < OGRE_MIN_MONSTER_DIST) continue;
+                    if (!isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) continue;
+                    extraMonster = n; extraLabel = RoomIds.MONSTER_2; break;
                 }
             }
-            if (extraMonster == null) { for (Point n : remain) { if (!labels.containsKey(n)) { extraMonster = n; break; } } }
-            if (extraMonster != null) labels.put(extraMonster, RoomIds.MONSTER_1);
-        } else {
-            for (Point n : cList) {
-                if (n.equals(m4Corr) || pathSet.contains(n) || labels.containsKey(n)) continue;
-                boolean hasAdj = false; for (Point nb : adj.get(n)) if (monsterSet.contains(nb)) { hasAdj = true; break; }
-                if (!hasAdj) { extraMonster = n; break; }
-            }
-            if (extraMonster == null) { for (Point n : cList) { if (!pathSet.contains(n) && !labels.containsKey(n)) { extraMonster = n; break; } } }
-            if (extraMonster != null) labels.put(extraMonster, RoomIds.MONSTER_2);
         }
+        if (extraMonster == null) return null;
+        labels.put(extraMonster, extraLabel); monsters.add(extraMonster);
 
         List<Point> remC = new ArrayList<>();
         for (Point n : cList) { if (!labels.containsKey(n)) remC.add(n); }
@@ -861,6 +1073,8 @@ public class DungeonAlgo {
                 }
             }
         }
+        // Règle cul-de-sac : jamais au bout d'une ligne droite (virage/intersection requis).
+        if (!enforceDeadEndAfterTurn(labels, adj, rng)) return null;
         return labels;
     }
 
@@ -1321,7 +1535,19 @@ public class DungeonAlgo {
             p3LootAssign.put(leaves.get(0), leafType);
         }
         for (var e : p3LootAssign.entrySet()) labels.put(e.getKey(), e.getValue());
-        for (int i = 0; i < leafM3 && li < leaves.size(); i++) { labels.put(leaves.get(li), RoomPools.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3))); li++; }
+        // Monstres de feuilles (MJ) : espacés entre eux et des monstres M1-M4 déjà placés
+        // (règle dure MONSTER_MIN_DIST). Une feuille trop proche est laissée aux culs-de-sac.
+        Set<Point> monsters = monsterPoints(labels);
+        int mjLeaf = 0;
+        while (mjLeaf < leafM3 && li < leaves.size()) {
+            Point cand = leaves.get(li++);
+            if (isFarFromAll(adj, cand, monsters, MONSTER_MIN_DIST)) {
+                String t = RoomPools.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3));
+                labels.put(cand, t); monsters.add(cand); mjLeaf++;
+            }
+        }
+        // Quota reporté sur les couloirs si des feuilles étaient inutilisables.
+        corrM3 = targetM3 - mjLeaf;
 
         List<Point> sortedLeaves = new ArrayList<>();
         for (int i = li; i < leaves.size(); i++) sortedLeaves.add(leaves.get(i));
@@ -1333,14 +1559,15 @@ public class DungeonAlgo {
 
         if (cjList.size() < corrM3 + corrLoot + 1) return null;
         Collections.shuffle(cjList, rng);
-        Set<Point> monsterSet = new HashSet<>();
         int mjPlaced = 0; List<Point> remCJ = new ArrayList<>();
         for (Point n : cjList) {
-            if (mjPlaced < corrM3) {
-                boolean adjM = adj.get(n).stream().anyMatch(nb -> monsterSet.contains(nb) || (labels.get(nb) != null && labels.get(nb).startsWith("MJ")));
-                if (!adjM) { labels.put(n, RoomPools.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2))); monsterSet.add(n); mjPlaced++; } else remCJ.add(n);
+            if (mjPlaced < corrM3 && isFarFromAll(adj, n, monsters, MONSTER_MIN_DIST)) {
+                labels.put(n, RoomPools.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2)));
+                monsters.add(n); mjPlaced++;
             } else remCJ.add(n);
         }
+        // Règle dure : le quota de salles monstre doit être atteint SANS violer l'espacement.
+        if (mjLeaf + mjPlaced < targetM3) return null;
         int lc = 0;
         if (corrLoot == 1 && lc < remCJ.size()) {
             String corrType = p3LootA.equals("Lootdj2") ? p3LootA : p3LootB;
@@ -1365,7 +1592,8 @@ public class DungeonAlgo {
                 }
             }
         }
-        
+        // Règle cul-de-sac : jamais au bout d'une ligne droite (virage/intersection requis).
+        if (!enforceDeadEndAfterTurn(labels, adj, rng)) return null;
         return labels;
     }
 
@@ -1652,7 +1880,8 @@ public class DungeonAlgo {
             Map<Point, Set<Point>> tr = new HashMap<>();
             tr.put(startPoint, new HashSet<>());
             globalOccupied.add(startPoint);
-            int ci3 = 0, ci4 = 0, target = 13 + rng.nextInt(5);
+            // Arbres légèrement agrandis (idem P1/P2) : laisse la place à l'espacement des MJ.
+            int ci3 = 0, ci4 = 0, target = 15 + rng.nextInt(5);
 
             // Chaîne initiale f1/f2 : déjà réservée (voir plus haut) → garantie libre,
             // sans vérification d'occupation ici (c'est tout l'intérêt de la réservation).
@@ -1788,8 +2017,8 @@ public class DungeonAlgo {
                 boolean isCorr = v.startsWith("CJ") || v.startsWith("CG");
                 if (!isLeaf && !isCorr) continue;
 
-                boolean adjMj = adj.getOrDefault(k, Set.of()).stream().anyMatch(mjPlacedKeys::contains);
-                if (adjMj) continue;
+                // ESPACEMENT MONSTRES (règle dure) : distance >= MONSTER_MIN_DIST de tout MJ placé.
+                if (!isFarFromAll(adj, k, mjPlacedKeys, MONSTER_MIN_DIST)) continue;
 
                 int ti = treeForNode.getOrDefault(k, -1);
                 Set<String> usedOnTree = mjTypesOnTree.getOrDefault(ti, new HashSet<>());
@@ -1799,12 +2028,11 @@ public class DungeonAlgo {
                 if (availType == null) continue;
                 best = k; bestType = availType; break;
             }
-            if (best != null) {
-                topLabels.put(best, bestType);
-                mjPlacedKeys.add(best);
-                int ti = treeForNode.getOrDefault(best, -1);
-                if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
-            }
+            if (best == null) break; // plus aucun emplacement espacé disponible : inutile de boucler
+            topLabels.put(best, bestType);
+            mjPlacedKeys.add(best);
+            int ti = treeForNode.getOrDefault(best, -1);
+            if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
         }
 
         for (var e : new ArrayList<>(topLabels.entrySet())) {
@@ -1832,6 +2060,9 @@ public class DungeonAlgo {
             if (v.startsWith("CJ") || v.startsWith("CG")) { puitDJKey = k; break; }
         }
         if (puitDJKey != null) topLabels.put(puitDJKey, RoomIds.WELL_DJ);
+
+        // Règle cul-de-sac (aussi CDG du village gobelin) : jamais au bout d'une ligne droite.
+        if (!enforceDeadEndAfterTurn(topLabels, adj, rng)) return false;
 
         // Validation finale
         boolean hc1 = topLabels.containsValue(RoomIds.CHAPEL_1) && topLabels.containsValue(RoomIds.CRYPT_1);
