@@ -238,22 +238,19 @@ final class DungeonPart4 {
             int dx = pk.x() - np.x(), dy = pk.y() - np.y();
             int d = dx == 1 ? 0 : dx == -1 ? 2 : dy == 1 ? 1 : 3;
 
-            Point p2 = pk.move(dx, dy);
-            int r1 = (d + 1) % 4; Point p3 = p2.move(DungeonAlgo.DIR_OFFSET[r1]);
-            int r2 = (r1 + 1) % 4; Point p4 = p3.move(DungeonAlgo.DIR_OFFSET[r2]);
+            DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(
+                    adj, pk, dx, dy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
+            if (prison == null) continue;
+            boolean occupied = false;
+            for (Point cell : prison.occupiedCells()) {
+                if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; }
+            }
+            if (occupied) continue;
 
-            if (p2.isOutOfBounds() || p3.isOutOfBounds() || p4.isOutOfBounds()) continue;
-            if (globalOccupied.contains(p2) || globalOccupied.contains(p3) || globalOccupied.contains(p4)) continue;
-
-            putSpecial(labelState, topLabels, pk, RoomIds.PRISON_C1);
-            Point[] prisonCells = {p2, p3, p4};
-            String[] prisonLabels = {RoomIds.PRISON_C2, RoomIds.PRISON_C3, RoomIds.PRISON_C4};
-            Point pv2 = pk;
-            for (int pi = 0; pi < prisonCells.length; pi++) {
-                globalOccupied.add(prisonCells[pi]);
-                adj.put(prisonCells[pi], new HashSet<>());
-                adj.get(pv2).add(prisonCells[pi]); adj.get(prisonCells[pi]).add(pv2);
-                putSpecial(labelState, topLabels, prisonCells[pi], prisonLabels[pi]); pv2 = prisonCells[pi];
+            DungeonCompositeRooms.place(adj, null, prison);
+            globalOccupied.addAll(prison.occupiedCells());
+            for (var e : prison.labelPoints().entrySet()) {
+                putSpecial(labelState, topLabels, e.getValue(), e.getKey());
             }
             break;
         }
