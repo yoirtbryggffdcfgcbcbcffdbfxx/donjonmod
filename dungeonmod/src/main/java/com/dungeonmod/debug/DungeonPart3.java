@@ -3,6 +3,7 @@ package com.dungeonmod.debug;
 import com.dungeonmod.debug.DungeonAlgo.Point;
 import com.dungeonmod.debug.DungeonAlgo.RoomIds;
 import com.dungeonmod.debug.DungeonAlgo.RoomPools;
+import com.dungeonmod.debug.DungeonAlgo.Shape;
 import com.dungeonmod.debug.DungeonAlgo.Theme;
 import com.dungeonmod.debug.DungeonAlgo.TreeResult;
 
@@ -205,28 +206,43 @@ final class DungeonPart3 {
     }
 
 
-    private static String pickC(Random rng) {
-        return RoomPools.CORRIDORS_P1_P2.get(rng.nextInt(3));
-    }
-
-    private static String pickCJ(Random rng) {
-        return RoomPools.CORRIDORS_P3_P4.get(rng.nextInt(3));
-    }
-
     private static boolean isStraight(Point p1, Point p2) {
         return p1.x() == p2.x() || p1.y() == p2.y();
     }
+
+    /** Vérifie que les specials posés par P3 sont compatibles avec leur forme géométrique. */
+    private static boolean validatePart3SpecialShapes(Map<Point, String> labels, Map<Point, Set<Point>> adj) {
+        for (var e : labels.entrySet()) {
+            String label = e.getValue();
+            Shape shape = DungeonLabels.shapeOf(adj.getOrDefault(e.getKey(), Set.of()));
+            if (RoomIds.SHOP.equals(label) || RoomIds.GARDEN.equals(label) || RoomIds.STATUE.equals(label)
+                    || "Lootdj1".equals(label) || "Lootdj3".equals(label)
+                    || "MJ1".equals(label) || "MJ3".equals(label) || "MJ5".equals(label)) {
+                if (shape != Shape.DEAD_END) return false;
+            } else if ("Lootdj2".equals(label) || "MJ2".equals(label) || "MJ4".equals(label)
+                    || RoomIds.WELL_DJ.equals(label)) {
+                if (shape != Shape.STRAIGHT) return false;
+            }
+            // Bib1/Bib2/Centrale sont des structures spéciales de transition : leur forme
+            // dépend volontairement des greffes et de la structure 2x2 de la Centrale.
+        }
+        return true;
+    }
+
 
     static TreeResult generatePart3Tree(Point startPoint, Set<Point> blocked, Random rng) {
         return generateTrunkTree(35, 45, startPoint, blocked, DungeonAlgo.PART3_MAX_IJ3, DungeonAlgo.PART3_MAX_IJ4, rng);
     }
 
     static Map<Point, String> analyzePart3(Map<Point, Set<Point>> adj, Point campExit,
-                                                     Map<Point, String> labels, Random rng) {
-        // Sortie de camp : label structurel déduit de l'adjacence réelle (thème donjon).
-        labels.put(campExit, DungeonLabels.labelForNeighbors(adj.get(campExit), Theme.DJ, rng));
+                                                     Map<Point, String> existingLabels, Random rng) {
+        DungeonLabelState labelState = new DungeonLabelState();
+        labelState.putSpecials(existingLabels); // labels déjà posés : P1/P2 + camp
+        labelState.setTheme(campExit, Theme.DJ);
+        Map<Point, String> specials = labelState.specials();
 
-        Set<Point> allLabeled = new HashSet<>(labels.keySet());
+        Set<Point> allLabeled = new HashSet<>(specials.keySet());
+        allLabeled.add(campExit); // campExit reste générique DJ, mais ne doit pas être réutilisé comme candidat P3.
         List<Point> bfsP3 = new ArrayList<>();
         Set<Point> seen = new HashSet<>(); Queue<Point> q = new LinkedList<>();
         q.add(campExit); seen.add(campExit);
@@ -237,6 +253,7 @@ final class DungeonPart3 {
                 if (!seen.contains(nb)) { seen.add(nb); q.add(nb); }
             }
         }
+        labelState.setTheme(bfsP3, Theme.DJ);
 
         Point[] bibNodes = null;
         List<Point> shuffled = new ArrayList<>(bfsP3); Collections.shuffle(shuffled, rng);
@@ -276,8 +293,9 @@ final class DungeonPart3 {
         Set<Point> allNodes = new HashSet<>(adj.keySet());
         List<Point> leaves = new ArrayList<>(), internals = new ArrayList<>();
         for (Point n : allNodes) {
-            if (adj.get(n).size() == 1 && !labels.containsKey(n)) leaves.add(n);
-            else if (adj.get(n).size() >= 2 && !labels.containsKey(n)) internals.add(n);
+            if (n.equals(campExit)) continue; // générique DJ final, pas candidat aux specials P3
+            if (adj.get(n).size() == 1 && !labelState.hasSpecial(n)) leaves.add(n);
+            else if (adj.get(n).size() >= 2 && !labelState.hasSpecial(n)) internals.add(n);
         }
 
         List<Point> cjList = new ArrayList<>(), ij2List = new ArrayList<>(), ij3List = new ArrayList<>(), ij4List = new ArrayList<>();
@@ -290,7 +308,7 @@ final class DungeonPart3 {
             else if (deg == 4) ij4List.add(node);
         }
 
-        labels.put(bibNodes[0], RoomIds.BIB_1); labels.put(bibNodes[1], RoomIds.BIB_2);
+        labelState.putSpecial(bibNodes[0], RoomIds.BIB_1); labelState.putSpecial(bibNodes[1], RoomIds.BIB_2);
 
         Point b2 = bibNodes[1];
         Point b1 = bibNodes[0];
@@ -303,7 +321,6 @@ final class DungeonPart3 {
         else { cdx = 0; cdz = 1; }
 
         boolean hubOk = false;
-        Map<Point, String> topLbls = new HashMap<>();
 
         for (int corridorLen : new int[]{5, 6, 7}) {
             if (hubOk) break;
@@ -348,31 +365,15 @@ final class DungeonPart3 {
             Point hubKey = new Point(hx2, hz2);
             adj.put(hubKey, new HashSet<>()); adj.get(hubKey).add(wKey); adj.get(wKey).add(hubKey);
 
-            for (Point n : corrNodes) {
-                List<Point> nb = new ArrayList<>(adj.get(n));
-                if (nb.size() == 2) {
-                    Point na = nb.get(0);
-                    Point nb2 = nb.get(1);
-                    boolean coll = (n.x() - na.x()) == (nb2.x() - n.x()) && (n.y() - na.y()) == (nb2.y() - n.y());
-                    labels.put(n, coll ? pickC(rng) : RoomIds.CORRIDOR_TURN);
-                }
-            }
-            labels.put(hubKey, RoomIds.CENTRALE);
+            // Couloir local vers la Centrale : thème P12, labels génériques à la fin.
+            labelState.setTheme(corrNodes, Theme.P12);
+            labelState.putSpecial(hubKey, RoomIds.CENTRALE);
 
-            topLbls.put(hubKey, RoomIds.CENTRALE);
-            int[] exOff = {-1, 2, 1, 1, 0};
-            int[] ezOff = {0, 0, -1, 2, 2};
-            for (int ei = 0; ei < 5; ei++) {
-                Point ePt = new Point(hx2 + exOff[ei], hz2 + ezOff[ei]);
-                if (!ePt.isOutOfBounds()) {
-                    topLbls.put(ePt, pickCJ(rng));
-                }
-            }
             hubOk = true;
         }
         if (!hubOk) { bibNodes = null; return null; }
         cjList.remove(bibNodes[0]);
-        if (shopNode != null) { labels.put(shopNode, RoomIds.SHOP); leaves.remove(shopNode); }
+        if (shopNode != null) { labelState.putSpecial(shopNode, RoomIds.SHOP); leaves.remove(shopNode); }
         leaves.remove(bibNodes[1]); leaves.remove(bibNodes[0]);
 
         List<String> p3LootList = new ArrayList<>(RoomPools.LOOT_P3_P4);
@@ -402,26 +403,27 @@ final class DungeonPart3 {
             String leafType = p3LootA.equals("Lootdj2") ? p3LootB : p3LootA;
             p3LootAssign.put(leaves.get(0), leafType);
         }
-        for (var e : p3LootAssign.entrySet()) labels.put(e.getKey(), e.getValue());
+        for (var e : p3LootAssign.entrySet()) labelState.putSpecial(e.getKey(), e.getValue());
 
         // ESPACEMENT MONSTRES (règle dure, conversation 3) : chaque MJ est à distance
         // >= DungeonAlgo.MONSTER_MIN_DIST des monstres déjà posés (M1-M5 de P1/P2 inclus).
         // Infaisable => rejet (return null => retry amont).
-        Set<Point> mjSet = DungeonConstraints.monsterPoints(labels);
+        Set<Point> mjSet = DungeonConstraints.monsterPoints(specials);
         int placedLeafM3 = 0;
         while (placedLeafM3 < leafM3 && li < leaves.size()) {
             Point cand = leaves.get(li++);
             if (!DungeonConstraints.isFarFromAll(adj, cand, mjSet, DungeonAlgo.MONSTER_MIN_DIST)) continue;
-            labels.put(cand, RoomPools.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3)));
+            labelState.putSpecial(cand, RoomPools.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3)));
             mjSet.add(cand); placedLeafM3++;
         }
         if (placedLeafM3 < leafM3) return null;
 
         List<Point> restLeaves = new ArrayList<>();
-        for (int i = leafLoot; i < leaves.size(); i++) if (!labels.containsKey(leaves.get(i))) restLeaves.add(leaves.get(i));
+        for (int i = leafLoot; i < leaves.size(); i++) if (!labelState.hasSpecial(leaves.get(i))) restLeaves.add(leaves.get(i));
         restLeaves.sort(Comparator.comparingInt(lp -> -Math.abs(lp.x() - campExit.x()) - Math.abs(lp.y() - campExit.y())));
         for (Point n : restLeaves) {
-            labels.put(n, n.equals(restLeaves.get(0)) ? RoomIds.GARDEN : (restLeaves.size() > 1 && n.equals(restLeaves.get(1)) ? RoomIds.STATUE : RoomIds.DEAD_END_DJ));
+            if (n.equals(restLeaves.get(0))) labelState.putSpecial(n, RoomIds.GARDEN);
+            else if (restLeaves.size() > 1 && n.equals(restLeaves.get(1))) labelState.putSpecial(n, RoomIds.STATUE);
         }
 
         if (cjList.size() < corrM3 + corrLoot + 1) return null;
@@ -431,37 +433,30 @@ final class DungeonPart3 {
         int mjPlaced = 0; List<Point> remCJ = new ArrayList<>();
         for (Point n : cjList) {
             if (mjPlaced < corrM3) {
-                if (DungeonConstraints.isFarFromAll(adj, n, mjSet, DungeonAlgo.MONSTER_MIN_DIST)) { labels.put(n, RoomPools.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2))); mjSet.add(n); mjPlaced++; } else remCJ.add(n);
+                if (DungeonConstraints.isFarFromAll(adj, n, mjSet, DungeonAlgo.MONSTER_MIN_DIST)) { labelState.putSpecial(n, RoomPools.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2))); mjSet.add(n); mjPlaced++; } else remCJ.add(n);
             } else remCJ.add(n);
         }
         int lc = 0;
         if (corrLoot == 1 && lc < remCJ.size()) {
             String corrType = p3LootA.equals("Lootdj2") ? p3LootA : p3LootB;
-            labels.put(remCJ.get(lc), corrType); lc++;
+            labelState.putSpecial(remCJ.get(lc), corrType); lc++;
         }
-        if (remCJ.size() > lc) labels.put(remCJ.get(lc), RoomIds.WELL_DJ); else lc--;
-        for (int i = lc + 1; i < remCJ.size(); i++) labels.put(remCJ.get(i), pickCJ(rng));
-        for (Point n : ij2List) labels.put(n, RoomIds.CORRIDOR_TURN_J);
-        for (Point n : ij3List) labels.put(n, RoomIds.INTERSECTION_3_J);
-        for (Point n : ij4List) labels.put(n, RoomIds.INTERSECTION_4_J);
-        for (Point ip : ij4List) {
-            for (Point nb : adj.get(ip)) {
-                String lbl = labels.get(nb);
-                if (lbl == null || !(lbl.equals("CJ1") || lbl.equals("CJ2") || lbl.equals("CJ3"))) continue;
-                List<Point> nAdj = new ArrayList<>(adj.get(nb));
-                if (nAdj.size() != 2) continue;
-                Point a0 = nAdj.get(0);
-                Point a1 = nAdj.get(1);
-                int adx = a1.x() - a0.x(), adz = a1.y() - a0.y();
-                if (adx * (nb.x() - ip.x()) + adz * (nb.y() - ip.y()) == 0) {
-                    if (adx != 0 && adz != 0) labels.put(nb, RoomIds.CORRIDOR_TURN_J);
-                }
-            }
-        }
+        if (remCJ.size() > lc) labelState.putSpecial(remCJ.get(lc), RoomIds.WELL_DJ); else lc--;
+        // Les labels génériques P3 (CJ/IJ/culDJ) sont construits à la fin depuis l'adj réelle.
+        List<Point> genericOrder = new ArrayList<>();
+        genericOrder.add(campExit);
+        genericOrder.addAll(restLeaves);
+        genericOrder.addAll(remCJ);
+        genericOrder.addAll(ij2List);
+        genericOrder.addAll(ij3List);
+        genericOrder.addAll(ij4List);
+        Map<Point, String> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
 
         // Règle cul-de-sac (conversation 3) : jamais au bout d'une ligne droite
         // (virage/intersection requis) — sinon rejet et retry amont.
-        if (!DungeonConstraints.enforceDeadEndAfterTurn(labels, adj, rng)) return null;
-        return labels;
+        if (!validatePart3SpecialShapes(finalLabels, adj)) return null;
+        if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
+        if (!validatePart3SpecialShapes(finalLabels, adj)) return null;
+        return finalLabels;
     }
 }
