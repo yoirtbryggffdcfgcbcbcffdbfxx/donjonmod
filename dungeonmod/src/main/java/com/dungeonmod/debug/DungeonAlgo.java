@@ -482,6 +482,9 @@ public class DungeonAlgo {
                     Point next = p.move(d);
                     if (!next.isOutOfBounds()) {
                         if (!occupied.contains(next) && !blocked.contains(next)) {
+                            // Limite géométrique : max MAX_COLINEAR_RUN segments alignés
+                            // dans l'adj réelle (I3/I4 sur l'axe comptés comme la droite)
+                            if (colinearRunAfterEdge(p, next, adj) > MAX_COLINEAR_RUN) continue;
                             if (deg >= 2) {
                                 boolean skip = false;
                                 for (Point n1 : adj.get(p)) {
@@ -1731,6 +1734,9 @@ public class DungeonAlgo {
                         Point next = p.move(dir);
                         if (next.isOutOfBounds()) continue;
                         if (!globalOccupied.contains(next)) {
+                            // Limite géométrique : max MAX_COLINEAR_RUN segments alignés
+                            // dans l'adj de l'arbre (I3 comptés dans l'axe)
+                            if (colinearRunAfterEdge(p, next, tr) > MAX_COLINEAR_RUN) continue;
                             if (d >= 2) {
                                 boolean sk = false;
                                 for (Point m1 : tr.get(p)) {
@@ -2166,6 +2172,9 @@ public class DungeonAlgo {
             for (int td : tryOrder) {
                 Point cand = cursor.move(DIR_OFFSET[td]);
                 if (cand.isOutOfBounds() || occupied.contains(cand) || adj.containsKey(cand)) continue;
+                // Limite géométrique adj : pas plus de MAX_COLINEAR_RUN segments alignés
+                // (I3/I4 sur l'axe comptés dans la droite visuelle)
+                if (colinearRunAfterEdge(cursor, cand, adj) > MAX_COLINEAR_RUN) continue;
                 next = cand; chosenDir = td; break;
             }
             if (next == null) return null;
