@@ -47,8 +47,7 @@ final class DungeonPart1 {
     static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
         DungeonLabelState labelState = new DungeonLabelState();
         labelState.setTheme(adj.keySet(), Theme.P12);
-        // Pendant la migration, cette map ne contient plus que les salles spéciales/contenus.
-        Map<Point, String> labels = labelState.specials();
+        // Les labels finaux ne sont pas encore construits ici : on ne pose que les specials.
         List<Point> leaves = new ArrayList<>();
         for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint)) leaves.add(e.getKey());
         if (leaves.size() < 5) return null;
@@ -113,13 +112,13 @@ final class DungeonPart1 {
         if (porte == null) porte = others.get(0);
         others.remove(porte);
         // others[0] était la porte : on l'a retirée, les indices loot/M1 suivent
-        labels.put(startPoint, RoomIds.START);
-        labels.put(porte, RoomIds.DOOR_1);
-        labels.put(prison, RoomIds.PRISON);
+        labelState.putSpecial(startPoint, RoomIds.START);
+        labelState.putSpecial(porte, RoomIds.DOOR_1);
+        labelState.putSpecial(prison, RoomIds.PRISON);
         Point prisonParent = adj.get(prison).iterator().next();
-        labels.put(prisonParent, RoomIds.MONSTER_2);
+        labelState.putSpecial(prisonParent, RoomIds.MONSTER_2);
         // others a déjà la porte retirée → indice 0 = loot, le reste = feuilles candidates
-        labels.put(others.get(0), RoomIds.LOOT_1);
+        labelState.putSpecial(others.get(0), RoomIds.LOOT_1);
 
         // ESPACEMENT MONSTRES (règle dure, conversation 3) : chaque salle monstre (M1-M5)
         // doit être à distance >= DungeonAlgo.MONSTER_MIN_DIST des autres (au moins 2 salles neutres
@@ -133,14 +132,14 @@ final class DungeonPart1 {
 
         Point m1 = DungeonConstraints.firstFar(adj, freeLeaves, monsters, DungeonAlgo.MONSTER_MIN_DIST);
         if (m1 == null) return null;
-        labels.put(m1, RoomIds.MONSTER_1);
+        labelState.putSpecial(m1, RoomIds.MONSTER_1);
         monsters.add(m1);
         freeLeaves.remove(m1);
         boolean isM4 = rng.nextBoolean();
 
         List<Point> cNodes = new ArrayList<>(), i2Nodes = new ArrayList<>(), i3Nodes = new ArrayList<>(), i4Nodes = new ArrayList<>();
         for (var e : adj.entrySet()) {
-            if (labels.containsKey(e.getKey())) continue;
+            if (labelState.hasSpecial(e.getKey())) continue;
             int deg = e.getValue().size();
             if (deg == 2) {
                 List<Point> nb = new ArrayList<>(e.getValue());
@@ -158,18 +157,18 @@ final class DungeonPart1 {
             if (tryCorr) {
                 List<Point> validC = new ArrayList<>();
                 for (Point n : cNodes) {
-                    if (!labels.containsKey(n) && DungeonConstraints.isFarFromAll(adj, n, monsters, DungeonAlgo.MONSTER_MIN_DIST)) validC.add(n);
+                    if (!labelState.hasSpecial(n) && DungeonConstraints.isFarFromAll(adj, n, monsters, DungeonAlgo.MONSTER_MIN_DIST)) validC.add(n);
                 }
                 if (!validC.isEmpty()) {
                     Point m4Point = validC.get(rng.nextInt(validC.size()));
-                    labels.put(m4Point, RoomIds.MONSTER_4);
+                    labelState.putSpecial(m4Point, RoomIds.MONSTER_4);
                     monsters.add(m4Point);
                     secondMonster = RoomIds.MONSTER_4;
                 }
             } else {
                 Point m3 = DungeonConstraints.firstFar(adj, freeLeaves, monsters, DungeonAlgo.MONSTER_MIN_DIST);
                 if (m3 != null) {
-                    labels.put(m3, RoomIds.MONSTER_3);
+                    labelState.putSpecial(m3, RoomIds.MONSTER_3);
                     monsters.add(m3);
                     freeLeaves.remove(m3);
                     secondMonster = RoomIds.MONSTER_3;
@@ -182,39 +181,10 @@ final class DungeonPart1 {
         // lors de la construction finale des labels depuis adj + theme.
 
         for (Point n : cNodes) {
-            if (!labels.containsKey(n)) { labels.put(n, RoomIds.WELL); break; }
+            if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomIds.WELL); break; }
         }
 
-        for (Point n : cNodes) {
-            if (labels.containsKey(n)) continue;
-            for (Point nb : adj.get(n)) {
-                String lbl = labels.get(nb);
-                if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.MONSTER_4) || lbl.equals(RoomIds.WELL))) {
-                    List<Point> nbs = new ArrayList<>(adj.get(n));
-                    if (nbs.size() == 2 && !isStraight(nbs.get(0), nbs.get(1))) {
-                        labels.put(n, RoomIds.CORRIDOR_TURN); break;
-                    }
-                }
-            }
-        }
         // Les labels génériques (C/I/cul) sont construits à la fin depuis l'adj réelle.
-
-        for (Point ip : i4Nodes) {
-            for (Point nb : adj.get(ip)) {
-                String lbl = labels.get(nb);
-                if (lbl == null || !(lbl.equals("C1") || lbl.equals("C2") || lbl.equals("C3"))) continue;
-                List<Point> nAdj = new ArrayList<>(adj.get(nb));
-                if (nAdj.size() != 2) continue;
-
-                Point a0 = nAdj.get(0);
-                Point a1 = nAdj.get(1);
-                int adx = a1.x() - a0.x();
-                int adz = a1.y() - a0.y();
-                if (adx * (nb.x() - ip.x()) + adz * (nb.y() - ip.y()) == 0) {
-                    if (adx != 0 && adz != 0) labels.put(nb, RoomIds.CORRIDOR_TURN);
-                }
-            }
-        }
         // Construction finale P1 : adj = géométrie, theme = P12, specials = salles imposées.
         // L'ordre reproduit l'ancien flux autant que possible pour les variantes C1/C2/C3.
         List<Point> genericOrder = new ArrayList<>();
@@ -225,10 +195,30 @@ final class DungeonPart1 {
         genericOrder.addAll(i4Nodes);
         Map<Point, String> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
 
+        if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
+
         // Règle cul-de-sac (conversation 3) : jamais au bout d'une ligne droite
         // (virage/intersection requis) — sinon rejet et retry amont.
         if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
+        if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
         return finalLabels;
+    }
+
+    /** Vérifie que les specials P1 sont restés posés sur une forme compatible. */
+    private static boolean validatePart1SpecialShapes(Map<Point, String> labels, Map<Point, Set<Point>> adj) {
+        for (var e : labels.entrySet()) {
+            String label = e.getValue();
+            Shape shape = DungeonLabels.shapeOf(adj.getOrDefault(e.getKey(), Set.of()));
+            if (RoomIds.START.equals(label) || RoomIds.DOOR_1.equals(label)
+                    || RoomIds.PRISON.equals(label) || RoomIds.LOOT_1.equals(label)
+                    || RoomIds.MONSTER_1.equals(label) || RoomIds.MONSTER_3.equals(label)) {
+                if (shape != Shape.DEAD_END) return false;
+            } else if (RoomIds.MONSTER_2.equals(label) || RoomIds.MONSTER_4.equals(label)
+                    || RoomIds.WELL.equals(label)) {
+                if (shape != Shape.STRAIGHT) return false;
+            }
+        }
+        return true;
     }
 
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
