@@ -23,18 +23,19 @@ public class DentDeLoupHandler {
                 || DungeonMod.isDentDeLoup(player.getOffHandStack());
             if (!hasDent) return;
 
-            int armor = player.getArmor();
-            float armorToughness = (float) player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.ARMOR_TOUGHNESS);
+            // Protection réelle = attribut ARMOR (1 pt = 1 %), cap vanilla levé à 100
+            // via ArmorAttributeCapMixin. getArmor() tronque en int — on lit le double.
+            double armorPct = player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.ARMOR);
 
             double strengthPercent = 0;
             var strength = player.getStatusEffect(StatusEffects.STRENGTH);
             if (strength != null) {
                 strengthPercent = (strength.getAmplifier() + 1) * 50.0;
             }
-            // Bonus des bières (additif)
+            // Bonus des bières + armures (additif, via BeerStrengthData)
             float beerMult = com.dungeonmod.util.BeerStrengthData.getMultiplier(player);
             double beerPercent = (beerMult - 1.0f) * 100.0;
-            // Attaque naturelle : 1.0 (main nue), chaque amplification de force = +50%
+            // Attaque naturelle : 100 % (main nue) + force potion + bonus armure/bière
             double totalPercent = 100.0 + strengthPercent + beerPercent;
 
             int windowHeight = client.getWindow().getScaledHeight();
@@ -44,7 +45,7 @@ public class DentDeLoupHandler {
 
             drawContext.getMatrices().scale(0.8f, 0.8f, 0.8f);
             drawContext.drawText(client.textRenderer,
-                "§7Protection: §a" + armor + " §7(§8" + String.format("%.0f", armorToughness) + "§7)",
+                "§7Protection: §a" + String.format("%.0f", armorPct) + "%",
                 (int)(x / 0.8f), (int)(y / 0.8f), color, true);
             drawContext.drawText(client.textRenderer,
                 "§7Force: §e" + String.format("%.0f", totalPercent) + "%",

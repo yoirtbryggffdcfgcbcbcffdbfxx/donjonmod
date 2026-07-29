@@ -110,7 +110,8 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 
 - **PV max** : 10 (5 cœurs)
 - **Nourriture** : foodLevel=17, saturation=5 (pas de régénération naturelle)
-- **Formule dégâts** : `dégâts × (1 - armure/100)` (remplace la formule vanilla)
+- **Formule dégâts** : `dégâts × (1 - armure/100)` (remplace la formule vanilla) — 1 pt d'attribut ARMOR = 1 % de réduction, cap **100 %**
+- **Plafond ARMOR vanilla = 30** : levé à 100 via `ArmorAttributeCapMixin` (sinon Dent de loup + réduction réelle bloquées à 30 %)
 - **Pas de barre food** (cancel via mixin)
 - **Barre armure** : remplacée par texte "Protection = X%"
 - **Barre vie** : centrée dynamiquement
