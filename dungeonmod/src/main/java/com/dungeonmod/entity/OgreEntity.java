@@ -126,7 +126,7 @@ public class OgreEntity extends BossEntity
                 double dist = distanceTo(sp);
                 boolean inRoom = room.isDefined() && room.contains(sp.getBlockX(), sp.getBlockZ());
 
-                if (inRoom && !isDeadPermanent && getPhase() < BossPhase.DEAD) {
+                if (inRoom && !deadPermanent && getPhase() < BossPhase.DEAD) {
                     if (getPhase() == BossPhase.IDLE) {
                         setPhase(BossPhase.WELCOME);
                         animTimer = 1;
@@ -142,7 +142,7 @@ public class OgreEntity extends BossEntity
                 }
             }
         }
-        boolean invuln = getPhase() == BossPhase.WELCOME || getPhase() == BossPhase.DEAD || isDeadPermanent;
+        boolean invuln = getPhase() == BossPhase.WELCOME || getPhase() == BossPhase.DEAD || deadPermanent;
         bossBar.setColor(invuln ? BossBar.Color.WHITE : BossBar.Color.YELLOW);
         bossBar.setStyle(getAttackState() == 4 ? BossBar.Style.NOTCHED_6 : BossBar.Style.PROGRESS);
         bossBar.setVisible(playerVisible);
@@ -176,7 +176,7 @@ public class OgreEntity extends BossEntity
             getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
             // 30 ticks (1.5s) de gel avant mort permanente.
             if (animTimer >= 30) {
-                deathStage = 3; isDeadPermanent = true;
+                deathStage = 3; deadPermanent = true;
             }
         }
         if (deathStage == 3) {
@@ -186,7 +186,7 @@ public class OgreEntity extends BossEntity
     }
 
     @Override
-    public boolean isDeathSequenceDone() { return deathStage == 3 && isDeadPermanent; }
+    public boolean isDeathSequenceDone() { return deathStage == 3 && deadPermanent; }
 
     @Override
     protected void tickDeath() {

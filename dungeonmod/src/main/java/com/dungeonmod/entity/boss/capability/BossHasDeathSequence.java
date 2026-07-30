@@ -5,7 +5,7 @@ package com.dungeonmod.entity.boss.capability;
  * (Cyclope : marche au centre → freeze → permanent IDLE).
  * <p>La base {@link com.dungeonmod.entity.boss.BossEntity#tickDeath()}
  * appelle {@link #tickDeathSequence()} tant que {@link #isDeathSequenceDone()}
- * vaut false. À la fin, le boss doit set {@code isDeadPermanent = true}.
+ * vaut false. À la fin, le boss doit set {@code deadPermanent = true}.
  */
 public interface BossHasDeathSequence extends BossCapability {
 

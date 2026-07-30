@@ -68,7 +68,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     protected ServerBossBar bossBar;
     protected BossRoom room = new BossRoom(0, 0, 0, 0, 0f);
     protected long nextAttackTime = 100;
-    protected boolean isDeadPermanent = false;
+    protected boolean deadPermanent = false;
     protected boolean hasPlayedWelcome = false;
     protected int animTimer = 0;
 
@@ -115,8 +115,8 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         dataTracker.set(ATTACK_STATE, v);
         animTimer = (v == 0) ? 0 : 1;
     }
-    public boolean getDeadPermanent() { return isDeadPermanent; }
-    public void setDeadPermanent(boolean v) { this.isDeadPermanent = v; }
+    public boolean getDeadPermanent() { return deadPermanent; }
+    public void setDeadPermanent(boolean v) { this.deadPermanent = v; }
     public boolean isAnimating() {
         return getAttackState() != 0
             || getPhase() == BossPhase.WELCOME
@@ -173,7 +173,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     @Override
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
         // Phase DEAD : pas de dégât, mais clic gauche du joueur → dialogue (comme BaseNpcEntity).
-        if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
+        if (deadPermanent || getPhase() == BossPhase.DEAD) {
             // Clic gauche d'un joueur (auto-hit) sur le boss mort = dialogue.
             // On l'appelle inconditionnellement (même avant la fin de la cinématique
             // de mort) pour que ça marche dès que la phase passe en DEAD.
@@ -214,7 +214,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      * si damage() n'est pas appelé). Idempotent.
      */
     public void triggerDeathSequence() {
-        if (isDeadPermanent || getPhase() == BossPhase.DEAD) return;
+        if (deadPermanent || getPhase() == BossPhase.DEAD) return;
         this.setHealth(0.1f);
         this.setPhase(BossPhase.DEAD);
         this.animTimer = 0;
@@ -245,7 +245,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         for (var p : getWorld().getPlayers()) {
             if (p instanceof ServerPlayerEntity sp) {
                 if (room.contains(sp.getBlockX(), sp.getBlockZ())
-                    && !isDeadPermanent
+                    && !deadPermanent
                     && getPhase() < BossPhase.DEAD) {
                     if (getPhase() == BossPhase.IDLE) {
                         setPhase(BossPhase.WELCOME);
@@ -266,7 +266,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         }
         boolean invuln = getPhase() == BossPhase.WELCOME
                       || getPhase() == BossPhase.DEAD
-                      || isDeadPermanent;
+                      || deadPermanent;
         bossBar.setColor(invuln ? BossBar.Color.WHITE : BossBar.Color.YELLOW);
         bossBar.setVisible(playerVisible);
     }
@@ -307,10 +307,10 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     protected void tickDeath() {
         getNavigation().stop();
         setVelocity(0, getVelocity().y, 0);
-        if (!isDeadPermanent) {
+        if (!deadPermanent) {
             animTimer++;
             if (animTimer >= 60) {
-                isDeadPermanent = true;
+                deadPermanent = true;
                 setInvulnerable(true);
                 setHealth(0.01f);
             }
@@ -332,7 +332,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         nbt.putInt("roomMinZ", room.minZ()); nbt.putInt("roomMaxZ", room.maxZ());
         nbt.putFloat("roomFacing", room.facingYaw());
         nbt.putInt("phase", getPhase());
-        nbt.putBoolean("dead", isDeadPermanent);
+        nbt.putBoolean("dead", deadPermanent);
     }
 
     @Override
@@ -350,8 +350,8 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             );
         }
         if (nbt.contains("dead")) {
-            isDeadPermanent = nbt.getBoolean("dead");
-            setPhase(isDeadPermanent ? BossPhase.DEAD : BossPhase.IDLE);
+            deadPermanent = nbt.getBoolean("dead");
+            setPhase(deadPermanent ? BossPhase.DEAD : BossPhase.IDLE);
         }
         if (nbt.contains("phase")) setPhase(nbt.getInt("phase"));
     }
@@ -377,7 +377,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             int phase = getPhase();
             int attack = getAttackState();
 
-            if (phase == BossPhase.DEAD && isDeadPermanent) {
+            if (phase == BossPhase.DEAD && deadPermanent) {
                 prevPhase[0] = phase;
                 return state.setAndContinue(getIdleAnimation().toRaw());
             }
