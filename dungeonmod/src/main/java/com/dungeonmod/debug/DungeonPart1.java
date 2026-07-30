@@ -11,16 +11,13 @@ import com.dungeonmod.debug.DungeonAlgo.TreeResult;
 import java.util.*;
 
 /**
- * Génération/analyse de la première partie du donjon (grotte de départ),
+ * Generation/analyse de la premiere partie du donjon (grotte de depart),
  * chemin de taverne et M5 avant porte1.
- *
- * Extraction mécanique depuis DungeonAlgo : l'objectif est de déplacer le code
- * sans modifier volontairement le comportement.
  */
 final class DungeonPart1 {
     private DungeonPart1() {}
 
-    /** Nombre de variantes chemin+taverne testées avant de rejeter une porte P1. */
+    /** Nombre de variantes chemin+taverne testees avant de rejeter une porte P1. */
     private static final int TAVERN_PATH_ATTEMPTS = 30;
 
     static boolean hasPrisonCandidate(Map<Point, Set<Point>> adj, Point startPoint) {
@@ -102,10 +99,8 @@ final class DungeonPart1 {
 
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
 
-        // Réserve l'espace devant le tronc pour la sortie + chemin + taverne
-        // AVANT les branches latérales pour garantir un couloir libre devant la porte.
-        // (Les branches growMiniTreeBounded respectent occupied, donc elles contournent
-        // la zone réservée au lieu de l'envahir.)
+        // Reserve l'espace devant le tronc pour la sortie + chemin + taverne
+        // AVANT les branches laterales.
         int[] td = DungeonAlgo.DIR_OFFSET[dir];
         for (int ri = 1; ri <= 10; ri++) {
             for (int sj = -2; sj <= 2; sj++) {
@@ -288,7 +283,7 @@ final class DungeonPart1 {
         return finalLabels;
     }
 
-    /** Vérifie que les specials P1 sont restés posés sur une forme compatible. */
+    /** Verifie que les specials P1 sont restes poses sur une forme compatible. */
     private static boolean validatePart1SpecialShapes(Map<Point, String> labels, Map<Point, Set<Point>> adj) {
         for (var e : labels.entrySet()) {
             String label = e.getValue();
@@ -307,68 +302,53 @@ final class DungeonPart1 {
 
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
-        // Direction sortante porte → chemin (alignée sur l'entrée intérieure)
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
         for (int attempt = 1; attempt <= TAVERN_PATH_ATTEMPTS; attempt++) {
             int dx = baseDx, dy = baseDy;
             int maxLen = 2 + rng.nextInt(4);
             int cx = porte.x(), cy = porte.y();
-            boolean lastStraight = false;
             List<Point> pathCells = new ArrayList<>();
-            // Snapshot adj pour tester colinearRunAfterEdge avant d'ajouter (chemins temporaires)
-            Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
+            // Adj temporaire pour le chemin. MAX_COLINEAR_RUN ne s'applique
+            // pas ici : le chemin de taverne est externe au donjon.
+            Map<Point, Set<Point>> tmpAdj = new HashMap<>();
+            tmpAdj.put(porte, new HashSet<>(adj.get(porte)));
             Point curTmp = porte;
 
             boolean failed = false;
             for (int i = 0; i < maxLen; i++) {
-                // La porte est un couloir droit : la 1ère cellule du chemin DOIT
-                // continuer dans le même axe pour préserver sa géométrie STRAIGHT.
-                Point straight = new Point(cx + dx, cy + dy);
-                boolean straightFree = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight);
-                boolean straightOk = straightFree
-                        && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-
+                int ndx, ndy;
                 if (i == 0) {
-                    // 1ère cellule après la porte : droit obligatoire, mais on ne vérifie
-                    // PAS la limite de colinéarité. Le chemin de taverne est externe au
-                    // donjon — contraindre sa 1ère cellule par MAX_COLINEAR_RUN bloque
-                    // la majorité des générations valides (le tronc est déjà à la limite).
-                    if (!straightFree) { failed = true; break; }
-                } else {
-                    if (!straightOk) { failed = true; break; }
-                }
-                boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
-                // Si droit impossible ou non choisi → virage
-                int ndx = dx, ndy = dy;
-                if (!goStraight) {
-                    int[][] perp = {{dy, -dx}, {-dy, dx}};
-                    boolean turned = false;
-                    int startP = rng.nextInt(2);
-                    for (int k = 0; k < 2; k++) {
-                        int[] turn = perp[(startP + k) % 2];
-                        Point t = new Point(cx + turn[0], cy + turn[1]);
-                        if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
-                        if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                        ndx = turn[0]; ndy = turn[1];
-                        dx = ndx; dy = ndy;
-                        turned = true;
-                        break;
-                    }
-                    if (!turned) {
-                        // Dernier recours : droit si encore possible
-                        if (!straightOk) { failed = true; break; }
-                        ndx = dx; ndy = dy;
-                        goStraight = true;
-                    }
-                } else {
+                    // Droit obligatoire apres la porte.
                     ndx = dx; ndy = dy;
+                    Point s = new Point(cx + dx, cy + dy);
+                    if (s.isOutOfBounds() || tmpAdj.containsKey(s)) { failed = true; break; }
+                } else {
+                    // Droit ou virage aleatoire. Cellule libre = ok.
+                    Point s = new Point(cx + dx, cy + dy);
+                    if (!s.isOutOfBounds() && !tmpAdj.containsKey(s) && rng.nextFloat() < 0.35f) {
+                        ndx = dx; ndy = dy;
+                    } else {
+                        int[][] perp = {{dy, -dx}, {-dy, dx}};
+                        boolean turned = false;
+                        ndx = dx; ndy = dy;
+                        for (int k = 0; k < 2; k++) {
+                            int[] turn = perp[rng.nextInt(2)];
+                            Point t = new Point(cx + turn[0], cy + turn[1]);
+                            if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
+                            ndx = turn[0]; ndy = turn[1];
+                            dx = ndx; dy = ndy;
+                            turned = true; break;
+                        }
+                        if (!turned) {
+                            s = new Point(cx + dx, cy + dy);
+                            if (!s.isOutOfBounds() && !tmpAdj.containsKey(s)) { ndx = dx; ndy = dy; }
+                            else { failed = true; break; }
+                        }
+                    }
                 }
                 Point next = new Point(cx + ndx, cy + ndy);
                 if (tmpAdj.containsKey(next) || next.isOutOfBounds()) { failed = true; break; }
-                // Le check de colinéarité est sauté pour i==0 (chemin externe au donjon).
-                if (i > 0 && DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) { failed = true; break; }
-                // Enregistre dans tmpAdj pour les tests suivants
                 tmpAdj.putIfAbsent(curTmp, new HashSet<>());
                 tmpAdj.putIfAbsent(next, new HashSet<>());
                 tmpAdj.get(curTmp).add(next);
@@ -376,23 +356,17 @@ final class DungeonPart1 {
                 pathCells.add(next);
                 curTmp = next;
                 cx = next.x(); cy = next.y();
-                lastStraight = goStraight;
             }
-            // Besoin d'au moins 2 cellules de chemin vers la taverne
             if (failed || pathCells.size() < 2) continue;
 
+            // Approche de la taverne : cellule d'entree de la structure 2x2.
             Point t1 = new Point(cx + dx, cy + dy);
-            // t1 ne doit pas prolonger une droite adj > MAX (même axe que le chemin)
-            Point lastPath = pathCells.get(pathCells.size() - 1);
-            if (t1.isOutOfBounds() || adj.containsKey(t1)
-                    || DungeonConstraints.colinearRunAfterEdge(lastPath, t1, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) {
-                // Forcer un virage d'approche de la taverne
+            if (t1.isOutOfBounds() || adj.containsKey(t1) || tmpAdj.containsKey(t1)) {
                 int[][] perp = {{dy, -dx}, {-dy, dx}};
                 boolean okT = false;
                 for (int[] turn : perp) {
                     Point cand = new Point(cx + turn[0], cy + turn[1]);
                     if (cand.isOutOfBounds() || adj.containsKey(cand) || tmpAdj.containsKey(cand)) continue;
-                    if (DungeonConstraints.colinearRunAfterEdge(lastPath, cand, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
                     t1 = cand; dx = turn[0]; dy = turn[1]; okT = true; break;
                 }
                 if (!okT) continue;
@@ -440,7 +414,6 @@ final class DungeonPart1 {
         for (String doorId : List.of(RoomIds.DOOR_1)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
-            // Déjà un M5 correctement espacé pour cette porte ?
             if (hasM5WithGapBeforeDoor(door, labels, adj, startPoint)) {
                 placed++;
                 continue;
@@ -486,18 +459,15 @@ final class DungeonPart1 {
 
         Map<Point, Point> parent = bfsParents(startPoint, adj);
 
-        // Chaîne porte ← p1 ← p2 ← p3 (vers le départ)
-        Point p1 = parent.get(door);       // distance 1 — trop proche, gap interdit
-        Point p2 = p1 != null ? parent.get(p1) : null; // distance 2 — gap = 1 cellule
-        Point p3 = p2 != null ? parent.get(p2) : null; // distance 3 — gap = 2 cellules
+        // Chaine porte <- p1 <- p2 <- p3 (vers le depart)
+        Point p1 = parent.get(door);
+        Point p2 = p1 != null ? parent.get(p1) : null;
+        Point p3 = p2 != null ? parent.get(p2) : null;
 
         for (Point cand : new Point[]{p2, p3}) {
             if (cand == null || cand.equals(startPoint)) continue;
             if (!isReplaceableStraightCorridor(cand, labels, adj)) continue;
-            // ESPACEMENT MONSTRES (règle dure, conversation 3) : la M5 posée ici tardivement
-            // doit aussi être à distance >= DungeonAlgo.MONSTER_MIN_DIST de toute salle monstre existante.
             if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) continue;
-            // Les nœuds entre cand et door doivent rester des couloirs structurels (gap)
             if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) continue;
             return cand;
         }
@@ -534,7 +504,6 @@ final class DungeonPart1 {
         int guard = 0;
         while (cur != null && !cur.equals(from) && guard++ < 8) {
             Set<Point> nb = adj.getOrDefault(cur, Set.of());
-            // STRICT géométrie : deg 2 seulement → C ou I2, jamais intersection
             if (nb.size() != 2) return false;
             Shape sh = DungeonLabels.shapeOf(nb);
             if (sh != Shape.STRAIGHT && sh != Shape.TURN) return false;
@@ -545,7 +514,6 @@ final class DungeonPart1 {
                         || lbl.equals(RoomIds.CORRIDOR_TURN)
                         || lbl.equals(RoomIds.WELL)
                         || lbl.equals("I2");
-                // Refuse I3/I4/M*/spéciales dans le gap
                 if (!okGap) return false;
             }
             cur = parent.get(cur);
