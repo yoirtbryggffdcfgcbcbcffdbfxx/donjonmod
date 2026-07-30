@@ -170,13 +170,11 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      */
     @Override
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
-        // Phase DEAD : on est invulnérable (santé figée à 0.1f par le mixin tick),
-        // mais on veut quand même le feedback visuel (flash de dégât) pour que
-        // le joueur sache qu'il a "touché" l'entité. Le dialogue est déclenché
-        // par le mixin BossEntityDeathInterceptorMixin (TAIL de damage).
+        // Phase DEAD : pas de flash, pas de dégât (comme BaseNpcEntity).
+        // Le dialogue est déclenché par le mixin BossEntityDeathInterceptorMixin
+        // à TAIL de damage() (sans dépendre du return value).
         if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
-            // On laisse Minecraft appliquer le flash (hurtTime) sans changer la santé.
-            return super.damage(world, source, 0.0f);
+            return false;
         }
 
         // Application des modificateurs custom du boss.
