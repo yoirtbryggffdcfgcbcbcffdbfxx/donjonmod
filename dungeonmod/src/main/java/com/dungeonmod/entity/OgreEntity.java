@@ -155,6 +155,8 @@ public class OgreEntity extends BossEntity
         int cx = room.isDefined() ? room.centerX() : 0;
         int cz = room.isDefined() ? room.centerZ() : 0;
         animTimer++;
+        if ((this.getWorld().isClient ? "CLIENT" : "SERVER").equals("SERVER"))
+            System.out.println("[Cyclops-death] tick deathStage=" + deathStage + " animTimer=" + animTimer + " pos=(" + (int)getX() + "," + (int)getY() + "," + (int)getZ() + ") phase=" + getPhase() + " deathStage===" + deathStage);
         if (deathStage == 0) {
             double dx = cx - getX(), dz = cz - getZ();
             float targetYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
@@ -163,9 +165,7 @@ public class OgreEntity extends BossEntity
             deathStage = 1;
         }
         if (deathStage == 1) {
-            // On attend au moins 30 ticks (1.5s) à stage 1 pour que la marche
-            // vers le centre soit visible, même si le boss est déjà au centre.
-            if ((squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 && animTimer >= 30) || animTimer > 100) {
+            if (squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 || animTimer > 100) {
                 getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
                 setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
                 prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
@@ -450,6 +450,7 @@ public class OgreEntity extends BossEntity
      */
     @Override
     public void onPostMortemHit(PlayerEntity attacker) {
+        System.out.println("[Cyclops-postmortem] onPostMortemHit called deathStage=" + deathStage + " attacker=" + attacker.getName().getString());
         if (deathStage == 3) startDialogue(attacker);
     }
 
