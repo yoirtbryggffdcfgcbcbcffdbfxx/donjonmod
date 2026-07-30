@@ -44,15 +44,142 @@ final class DungeonPart1 {
     }
 
     static TreeResult generatePart1Tree(Random rng) {
-        return DungeonTreeBuilder.generateRawTree(DungeonAlgo.PART1_TARGET_MIN, DungeonAlgo.PART1_TARGET_MAX, DungeonAlgo.PART1_MAX_I3, DungeonAlgo.PART1_MAX_I4, DungeonAlgo.PART1_STRAIGHT_WEIGHT, null, null, DungeonAlgo.MAX_COLINEAR_RUN, rng);
+        Point start = new Point(DungeonAlgo.GRID_SIZE / 2, DungeonAlgo.GRID_SIZE / 2);
+        Map<Point, Set<Point>> adj = new HashMap<>();
+        Set<Point> occupied = new HashSet<>();
+        adj.put(start, new HashSet<>());
+        occupied.add(start);
+
+        List<int[]> dirs = new ArrayList<>(Arrays.asList(DungeonAlgo.DIR_OFFSET));
+        Collections.shuffle(dirs, rng);
+        int dir = -1;
+        for (int[] d : dirs) {
+            Point target = start.move(d);
+            if (!target.isOutOfBounds() && !occupied.contains(target)) {
+                for (int i = 0; i < 4; i++)
+                    if (DungeonAlgo.DIR_OFFSET[i][0] == d[0] && DungeonAlgo.DIR_OFFSET[i][1] == d[1]) { dir = i; break; }
+                break;
+            }
+        }
+        if (dir < 0) { TreeResult tr = new TreeResult(); tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj; return tr; }
+
+        Point c = start.move(DungeonAlgo.DIR_OFFSET[dir]);
+        DungeonTreeBuilder.addEdge(adj, occupied, start, c);
+        List<Point> trunkCells = new ArrayList<>();
+        trunkCells.add(c);
+
+        int trunkTarget = DungeonAlgo.PART2_TRUNK_MIN + rng.nextInt(DungeonAlgo.PART2_TRUNK_MAX - DungeonAlgo.PART2_TRUNK_MIN + 1);
+
+        for (int t = 1; t < trunkTarget; t++) {
+            int runIfStraight = DungeonConstraints.colinearRunAfterEdge(c, c.move(DungeonAlgo.DIR_OFFSET[dir]), adj);
+            boolean forceTurn = runIfStraight > DungeonAlgo.MAX_COLINEAR_RUN;
+            boolean maybeTurn = runIfStraight >= 2 && rng.nextFloat() < 0.40f;
+            if (forceTurn || maybeTurn) dir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+
+            Point n = c.move(DungeonAlgo.DIR_OFFSET[dir]);
+            if (n.isOutOfBounds() || occupied.contains(n)
+                    || DungeonConstraints.colinearRunAfterEdge(c, n, adj) > DungeonAlgo.MAX_COLINEAR_RUN) {
+                int od = dir; boolean found = false;
+                for (int a = 0; a < 4; a++) {
+                    int td = (od + a) % 4;
+                    Point cand = c.move(DungeonAlgo.DIR_OFFSET[td]);
+                    if (cand.isOutOfBounds() || occupied.contains(cand)) continue;
+                    if (DungeonConstraints.colinearRunAfterEdge(c, cand, adj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                    dir = td; n = cand; found = true; break;
+                }
+                if (!found) break;
+            }
+
+            DungeonTreeBuilder.addEdge(adj, occupied, c, n);
+            trunkCells.add(n);
+            c = n;
+
+            if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
+                int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+                DungeonPart2.growMiniTreeBounded(n, pDir, adj, occupied, rng);
+            }
+        }
+
+        Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
+        if (!trunkCells.isEmpty()) {
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
+        }
+
+        int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
+        int ci3 = 0, ci4 = 0;
+        for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
+        while (adj.size() < targetSize) {
+            List<Point[]> candidates = new ArrayList<>();
+            for (Point node : adj.keySet()) {
+                if (node.equals(start) || node.equals(trunkEnd)) continue;
+                int deg = adj.get(node).size();
+                if (deg >= 4) continue;
+                if (deg == 2 && ci3 >= DungeonAlgo.PART1_MAX_I3) continue;
+                if (deg == 3 && ci4 >= 1) continue;
+                for (int[] d : DungeonAlgo.DIR_OFFSET) {
+                    Point next = node.move(d);
+                    if (next.isOutOfBounds() || occupied.contains(next)) continue;
+                    if (DungeonConstraints.colinearRunAfterEdge(node, next, adj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                    int w = trunkCells.contains(node) ? 2 : 1;
+                    for (int wi = 0; wi < w; wi++) candidates.add(new Point[]{node, next});
+                }
+            }
+            if (candidates.isEmpty()) break;
+            Point[] choice = candidates.get(rng.nextInt(candidates.size()));
+            DungeonTreeBuilder.addEdge(adj, occupied, choice[0], choice[1]);
+            int nd = adj.get(choice[0]).size();
+            if (nd == 3) ci3++; else if (nd == 4) ci4++;
+        }
+
+        TreeResult tr = new TreeResult();
+        tr.startPoint = start; tr.startKey = start.key();
+        tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj;
+        tr.trunkEnd = trunkEnd;
+        tr.trunkEndDir = dir;
+        return tr;
     }
 
-    static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
+    static Point appendP1ExitSequenceCells(Map<Point, Set<Point>> adj, Point trunkEnd, int trunkEndDir, Random rng) {
+        if (trunkEnd == null || trunkEndDir < 0) return null;
+        Set<Point> occupied = new HashSet<>(adj.keySet());
+        int dir = trunkEndDir;
+        Point cursor = trunkEnd;
+        List<Point> gapCells = new ArrayList<>();
+        int need = 1 + rng.nextInt(2);
+        for (int i = 0; i < need + 1; i++) {
+            Point next = null; int chosenDir = -1;
+            int[] tryOrder = (i == 0)
+                ? new int[]{dir, (dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4}
+                : new int[]{dir, (dir + 1) % 4, (dir + 3) % 4};
+            for (int td : tryOrder) {
+                Point cand = cursor.move(DungeonAlgo.DIR_OFFSET[td]);
+                if (cand.isOutOfBounds() || occupied.contains(cand) || adj.containsKey(cand)) continue;
+                if (DungeonConstraints.colinearRunAfterEdge(cursor, cand, adj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                next = cand; chosenDir = td; break;
+            }
+            if (next == null) return null;
+            adj.putIfAbsent(cursor, new HashSet<>()); adj.putIfAbsent(next, new HashSet<>());
+            adj.get(cursor).add(next); adj.get(next).add(cursor);
+            occupied.add(next); dir = chosenDir; cursor = next;
+            if (i < need) gapCells.add(next);
+            else {
+                for (Point gp : gapCells) if (adj.getOrDefault(gp, Set.of()).size() != 2) return null;
+                return next;
+            }
+        }
+        return null;
+    }
+
+    static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Point trunkEnd, int trunkEndDir, Random rng) {
+        Point porte = appendP1ExitSequenceCells(adj, trunkEnd, trunkEndDir, rng);
+        if (porte == null) return null;
+
         DungeonLabelState labelState = new DungeonLabelState();
         labelState.setTheme(adj.keySet(), Theme.P12);
-        // Les labels finaux ne sont pas encore construits ici : on ne pose que les specials.
+
         List<Point> leaves = new ArrayList<>();
-        for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint)) leaves.add(e.getKey());
+        for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint) && !e.getKey().equals(porte)) leaves.add(e.getKey());
         if (leaves.size() < 5) return null;
         Collections.shuffle(leaves, rng);
 
@@ -62,7 +189,6 @@ final class DungeonPart1 {
             if (adj.get(parent).size() == 2) {
                 Set<Point> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
                 Point gp = pn.iterator().next();
-
                 if ((parent.x() - gp.x() == leaf.x() - parent.x()) && (parent.y() - gp.y() == leaf.y() - parent.y())) {
                     prison = leaf; break;
                 }
@@ -73,60 +199,13 @@ final class DungeonPart1 {
         List<Point> others = new ArrayList<>();
         for (Point l : leaves) if (!l.equals(prison)) others.add(l);
 
-        // Porte1 : leaf avec parent couloir DROIT et profondeur ≥3 (M5 + 1–2 gap)
-        // Parcours : … → M5 → [1–2 C/I2] → porte → chemin taverne
-        Map<Point, Integer> depthFromStart = new HashMap<>();
-        {
-            Deque<Point> dq = new ArrayDeque<>();
-            dq.add(startPoint);
-            depthFromStart.put(startPoint, 0);
-            while (!dq.isEmpty()) {
-                Point cur = dq.poll();
-                int d0 = depthFromStart.get(cur);
-                for (Point nb : adj.getOrDefault(cur, Set.of())) {
-                    if (!depthFromStart.containsKey(nb)) {
-                        depthFromStart.put(nb, d0 + 1);
-                        dq.add(nb);
-                    }
-                }
-            }
-        }
-        Point porte = null;
-        int bestPorteScore = -1;
-        for (Point leaf : others) {
-            int depth = depthFromStart.getOrDefault(leaf, 0);
-            if (depth < 3) continue;
-            Point par = adj.get(leaf).iterator().next();
-            if (par.equals(startPoint)) continue;
-            Set<Point> pnb = adj.get(par);
-            if (pnb == null || pnb.size() != 2) continue;
-            List<Point> pnbs = new ArrayList<>(pnb);
-            if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
-            int score = depth + 10;
-            if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
-        }
-        if (porte == null) {
-            // Fallback : leaf la plus profonde
-            for (Point leaf : others) {
-                int depth = depthFromStart.getOrDefault(leaf, 0);
-                if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
-            }
-        }
-        if (porte == null) porte = others.get(0);
-        others.remove(porte);
-        // others[0] était la porte : on l'a retirée, les indices loot/M1 suivent
         labelState.putSpecial(startPoint, RoomIds.START);
         labelState.putSpecial(porte, RoomIds.DOOR_1);
         labelState.putSpecial(prison, RoomIds.PRISON);
         Point prisonParent = adj.get(prison).iterator().next();
         labelState.putSpecial(prisonParent, RoomIds.MONSTER_2);
-        // others a déjà la porte retirée → indice 0 = loot, le reste = feuilles candidates
         labelState.putSpecial(others.get(0), RoomIds.LOOT_1);
 
-        // ESPACEMENT MONSTRES (règle dure, conversation 3) : chaque salle monstre (M1-M5)
-        // doit être à distance >= DungeonAlgo.MONSTER_MIN_DIST des autres (au moins 2 salles neutres
-        // entre elles). Infaisable => rejet (return null => retry amont). M2 (parent de la
-        // prison) est structurelle et sert de point de référence.
         Set<Point> monsters = new HashSet<>();
         monsters.add(prisonParent);
         List<Point> freeLeaves = new ArrayList<>();
@@ -139,7 +218,6 @@ final class DungeonPart1 {
         monsters.add(m1);
         freeLeaves.remove(m1);
         boolean isM4 = rng.nextBoolean();
-
         List<Point> cNodes = new ArrayList<>(), i2Nodes = new ArrayList<>(), i3Nodes = new ArrayList<>(), i4Nodes = new ArrayList<>();
         for (var e : adj.entrySet()) {
             if (labelState.hasSpecial(e.getKey())) continue;
@@ -152,8 +230,6 @@ final class DungeonPart1 {
             else if (deg == 4) i4Nodes.add(e.getKey());
         }
 
-        // 2e salle monstre de P1 : M4 (couloir) ou M3 (feuille) selon le tirage, avec repli
-        // sur l'autre variante si l'espacement est impossible. Échec des deux => rejet (null).
         String secondMonster = null;
         for (int variant = 0; variant < 2 && secondMonster == null; variant++) {
             boolean tryCorr = (variant == 0) == isM4;
@@ -180,16 +256,10 @@ final class DungeonPart1 {
         }
         if (secondMonster == null) return null;
 
-        // Les feuilles non utilisées restent génériques : elles deviendront "cul"
-        // lors de la construction finale des labels depuis adj + theme.
-
         for (Point n : cNodes) {
             if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomIds.WELL); break; }
         }
 
-        // Les labels génériques (C/I/cul) sont construits à la fin depuis l'adj réelle.
-        // Construction finale P1 : adj = géométrie, theme = P12, specials = salles imposées.
-        // L'ordre reproduit l'ancien flux autant que possible pour les variantes C1/C2/C3.
         List<Point> genericOrder = new ArrayList<>();
         genericOrder.addAll(freeLeaves);
         genericOrder.addAll(cNodes);
@@ -199,9 +269,6 @@ final class DungeonPart1 {
         Map<Point, String> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
 
         if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
-
-        // Règle cul-de-sac (conversation 3) : jamais au bout d'une ligne droite
-        // (virage/intersection requis) — sinon rejet et retry amont.
         if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
         if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
         return finalLabels;

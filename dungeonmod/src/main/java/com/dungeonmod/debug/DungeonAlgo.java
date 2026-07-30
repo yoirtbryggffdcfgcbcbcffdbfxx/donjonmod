@@ -436,8 +436,8 @@ public class DungeonAlgo {
 
     // ===================== Algorithm: analyzePart1 =====================
 
-    private static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
-        return DungeonPart1.analyzePart1(startPoint, adj, rng);
+    private static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Point trunkEnd, int trunkEndDir, Random rng) {
+        return DungeonPart1.analyzePart1(startPoint, adj, trunkEnd, trunkEndDir, rng);
     }
 
     // ===================== Algorithm: Tavern =====================
@@ -599,7 +599,7 @@ public class DungeonAlgo {
                 for (var e : try1.adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(try1.startPoint)) leaves.add(e.getKey());
                 if (leaves.size() < 4) continue;
                 if (!hasPrisonCandidate(try1.adj, try1.startPoint)) continue;
-                Map<Point, String> tryLabels = analyzePart1(try1.startPoint, try1.adj, rng);
+                Map<Point, String> tryLabels = analyzePart1(try1.startPoint, try1.adj, try1.trunkEnd, try1.trunkEndDir, rng);
                 if (tryLabels == null) continue;
                 sp1 = try1; labels = tryLabels; break;
             }
