@@ -8,26 +8,20 @@ import net.minecraft.server.world.ServerWorld;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Mixin sur LivingEntity.applyDamage (protected, signature ServerWorld/DamageSource/float).
- * <p>C'est la méthode que LivingEntity.damage() appelle en interne pour appliquer
- * le dégât. Notre BossEntity.applyDamage fait la même chose mais intercepte
- * le coup fatal pour déclencher la phase DEAD.
- * <p>Ce mixin est un filet de sécurité :
- * <ul>
- *   <li>Si la santé tombe à 0 sans qu'on soit en phase DEAD → bascule DEAD.</li>
- *   <li>Si on est en phase DEAD et qu'un coup tente de nous tuer → on force
- *       setHealth(0.1f) pour rester en vie pendant la séquence.</li>
- *   <li>Si le joueur tape (clic gauche) sur le boss mort → dialogue (post-mortem).</li>
- * </ul>
+ * Filet de sécurité pour la mort des boss. S'injecte à TAIL de damage().
+ * <p>Damage() est appelé par Minecraft avec la signature (ServerWorld, DamageSource, float)
+ * en 1.21.4. Notre BossEntity.damage fait la même chose mais intercepte le coup
+ * fatal pour déclencher la phase DEAD. Ce mixin ajoute une sécurité au cas où
+ * damage() n'est pas appelé (multi-hit weapons, env damage, ...).
  */
 @Mixin(LivingEntity.class)
 public class BossEntityDeathInterceptorMixin {
 
-    @Inject(method = "applyDamage", at = @At("TAIL"))
-    private void onApplyDamageTail(ServerWorld world, DamageSource source, float amount, CallbackInfo ci) {
+    @Inject(method = "damage", at = @At("TAIL"))
+    private void onDamageTail(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         LivingEntity self = (LivingEntity) (Object) this;
         if (!(self instanceof BossEntity boss)) return;
 

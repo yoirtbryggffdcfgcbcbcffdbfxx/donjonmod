@@ -169,12 +169,10 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      * tickDeath()) au lieu de laisser Minecraft retirer l'entité immédiatement.
      */
     @Override
-    protected void applyDamage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
+    public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
         // Phase DEAD : pas de flash, pas de dégât (comme BaseNpcEntity).
-        // Le dialogue est déclenché par le mixin BossEntityDeathInterceptorMixin
-        // à TAIL de damage() (sans dépendre du return value).
         if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
-            return;
+            return false;
         }
 
         // Application des modificateurs custom du boss.
@@ -182,7 +180,6 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         amount *= damageReduction(source, amount);
 
         // Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD.
-        // Seuil à 0.01f (le boss a 0.1 PV à la fin).
         if (this.getHealth() - amount <= 0.01f) {
             this.setHealth(0.1f);
             this.setPhase(BossPhase.DEAD);
@@ -191,9 +188,9 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             this.getNavigation().stop();
             if (bossBar != null) bossBar.clearPlayers();
             onFatalHit(source);
-            return;
+            return false;
         }
-        super.applyDamage(world, source, amount);
+        return super.damage(world, source, amount);
     }
 
     /** Appelé quand le boss vient d'être tué (avant la phase DEAD). */
