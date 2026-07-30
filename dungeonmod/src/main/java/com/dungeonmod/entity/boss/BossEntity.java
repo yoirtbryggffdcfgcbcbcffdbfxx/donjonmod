@@ -189,17 +189,19 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             return false;
         }
 
-        // Application des modificateurs custom du boss.
-        amount *= damageMultiplier(source, amount);
-        amount *= damageReduction(source, amount);
-
         // Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD.
-        // On délègue à triggerDeathSequence() pour garder une seule source de vérité.
+        // (On n'applique PAS les modificateurs ici : le boss meurt de toute façon,
+        // et conserver l'amount ajusté ne servirait à rien puisqu'on ne fait pas
+        // de super.damage().)
         if (this.getHealth() - amount <= 0.01f) {
             triggerDeathSequence();
             onFatalHit(source);
             return false;
         }
+
+        // Application des modificateurs custom du boss, puis délégation à vanilla.
+        amount *= damageMultiplier(source, amount);
+        amount *= damageReduction(source, amount);
         return super.damage(world, source, amount);
     }
 
