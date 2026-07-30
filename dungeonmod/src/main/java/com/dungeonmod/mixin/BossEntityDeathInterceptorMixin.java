@@ -11,8 +11,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Filet de sécurité pour la mort des boss. S'injecte à TAIL de
- * damage(DamageSource, float) — c'est la méthode publique qu'appelle
- * Minecraft quand un dégât est infligé à un LivingEntity.
+ * damage(DamageSource, float) — c'est la méthode héritée de Entity
+ * (la 2-args) que Minecraft appelle via PlayerEntity.attack.
  * <p>Cas couverts :
  * <ul>
  *   <li>Si on est en phase DEAD et que la santé tombe à 0 → forcer setHealth(0.1f)
@@ -22,6 +22,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *   <li>Si le joueur clique (clic gauche, self-hit) sur un boss mort
  *       → déclencher le dialogue post-mortem.</li>
  * </ul>
+ * <p>Note : on injecte sur la 2-args (héritée de Entity) parce que c'est
+ * ce que Minecraft appelle. La 3-args (ServerWorld, DamageSource, float)
+ * existe aussi dans LivingEntity mais n'est pas appelée directement.
  */
 @Mixin(LivingEntity.class)
 public class BossEntityDeathInterceptorMixin {
