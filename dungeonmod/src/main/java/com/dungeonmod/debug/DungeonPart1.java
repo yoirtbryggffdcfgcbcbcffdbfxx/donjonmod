@@ -324,12 +324,20 @@ final class DungeonPart1 {
             for (int i = 0; i < maxLen; i++) {
                 // La porte est un couloir droit : la 1ère cellule du chemin DOIT
                 // continuer dans le même axe pour préserver sa géométrie STRAIGHT.
-                // Si la cellule droite est occupée → échec de cette tentative
-                // (l'espace est réservé en amont par generatePart1Tree).
                 Point straight = new Point(cx + dx, cy + dy);
-                boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
+                boolean straightFree = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight);
+                boolean straightOk = straightFree
                         && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-                if (i == 0 && !straightOk) { failed = true; break; }
+
+                if (i == 0) {
+                    // 1ère cellule après la porte : droit obligatoire, mais on ne vérifie
+                    // PAS la limite de colinéarité. Le chemin de taverne est externe au
+                    // donjon — contraindre sa 1ère cellule par MAX_COLINEAR_RUN bloque
+                    // la majorité des générations valides (le tronc est déjà à la limite).
+                    if (!straightFree) { failed = true; break; }
+                } else {
+                    if (!straightOk) { failed = true; break; }
+                }
                 boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
                 // Si droit impossible ou non choisi → virage
                 int ndx = dx, ndy = dy;
@@ -358,7 +366,8 @@ final class DungeonPart1 {
                 }
                 Point next = new Point(cx + ndx, cy + ndy);
                 if (tmpAdj.containsKey(next) || next.isOutOfBounds()) { failed = true; break; }
-                if (DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) { failed = true; break; }
+                // Le check de colinéarité est sauté pour i==0 (chemin externe au donjon).
+                if (i > 0 && DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) { failed = true; break; }
                 // Enregistre dans tmpAdj pour les tests suivants
                 tmpAdj.putIfAbsent(curTmp, new HashSet<>());
                 tmpAdj.putIfAbsent(next, new HashSet<>());
