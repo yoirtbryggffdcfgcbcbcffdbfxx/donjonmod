@@ -298,7 +298,7 @@ final class DungeonPart1 {
 
         for (int attempt = 1; attempt <= TAVERN_PATH_ATTEMPTS; attempt++) {
             int dx = baseDx, dy = baseDy;
-            int maxLen = 2 + rng.nextInt(4);
+            int maxLen = 4 + rng.nextInt(4);
             int cx = porte.x(), cy = porte.y();
             List<Point> pathCells = new ArrayList<>();
             Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
