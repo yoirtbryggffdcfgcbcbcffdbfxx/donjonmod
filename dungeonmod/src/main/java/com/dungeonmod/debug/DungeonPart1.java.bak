@@ -10,15 +10,10 @@ import com.dungeonmod.debug.DungeonAlgo.TreeResult;
 
 import java.util.*;
 
-/**
- * Génération/analyse de la première partie du donjon (grotte de départ),
- * chemin de taverne et M5 avant porte1.
- *
- * Extraction mécanique depuis DungeonAlgo : l'objectif est de déplacer le code
- * sans modifier volontairement le comportement.
- */
 final class DungeonPart1 {
     private DungeonPart1() {}
+
+    private static final int TAVERN_PATH_ATTEMPTS = 30;
 
     static boolean hasPrisonCandidate(Map<Point, Set<Point>> adj, Point startPoint) {
         for (var e : adj.entrySet()) {
@@ -41,15 +36,159 @@ final class DungeonPart1 {
     }
 
     static TreeResult generatePart1Tree(Random rng) {
-        return DungeonTreeBuilder.generateRawTree(DungeonAlgo.PART1_TARGET_MIN, DungeonAlgo.PART1_TARGET_MAX, DungeonAlgo.PART1_MAX_I3, DungeonAlgo.PART1_MAX_I4, DungeonAlgo.PART1_STRAIGHT_WEIGHT, null, null, DungeonAlgo.MAX_COLINEAR_RUN, rng);
+        Point start = new Point(DungeonAlgo.GRID_SIZE / 2, DungeonAlgo.GRID_SIZE / 2);
+        Map<Point, Set<Point>> adj = new HashMap<>();
+        Set<Point> occupied = new HashSet<>();
+        adj.put(start, new HashSet<>());
+        occupied.add(start);
+
+        List<int[]> dirs = new ArrayList<>(Arrays.asList(DungeonAlgo.DIR_OFFSET));
+        Collections.shuffle(dirs, rng);
+        int dir = -1;
+        for (int[] d : dirs) {
+            Point target = start.move(d);
+            if (!target.isOutOfBounds() && !occupied.contains(target)) {
+                for (int i = 0; i < 4; i++)
+                    if (DungeonAlgo.DIR_OFFSET[i][0] == d[0] && DungeonAlgo.DIR_OFFSET[i][1] == d[1]) { dir = i; break; }
+                break;
+            }
+        }
+        if (dir < 0) { TreeResult tr = new TreeResult(); tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj; return tr; }
+
+        Point c = start.move(DungeonAlgo.DIR_OFFSET[dir]);
+        DungeonTreeBuilder.addEdge(adj, occupied, start, c);
+        List<Point> trunkCells = new ArrayList<>();
+        trunkCells.add(c);
+
+        int trunkTarget = DungeonAlgo.PART2_TRUNK_MIN + rng.nextInt(DungeonAlgo.PART2_TRUNK_MAX - DungeonAlgo.PART2_TRUNK_MIN + 1);
+
+        for (int t = 1; t < trunkTarget; t++) {
+            int runIfStraight = DungeonConstraints.colinearRunAfterEdge(c, c.move(DungeonAlgo.DIR_OFFSET[dir]), adj);
+            boolean forceTurn = runIfStraight > DungeonAlgo.MAX_COLINEAR_RUN;
+            boolean maybeTurn = runIfStraight >= 2 && rng.nextFloat() < 0.40f;
+            if (forceTurn || maybeTurn) dir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+
+            Point n = c.move(DungeonAlgo.DIR_OFFSET[dir]);
+            if (n.isOutOfBounds() || occupied.contains(n)
+                    || DungeonConstraints.colinearRunAfterEdge(c, n, adj) > DungeonAlgo.MAX_COLINEAR_RUN) {
+                int od = dir; boolean found = false;
+                for (int a = 0; a < 4; a++) {
+                    int td = (od + a) % 4;
+                    Point cand = c.move(DungeonAlgo.DIR_OFFSET[td]);
+                    if (cand.isOutOfBounds() || occupied.contains(cand)) continue;
+                    if (DungeonConstraints.colinearRunAfterEdge(c, cand, adj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                    dir = td; n = cand; found = true; break;
+                }
+                if (!found) break;
+            }
+
+            DungeonTreeBuilder.addEdge(adj, occupied, c, n);
+            trunkCells.add(n);
+            c = n;
+
+            // Branche differee (poussee apres reservation)
+        }
+
+        Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
+
+        // Reserve l'espace devant le tronc pour la sortie + chemin + taverne
+        // AVANT les branches pour qu'elles contournent le couloir.
+        int[] td = DungeonAlgo.DIR_OFFSET[dir];
+        for (int ri = 1; ri <= 12; ri++) {
+            for (int sj = -5; sj <= 5; sj++) {
+                Point rp = new Point(trunkEnd.x() + td[0] * ri - td[1] * sj,
+                                     trunkEnd.y() + td[1] * ri + td[0] * sj);
+                if (!rp.isOutOfBounds()) occupied.add(rp);
+            }
+        }
+
+        // Pousser les branches (respectent occupied -> contournent le couloir)
+        for (int ti = 0; ti < trunkCells.size(); ti++) {
+            Point tc = trunkCells.get(ti);
+            if (ti >= trunkTarget - 3) continue;
+            if (rng.nextFloat() >= 0.55f) continue;
+            int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(tc, pDir, adj, occupied, rng);
+        }
+        if (!trunkCells.isEmpty()) {
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
+        }
+
+        int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
+        int ci3 = 0, ci4 = 0;
+        for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
+        while (adj.size() < targetSize) {
+            List<Point[]> candidates = new ArrayList<>();
+            for (Point node : adj.keySet()) {
+                if (node.equals(start) || node.equals(trunkEnd)) continue;
+                int deg = adj.get(node).size();
+                if (deg >= 4) continue;
+                if (deg == 2 && ci3 >= DungeonAlgo.PART1_MAX_I3) continue;
+                if (deg == 3 && ci4 >= 1) continue;
+                for (int[] d : DungeonAlgo.DIR_OFFSET) {
+                    Point next = node.move(d);
+                    if (next.isOutOfBounds() || occupied.contains(next)) continue;
+                    if (DungeonConstraints.colinearRunAfterEdge(node, next, adj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                    int w = trunkCells.contains(node) ? 2 : 1;
+                    for (int wi = 0; wi < w; wi++) candidates.add(new Point[]{node, next});
+                }
+            }
+            if (candidates.isEmpty()) break;
+            Point[] choice = candidates.get(rng.nextInt(candidates.size()));
+            DungeonTreeBuilder.addEdge(adj, occupied, choice[0], choice[1]);
+            int nd = adj.get(choice[0]).size();
+            if (nd == 3) ci3++; else if (nd == 4) ci4++;
+        }
+
+        TreeResult tr = new TreeResult();
+        tr.startPoint = start; tr.startKey = start.key();
+        tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj;
+        tr.trunkEnd = trunkEnd;
+        tr.trunkEndDir = dir;
+        return tr;
     }
 
-    static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
+    static Point appendP1ExitSequenceCells(Map<Point, Set<Point>> adj, Point trunkEnd, int trunkEndDir, Random rng) {
+        if (trunkEnd == null || trunkEndDir < 0) return null;
+        Set<Point> occupied = new HashSet<>(adj.keySet());
+        int dir = trunkEndDir;
+        Point cursor = trunkEnd;
+        List<Point> gapCells = new ArrayList<>();
+        int need = 0;
+        for (int i = 0; i < need + 1; i++) {
+            Point next = null; int chosenDir = -1;
+            int[] tryOrder = (i == 0)
+                ? new int[]{dir, (dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4}
+                : new int[]{dir, (dir + 1) % 4, (dir + 3) % 4};
+            for (int td : tryOrder) {
+                Point cand = cursor.move(DungeonAlgo.DIR_OFFSET[td]);
+                if (cand.isOutOfBounds() || occupied.contains(cand) || adj.containsKey(cand)) continue;
+                if (DungeonConstraints.colinearRunAfterEdge(cursor, cand, adj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                next = cand; chosenDir = td; break;
+            }
+            if (next == null) return null;
+            adj.putIfAbsent(cursor, new HashSet<>()); adj.putIfAbsent(next, new HashSet<>());
+            adj.get(cursor).add(next); adj.get(next).add(cursor);
+            occupied.add(next); dir = chosenDir; cursor = next;
+            if (i < need) gapCells.add(next);
+            else {
+                for (Point gp : gapCells) if (adj.getOrDefault(gp, Set.of()).size() != 2) return null;
+                return next;
+            }
+        }
+        return null;
+    }
+
+    static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Point trunkEnd, int trunkEndDir, Random rng) {
+        Point porte = appendP1ExitSequenceCells(adj, trunkEnd, trunkEndDir, rng);
+        if (porte == null) return null;
+
         DungeonLabelState labelState = new DungeonLabelState();
         labelState.setTheme(adj.keySet(), Theme.P12);
-        // Les labels finaux ne sont pas encore construits ici : on ne pose que les specials.
+
         List<Point> leaves = new ArrayList<>();
-        for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint)) leaves.add(e.getKey());
+        for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint) && !e.getKey().equals(porte)) leaves.add(e.getKey());
         if (leaves.size() < 5) return null;
         Collections.shuffle(leaves, rng);
 
@@ -59,7 +198,6 @@ final class DungeonPart1 {
             if (adj.get(parent).size() == 2) {
                 Set<Point> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
                 Point gp = pn.iterator().next();
-
                 if ((parent.x() - gp.x() == leaf.x() - parent.x()) && (parent.y() - gp.y() == leaf.y() - parent.y())) {
                     prison = leaf; break;
                 }
@@ -70,60 +208,13 @@ final class DungeonPart1 {
         List<Point> others = new ArrayList<>();
         for (Point l : leaves) if (!l.equals(prison)) others.add(l);
 
-        // Porte1 : leaf avec parent couloir DROIT et profondeur ≥3 (M5 + 1–2 gap)
-        // Parcours : … → M5 → [1–2 C/I2] → porte → chemin taverne
-        Map<Point, Integer> depthFromStart = new HashMap<>();
-        {
-            Deque<Point> dq = new ArrayDeque<>();
-            dq.add(startPoint);
-            depthFromStart.put(startPoint, 0);
-            while (!dq.isEmpty()) {
-                Point cur = dq.poll();
-                int d0 = depthFromStart.get(cur);
-                for (Point nb : adj.getOrDefault(cur, Set.of())) {
-                    if (!depthFromStart.containsKey(nb)) {
-                        depthFromStart.put(nb, d0 + 1);
-                        dq.add(nb);
-                    }
-                }
-            }
-        }
-        Point porte = null;
-        int bestPorteScore = -1;
-        for (Point leaf : others) {
-            int depth = depthFromStart.getOrDefault(leaf, 0);
-            if (depth < 3) continue;
-            Point par = adj.get(leaf).iterator().next();
-            if (par.equals(startPoint)) continue;
-            Set<Point> pnb = adj.get(par);
-            if (pnb == null || pnb.size() != 2) continue;
-            List<Point> pnbs = new ArrayList<>(pnb);
-            if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
-            int score = depth + 10;
-            if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
-        }
-        if (porte == null) {
-            // Fallback : leaf la plus profonde
-            for (Point leaf : others) {
-                int depth = depthFromStart.getOrDefault(leaf, 0);
-                if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
-            }
-        }
-        if (porte == null) porte = others.get(0);
-        others.remove(porte);
-        // others[0] était la porte : on l'a retirée, les indices loot/M1 suivent
         labelState.putSpecial(startPoint, RoomIds.START);
         labelState.putSpecial(porte, RoomIds.DOOR_1);
         labelState.putSpecial(prison, RoomIds.PRISON);
         Point prisonParent = adj.get(prison).iterator().next();
         labelState.putSpecial(prisonParent, RoomIds.MONSTER_2);
-        // others a déjà la porte retirée → indice 0 = loot, le reste = feuilles candidates
         labelState.putSpecial(others.get(0), RoomIds.LOOT_1);
 
-        // ESPACEMENT MONSTRES (règle dure, conversation 3) : chaque salle monstre (M1-M5)
-        // doit être à distance >= DungeonAlgo.MONSTER_MIN_DIST des autres (au moins 2 salles neutres
-        // entre elles). Infaisable => rejet (return null => retry amont). M2 (parent de la
-        // prison) est structurelle et sert de point de référence.
         Set<Point> monsters = new HashSet<>();
         monsters.add(prisonParent);
         List<Point> freeLeaves = new ArrayList<>();
@@ -136,7 +227,6 @@ final class DungeonPart1 {
         monsters.add(m1);
         freeLeaves.remove(m1);
         boolean isM4 = rng.nextBoolean();
-
         List<Point> cNodes = new ArrayList<>(), i2Nodes = new ArrayList<>(), i3Nodes = new ArrayList<>(), i4Nodes = new ArrayList<>();
         for (var e : adj.entrySet()) {
             if (labelState.hasSpecial(e.getKey())) continue;
@@ -149,8 +239,6 @@ final class DungeonPart1 {
             else if (deg == 4) i4Nodes.add(e.getKey());
         }
 
-        // 2e salle monstre de P1 : M4 (couloir) ou M3 (feuille) selon le tirage, avec repli
-        // sur l'autre variante si l'espacement est impossible. Échec des deux => rejet (null).
         String secondMonster = null;
         for (int variant = 0; variant < 2 && secondMonster == null; variant++) {
             boolean tryCorr = (variant == 0) == isM4;
@@ -177,16 +265,10 @@ final class DungeonPart1 {
         }
         if (secondMonster == null) return null;
 
-        // Les feuilles non utilisées restent génériques : elles deviendront "cul"
-        // lors de la construction finale des labels depuis adj + theme.
-
         for (Point n : cNodes) {
             if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomIds.WELL); break; }
         }
 
-        // Les labels génériques (C/I/cul) sont construits à la fin depuis l'adj réelle.
-        // Construction finale P1 : adj = géométrie, theme = P12, specials = salles imposées.
-        // L'ordre reproduit l'ancien flux autant que possible pour les variantes C1/C2/C3.
         List<Point> genericOrder = new ArrayList<>();
         genericOrder.addAll(freeLeaves);
         genericOrder.addAll(cNodes);
@@ -196,15 +278,11 @@ final class DungeonPart1 {
         Map<Point, String> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
 
         if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
-
-        // Règle cul-de-sac (conversation 3) : jamais au bout d'une ligne droite
-        // (virage/intersection requis) — sinon rejet et retry amont.
         if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
         if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
         return finalLabels;
     }
 
-    /** Vérifie que les specials P1 sont restés posés sur une forme compatible. */
     private static boolean validatePart1SpecialShapes(Map<Point, String> labels, Map<Point, Set<Point>> adj) {
         for (var e : labels.entrySet()) {
             String label = e.getValue();
@@ -223,99 +301,86 @@ final class DungeonPart1 {
 
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
-        // Direction sortante porte → chemin (alignée sur l'entrée intérieure)
-        int dx = porte.x() - parent.x(), dy = porte.y() - parent.y();
+        int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
-        int maxLen = 2 + rng.nextInt(4);
-        int cx = porte.x(), cy = porte.y();
-        boolean lastStraight = false;
-        List<Point> pathCells = new ArrayList<>();
-        // Snapshot adj pour tester colinearRunAfterEdge avant d'ajouter (chemins temporaires)
-        Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
-        Point curTmp = porte;
+        for (int attempt = 1; attempt <= TAVERN_PATH_ATTEMPTS; attempt++) {
+            int dx = baseDx, dy = baseDy;
+            int maxLen = 4 + rng.nextInt(4);
+            int cx = porte.x(), cy = porte.y();
+            List<Point> pathCells = new ArrayList<>();
+            Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
+            Point curTmp = porte;
 
-        for (int i = 0; i < maxLen; i++) {
-            // Ne PAS forcer le droit : l'approche intérieure (M5→gap→porte) a déjà
-            // consommé du budget colinéaire. On tourne si la droite dépasserait MAX.
-            Point straight = new Point(cx + dx, cy + dy);
-            boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
-                    && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-            // La première cellule après la porte doit continuer dans l'axe : la structure
-            // "porte" est un couloir droit, pas un virage. Si l'axe dépasse la limite
-            // colinéaire, on rejette ce layout et on laisse le retry amont choisir mieux.
-            if (i == 0 && !straightOk) return null;
-            boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
-            // Si droit impossible ou non choisi → virage
-            int ndx = dx, ndy = dy;
-            if (!goStraight) {
-                int[][] perp = {{dy, -dx}, {-dy, dx}};
-                boolean turned = false;
-                int startP = rng.nextInt(2);
-                for (int k = 0; k < 2; k++) {
-                    int[] turn = perp[(startP + k) % 2];
-                    Point t = new Point(cx + turn[0], cy + turn[1]);
-                    if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
-                    if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                    ndx = turn[0]; ndy = turn[1];
-                    dx = ndx; dy = ndy;
-                    turned = true;
-                    break;
-                }
-                if (!turned) {
-                    // Dernier recours : droit si encore possible
-                    if (!straightOk) break;
+            boolean failed = false;
+            for (int i = 0; i < maxLen; i++) {
+                int ndx, ndy;
+                if (i == 0) {
                     ndx = dx; ndy = dy;
-                    goStraight = true;
+                    Point s = new Point(cx + dx, cy + dy);
+                    if (s.isOutOfBounds() || tmpAdj.containsKey(s)) { failed = true; break; }
+                } else {
+                    Point s = new Point(cx + dx, cy + dy);
+                    if (!s.isOutOfBounds() && !tmpAdj.containsKey(s) && rng.nextFloat() < 0.35f) {
+                        ndx = dx; ndy = dy;
+                    } else {
+                        int[][] perp = {{dy, -dx}, {-dy, dx}};
+                        boolean turned = false;
+                        ndx = dx; ndy = dy;
+                        int startP = rng.nextInt(2);
+                        for (int k = 0; k < 2; k++) {
+                            int[] turn = perp[(startP + k) % 2];
+                            Point t = new Point(cx + turn[0], cy + turn[1]);
+                            if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
+                            ndx = turn[0]; ndy = turn[1];
+                            dx = ndx; dy = ndy;
+                            turned = true; break;
+                        }
+                        if (!turned) {
+                            s = new Point(cx + dx, cy + dy);
+                            if (!s.isOutOfBounds() && !tmpAdj.containsKey(s)) { ndx = dx; ndy = dy; }
+                            else { failed = true; break; }
+                        }
+                    }
                 }
-            } else {
-                ndx = dx; ndy = dy;
+                Point next = new Point(cx + ndx, cy + ndy);
+                if (tmpAdj.containsKey(next) || next.isOutOfBounds()) { failed = true; break; }
+                tmpAdj.putIfAbsent(curTmp, new HashSet<>());
+                tmpAdj.putIfAbsent(next, new HashSet<>());
+                tmpAdj.get(curTmp).add(next);
+                tmpAdj.get(next).add(curTmp);
+                pathCells.add(next);
+                curTmp = next;
+                cx = next.x(); cy = next.y();
             }
-            Point next = new Point(cx + ndx, cy + ndy);
-            if (tmpAdj.containsKey(next) || next.isOutOfBounds()) break;
-            if (DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) break;
-            // Enregistre dans tmpAdj pour les tests suivants
-            tmpAdj.putIfAbsent(curTmp, new HashSet<>());
-            tmpAdj.putIfAbsent(next, new HashSet<>());
-            tmpAdj.get(curTmp).add(next);
-            tmpAdj.get(next).add(curTmp);
-            pathCells.add(next);
-            curTmp = next;
-            cx = next.x(); cy = next.y();
-            lastStraight = goStraight;
-        }
-        // Besoin d'au moins 2 cellules de chemin vers la taverne
-        if (pathCells.size() < 2) return null;
+            if (failed || pathCells.size() < 2) continue;
 
-        Point t1 = new Point(cx + dx, cy + dy);
-        // t1 ne doit pas prolonger une droite adj > MAX (même axe que le chemin)
-        Point lastPath = pathCells.get(pathCells.size() - 1);
-        if (t1.isOutOfBounds() || adj.containsKey(t1)
-                || DungeonConstraints.colinearRunAfterEdge(lastPath, t1, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) {
-            // Forcer un virage d'approche de la taverne
-            int[][] perp = {{dy, -dx}, {-dy, dx}};
-            boolean okT = false;
-            for (int[] turn : perp) {
-                Point cand = new Point(cx + turn[0], cy + turn[1]);
-                if (cand.isOutOfBounds() || adj.containsKey(cand) || tmpAdj.containsKey(cand)) continue;
-                if (DungeonConstraints.colinearRunAfterEdge(lastPath, cand, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                t1 = cand; dx = turn[0]; dy = turn[1]; okT = true; break;
+            DungeonCompositeRooms.Placement tavern = null;
+            int[] dxs = {dx, -dy, -dx, dy};
+            int[] dys = {dy, dx, -dy, -dx};
+            for (int rot = 0; rot < 4 && tavern == null; rot++) {
+                int rdx = dxs[rot], rdy = dys[rot];
+                Point t1 = new Point(cx + rdx, cy + rdy);
+                if (t1.isOutOfBounds() || adj.containsKey(t1) || tmpAdj.containsKey(t1)) continue;
+                tavern = DungeonCompositeRooms.plan(adj, t1, rdx, rdy, DungeonCompositeRooms.TAVERN);
             }
-            if (!okT) return null;
-        }
-        DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
-        if (tavern == null) return null;
+            if (tavern == null) continue;
 
-        Set<Point> pathSet = new HashSet<>();
-        Point cur = porte;
-        for (Point cell : pathCells) {
-            pathSet.add(cell); adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
-        }
-        DungeonCompositeRooms.place(adj, cur, tavern);
+            Set<Point> pathSet = new HashSet<>();
+            Point cur = porte;
+            for (Point cell : pathCells) {
+                pathSet.add(cell); adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
+            }
+            DungeonCompositeRooms.place(adj, cur, tavern);
 
-        TavernResult tr = new TavernResult();
-        tr.tavern = tavern.labelPoints();
-        tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
-        return tr;
+            TavernResult tr = new TavernResult();
+            tr.tavern = tavern.labelPoints();
+            tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
+            return tr;
+        }
+
+        DungeonFailureLog.compositeReject("TAVERN", "NO_PATH_VARIANT", porte,
+                "attempts=" + TAVERN_PATH_ATTEMPTS);
+        return null;
     }
 
 
@@ -340,7 +405,6 @@ final class DungeonPart1 {
         for (String doorId : List.of(RoomIds.DOOR_1)) {
             Point door = findPointByValue(labels, doorId);
             if (door == null) continue;
-            // Déjà un M5 correctement espacé pour cette porte ?
             if (hasM5WithGapBeforeDoor(door, labels, adj, startPoint)) {
                 placed++;
                 continue;
@@ -386,18 +450,14 @@ final class DungeonPart1 {
 
         Map<Point, Point> parent = bfsParents(startPoint, adj);
 
-        // Chaîne porte ← p1 ← p2 ← p3 (vers le départ)
-        Point p1 = parent.get(door);       // distance 1 — trop proche, gap interdit
-        Point p2 = p1 != null ? parent.get(p1) : null; // distance 2 — gap = 1 cellule
-        Point p3 = p2 != null ? parent.get(p2) : null; // distance 3 — gap = 2 cellules
+        Point p1 = parent.get(door);
+        Point p2 = p1 != null ? parent.get(p1) : null;
+        Point p3 = p2 != null ? parent.get(p2) : null;
 
         for (Point cand : new Point[]{p2, p3}) {
             if (cand == null || cand.equals(startPoint)) continue;
             if (!isReplaceableStraightCorridor(cand, labels, adj)) continue;
-            // ESPACEMENT MONSTRES (règle dure, conversation 3) : la M5 posée ici tardivement
-            // doit aussi être à distance >= DungeonAlgo.MONSTER_MIN_DIST de toute salle monstre existante.
             if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) continue;
-            // Les nœuds entre cand et door doivent rester des couloirs structurels (gap)
             if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) continue;
             return cand;
         }
@@ -434,7 +494,6 @@ final class DungeonPart1 {
         int guard = 0;
         while (cur != null && !cur.equals(from) && guard++ < 8) {
             Set<Point> nb = adj.getOrDefault(cur, Set.of());
-            // STRICT géométrie : deg 2 seulement → C ou I2, jamais intersection
             if (nb.size() != 2) return false;
             Shape sh = DungeonLabels.shapeOf(nb);
             if (sh != Shape.STRAIGHT && sh != Shape.TURN) return false;
@@ -445,7 +504,6 @@ final class DungeonPart1 {
                         || lbl.equals(RoomIds.CORRIDOR_TURN)
                         || lbl.equals(RoomIds.WELL)
                         || lbl.equals("I2");
-                // Refuse I3/I4/M*/spéciales dans le gap
                 if (!okGap) return false;
             }
             cur = parent.get(cur);

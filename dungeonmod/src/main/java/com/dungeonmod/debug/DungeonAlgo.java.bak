@@ -436,8 +436,8 @@ public class DungeonAlgo {
 
     // ===================== Algorithm: analyzePart1 =====================
 
-    private static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
-        return DungeonPart1.analyzePart1(startPoint, adj, rng);
+    private static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Point trunkEnd, int trunkEndDir, Random rng) {
+        return DungeonPart1.analyzePart1(startPoint, adj, trunkEnd, trunkEndDir, rng);
     }
 
     // ===================== Algorithm: Tavern =====================
@@ -599,7 +599,7 @@ public class DungeonAlgo {
                 for (var e : try1.adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(try1.startPoint)) leaves.add(e.getKey());
                 if (leaves.size() < 4) continue;
                 if (!hasPrisonCandidate(try1.adj, try1.startPoint)) continue;
-                Map<Point, String> tryLabels = analyzePart1(try1.startPoint, try1.adj, rng);
+                Map<Point, String> tryLabels = analyzePart1(try1.startPoint, try1.adj, try1.trunkEnd, try1.trunkEndDir, rng);
                 if (tryLabels == null) continue;
                 sp1 = try1; labels = tryLabels; break;
             }
@@ -679,12 +679,6 @@ public class DungeonAlgo {
                 // (l'autre M5, en P2 sur un couloir droit, est posée dans analyzePart2)
                 int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
                 if (m5 < 1) continue; // M5 obligatoire avant porte1 (gap inclus)
-
-                // Garde-fou FINAL : après M5 + chemins taverne/camp + P3, aucune droite
-                // géométrique de l'adj (I3/M5/porte/couloirs comptés) ne doit dépasser
-                // MAX_COLINEAR_RUN segments. Couvre le cas :
-                //   I3—C—I3—M5—C—porte—C—C—virage  → run trop longue → retry
-                if (!respectsColinearLimit(sp1.adj)) continue;
 
                 // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
                 // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
