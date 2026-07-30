@@ -101,12 +101,11 @@ final class DungeonPart1 {
         }
 
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
-        if (!trunkCells.isEmpty()) {
-            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
-        }
 
         // Réserve l'espace devant le tronc pour la sortie + chemin + taverne
+        // AVANT les branches latérales pour garantir un couloir libre devant la porte.
+        // (Les branches growMiniTreeBounded respectent occupied, donc elles contournent
+        // la zone réservée au lieu de l'envahir.)
         int[] td = DungeonAlgo.DIR_OFFSET[dir];
         for (int ri = 1; ri <= 10; ri++) {
             for (int sj = -2; sj <= 2; sj++) {
@@ -114,6 +113,11 @@ final class DungeonPart1 {
                                      trunkEnd.y() + td[1] * ri + td[0] * sj);
                 if (!rp.isOutOfBounds()) occupied.add(rp);
             }
+        }
+
+        if (!trunkCells.isEmpty()) {
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
         }
 
         int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
@@ -318,60 +322,39 @@ final class DungeonPart1 {
 
             boolean failed = false;
             for (int i = 0; i < maxLen; i++) {
+                // La porte est un couloir droit : la 1ère cellule du chemin DOIT
+                // continuer dans le même axe pour préserver sa géométrie STRAIGHT.
+                // Si la cellule droite est occupée → échec de cette tentative
+                // (l'espace est réservé en amont par generatePart1Tree).
                 Point straight = new Point(cx + dx, cy + dy);
                 boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                         && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-
-                boolean goStraight;
-                int ndx, ndy;
-                if (i == 0) {
-                    // 1ère cellule après la porte : droit en priorité. Si bloqué,
-                    // virage immédiat autorisé (la porte reste un couloir droit,
-                    // la 1ère cellule du chemin devient un virage).
-                    if (straightOk) {
+                if (i == 0 && !straightOk) { failed = true; break; }
+                boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
+                // Si droit impossible ou non choisi → virage
+                int ndx = dx, ndy = dy;
+                if (!goStraight) {
+                    int[][] perp = {{dy, -dx}, {-dy, dx}};
+                    boolean turned = false;
+                    int startP = rng.nextInt(2);
+                    for (int k = 0; k < 2; k++) {
+                        int[] turn = perp[(startP + k) % 2];
+                        Point t = new Point(cx + turn[0], cy + turn[1]);
+                        if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
+                        if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                        ndx = turn[0]; ndy = turn[1];
+                        dx = ndx; dy = ndy;
+                        turned = true;
+                        break;
+                    }
+                    if (!turned) {
+                        // Dernier recours : droit si encore possible
+                        if (!straightOk) { failed = true; break; }
+                        ndx = dx; ndy = dy;
                         goStraight = true;
-                        ndx = dx; ndy = dy;
-                    } else {
-                        int[][] perp = {{dy, -dx}, {-dy, dx}};
-                        boolean turned = false;
-                        ndx = dx; ndy = dy;
-                        for (int[] turn : perp) {
-                            Point t = new Point(cx + turn[0], cy + turn[1]);
-                            if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
-                            if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                            ndx = turn[0]; ndy = turn[1];
-                            dx = ndx; dy = ndy;
-                            turned = true;
-                            break;
-                        }
-                        if (!turned) { failed = true; break; }
-                        goStraight = false;
                     }
                 } else {
-                    goStraight = straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f);
                     ndx = dx; ndy = dy;
-                    // Si droit impossible ou non choisi → virage
-                    if (!goStraight) {
-                        int[][] perp = {{dy, -dx}, {-dy, dx}};
-                        boolean turned = false;
-                        int startP = rng.nextInt(2);
-                        for (int k = 0; k < 2; k++) {
-                            int[] turn = perp[(startP + k) % 2];
-                            Point t = new Point(cx + turn[0], cy + turn[1]);
-                            if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
-                            if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                            ndx = turn[0]; ndy = turn[1];
-                            dx = ndx; dy = ndy;
-                            turned = true;
-                            break;
-                        }
-                        if (!turned) {
-                            // Dernier recours : droit si encore possible
-                            if (!straightOk) { failed = true; break; }
-                            ndx = dx; ndy = dy;
-                            goStraight = true;
-                        }
-                    }
                 }
                 Point next = new Point(cx + ndx, cy + ndy);
                 if (tmpAdj.containsKey(next) || next.isOutOfBounds()) { failed = true; break; }
