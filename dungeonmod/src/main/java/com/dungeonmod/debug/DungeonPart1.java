@@ -99,14 +99,26 @@ final class DungeonPart1 {
             if (pnb == null || pnb.size() != 2) continue;
             List<Point> pnbs = new ArrayList<>(pnb);
             if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
+            // Verifier que la cellule sortante est libre (le chemin DOIT
+            // passer par la 1ere cellule droite apres la porte).
+            int ddx = leaf.x() - par.x();
+            int ddy = leaf.y() - par.y();
+            Point out1 = leaf.move(ddx, ddy);
+            if (adj.containsKey(out1)) continue;
             int score = depth + 10;
             if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
         }
         if (porte == null) {
-            // Fallback : leaf la plus profonde
+            // Fallback : leaf la plus profonde avec cellule sortante libre
             for (Point leaf : others) {
                 int depth = depthFromStart.getOrDefault(leaf, 0);
-                if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
+                if (depth <= bestPorteScore) continue;
+                Point par = adj.get(leaf).iterator().next();
+                int ddx = leaf.x() - par.x();
+                int ddy = leaf.y() - par.y();
+                Point out1 = leaf.move(ddx, ddy);
+                if (adj.containsKey(out1)) continue;
+                bestPorteScore = depth; porte = leaf;
             }
         }
         if (porte == null) porte = others.get(0);
