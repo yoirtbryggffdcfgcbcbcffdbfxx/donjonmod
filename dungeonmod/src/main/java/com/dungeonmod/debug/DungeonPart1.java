@@ -20,6 +20,9 @@ import java.util.*;
 final class DungeonPart1 {
     private DungeonPart1() {}
 
+    /** Nombre de variantes chemin+taverne testées avant de rejeter une porte P1. */
+    private static final int TAVERN_PATH_ATTEMPTS = 12;
+
     static boolean hasPrisonCandidate(Map<Point, Set<Point>> adj, Point startPoint) {
         for (var e : adj.entrySet()) {
             if (e.getValue().size() != 1 || e.getKey().equals(startPoint)) continue;
@@ -224,98 +227,103 @@ final class DungeonPart1 {
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
         // Direction sortante porte → chemin (alignée sur l'entrée intérieure)
-        int dx = porte.x() - parent.x(), dy = porte.y() - parent.y();
+        int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
-        int maxLen = 2 + rng.nextInt(4);
-        int cx = porte.x(), cy = porte.y();
-        boolean lastStraight = false;
-        List<Point> pathCells = new ArrayList<>();
-        // Snapshot adj pour tester colinearRunAfterEdge avant d'ajouter (chemins temporaires)
-        Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
-        Point curTmp = porte;
+        for (int attempt = 1; attempt <= TAVERN_PATH_ATTEMPTS; attempt++) {
+            int dx = baseDx, dy = baseDy;
+            int maxLen = 2 + rng.nextInt(4);
+            int cx = porte.x(), cy = porte.y();
+            boolean lastStraight = false;
+            List<Point> pathCells = new ArrayList<>();
+            // Snapshot adj pour tester colinearRunAfterEdge avant d'ajouter (chemins temporaires)
+            Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
+            Point curTmp = porte;
 
-        for (int i = 0; i < maxLen; i++) {
-            // Ne PAS forcer le droit : l'approche intérieure (M5→gap→porte) a déjà
-            // consommé du budget colinéaire. On tourne si la droite dépasserait MAX.
-            Point straight = new Point(cx + dx, cy + dy);
-            boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
-                    && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-            // La première cellule après la porte doit continuer dans l'axe : la structure
-            // "porte" est un couloir droit, pas un virage. Si l'axe dépasse la limite
-            // colinéaire, on rejette ce layout et on laisse le retry amont choisir mieux.
-            if (i == 0 && !straightOk) return null;
-            boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
-            // Si droit impossible ou non choisi → virage
-            int ndx = dx, ndy = dy;
-            if (!goStraight) {
-                int[][] perp = {{dy, -dx}, {-dy, dx}};
-                boolean turned = false;
-                int startP = rng.nextInt(2);
-                for (int k = 0; k < 2; k++) {
-                    int[] turn = perp[(startP + k) % 2];
-                    Point t = new Point(cx + turn[0], cy + turn[1]);
-                    if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
-                    if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                    ndx = turn[0]; ndy = turn[1];
-                    dx = ndx; dy = ndy;
-                    turned = true;
-                    break;
-                }
-                if (!turned) {
-                    // Dernier recours : droit si encore possible
-                    if (!straightOk) break;
+            boolean failed = false;
+            for (int i = 0; i < maxLen; i++) {
+                // Ne PAS forcer le droit sauf sur la première cellule après la porte :
+                // la structure "porte" est un couloir droit, pas un virage.
+                Point straight = new Point(cx + dx, cy + dy);
+                boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
+                        && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
+                if (i == 0 && !straightOk) { failed = true; break; }
+                boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
+                // Si droit impossible ou non choisi → virage
+                int ndx = dx, ndy = dy;
+                if (!goStraight) {
+                    int[][] perp = {{dy, -dx}, {-dy, dx}};
+                    boolean turned = false;
+                    int startP = rng.nextInt(2);
+                    for (int k = 0; k < 2; k++) {
+                        int[] turn = perp[(startP + k) % 2];
+                        Point t = new Point(cx + turn[0], cy + turn[1]);
+                        if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
+                        if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                        ndx = turn[0]; ndy = turn[1];
+                        dx = ndx; dy = ndy;
+                        turned = true;
+                        break;
+                    }
+                    if (!turned) {
+                        // Dernier recours : droit si encore possible
+                        if (!straightOk) { failed = true; break; }
+                        ndx = dx; ndy = dy;
+                        goStraight = true;
+                    }
+                } else {
                     ndx = dx; ndy = dy;
-                    goStraight = true;
                 }
-            } else {
-                ndx = dx; ndy = dy;
+                Point next = new Point(cx + ndx, cy + ndy);
+                if (tmpAdj.containsKey(next) || next.isOutOfBounds()) { failed = true; break; }
+                if (DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) { failed = true; break; }
+                // Enregistre dans tmpAdj pour les tests suivants
+                tmpAdj.putIfAbsent(curTmp, new HashSet<>());
+                tmpAdj.putIfAbsent(next, new HashSet<>());
+                tmpAdj.get(curTmp).add(next);
+                tmpAdj.get(next).add(curTmp);
+                pathCells.add(next);
+                curTmp = next;
+                cx = next.x(); cy = next.y();
+                lastStraight = goStraight;
             }
-            Point next = new Point(cx + ndx, cy + ndy);
-            if (tmpAdj.containsKey(next) || next.isOutOfBounds()) break;
-            if (DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) break;
-            // Enregistre dans tmpAdj pour les tests suivants
-            tmpAdj.putIfAbsent(curTmp, new HashSet<>());
-            tmpAdj.putIfAbsent(next, new HashSet<>());
-            tmpAdj.get(curTmp).add(next);
-            tmpAdj.get(next).add(curTmp);
-            pathCells.add(next);
-            curTmp = next;
-            cx = next.x(); cy = next.y();
-            lastStraight = goStraight;
-        }
-        // Besoin d'au moins 2 cellules de chemin vers la taverne
-        if (pathCells.size() < 2) return null;
+            // Besoin d'au moins 2 cellules de chemin vers la taverne
+            if (failed || pathCells.size() < 2) continue;
 
-        Point t1 = new Point(cx + dx, cy + dy);
-        // t1 ne doit pas prolonger une droite adj > MAX (même axe que le chemin)
-        Point lastPath = pathCells.get(pathCells.size() - 1);
-        if (t1.isOutOfBounds() || adj.containsKey(t1)
-                || DungeonConstraints.colinearRunAfterEdge(lastPath, t1, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) {
-            // Forcer un virage d'approche de la taverne
-            int[][] perp = {{dy, -dx}, {-dy, dx}};
-            boolean okT = false;
-            for (int[] turn : perp) {
-                Point cand = new Point(cx + turn[0], cy + turn[1]);
-                if (cand.isOutOfBounds() || adj.containsKey(cand) || tmpAdj.containsKey(cand)) continue;
-                if (DungeonConstraints.colinearRunAfterEdge(lastPath, cand, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                t1 = cand; dx = turn[0]; dy = turn[1]; okT = true; break;
+            Point t1 = new Point(cx + dx, cy + dy);
+            // t1 ne doit pas prolonger une droite adj > MAX (même axe que le chemin)
+            Point lastPath = pathCells.get(pathCells.size() - 1);
+            if (t1.isOutOfBounds() || adj.containsKey(t1)
+                    || DungeonConstraints.colinearRunAfterEdge(lastPath, t1, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) {
+                // Forcer un virage d'approche de la taverne
+                int[][] perp = {{dy, -dx}, {-dy, dx}};
+                boolean okT = false;
+                for (int[] turn : perp) {
+                    Point cand = new Point(cx + turn[0], cy + turn[1]);
+                    if (cand.isOutOfBounds() || adj.containsKey(cand) || tmpAdj.containsKey(cand)) continue;
+                    if (DungeonConstraints.colinearRunAfterEdge(lastPath, cand, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                    t1 = cand; dx = turn[0]; dy = turn[1]; okT = true; break;
+                }
+                if (!okT) continue;
             }
-            if (!okT) return null;
-        }
-        DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
-        if (tavern == null) return null;
+            DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
+            if (tavern == null) continue;
 
-        Set<Point> pathSet = new HashSet<>();
-        Point cur = porte;
-        for (Point cell : pathCells) {
-            pathSet.add(cell); adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
-        }
-        DungeonCompositeRooms.place(adj, cur, tavern);
+            Set<Point> pathSet = new HashSet<>();
+            Point cur = porte;
+            for (Point cell : pathCells) {
+                pathSet.add(cell); adj.put(cell, new HashSet<>()); adj.get(cell).add(cur); adj.get(cur).add(cell); cur = cell;
+            }
+            DungeonCompositeRooms.place(adj, cur, tavern);
 
-        TavernResult tr = new TavernResult();
-        tr.tavern = tavern.labelPoints();
-        tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
-        return tr;
+            TavernResult tr = new TavernResult();
+            tr.tavern = tavern.labelPoints();
+            tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
+            return tr;
+        }
+
+        DungeonFailureLog.compositeReject("TAVERN", "NO_PATH_VARIANT", porte,
+                "attempts=" + TAVERN_PATH_ATTEMPTS);
+        return null;
     }
 
 
