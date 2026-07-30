@@ -152,6 +152,7 @@ public class OgreEntity extends BossEntity
 
     @Override
     public void tickDeathSequence() {
+        System.out.println("[Cyclops-death] tick deathStage=" + deathStage + " animTimer=" + animTimer + " pos=(" + (int)getX() + "," + (int)getY() + "," + (int)getZ() + ")");
         int cx = room.isDefined() ? room.centerX() : 0;
         int cz = room.isDefined() ? room.centerZ() : 0;
         animTimer++;
