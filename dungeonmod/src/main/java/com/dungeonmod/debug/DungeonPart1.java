@@ -99,33 +99,14 @@ final class DungeonPart1 {
             if (pnb == null || pnb.size() != 2) continue;
             List<Point> pnbs = new ArrayList<>(pnb);
             if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
-            // Bonus pour espace libre devant la porte (out1, out2, out3).
-            // +5 par cellule libre, max +15. Favorise les portes en peripherie.
-            int freeBonus = 0;
-            Point cur = leaf;
-            int ddx = leaf.x() - par.x(), ddy = leaf.y() - par.y();
-            for (int fb = 0; fb < 3; fb++) {
-                cur = cur.move(ddx, ddy);
-                if (adj.containsKey(cur) || cur.isOutOfBounds()) break;
-                freeBonus += 5;
-            }
-            int score = depth + 10 + freeBonus;
+            int score = depth + 10;
             if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
         }
         if (porte == null) {
             // Fallback : leaf la plus profonde
             for (Point leaf : others) {
                 int depth = depthFromStart.getOrDefault(leaf, 0);
-                if (depth <= bestPorteScore) continue;
-                Point par = adj.get(leaf).iterator().next();
-                int ddx = leaf.x() - par.x(), ddy = leaf.y() - par.y();
-                Point fwd = leaf.move(ddx, ddy);
-                if (adj.containsKey(fwd)) continue;
-                int freeBonus = 5;
-                fwd = fwd.move(ddx, ddy);
-                if (!adj.containsKey(fwd) && !fwd.isOutOfBounds()) freeBonus += 5;
-                int fscore = depth + freeBonus;
-                if (fscore > bestPorteScore) { bestPorteScore = fscore; porte = leaf; }
+                if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
             }
         }
         if (porte == null) porte = others.get(0);
