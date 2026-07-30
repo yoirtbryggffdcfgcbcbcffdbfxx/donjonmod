@@ -65,8 +65,7 @@
     "ScreenHandlerInvoker",
     "ScreenHandlerMixin",
     "InteractionBlockerMixin",
-    "SlotAccessor",
-    "BossEntityDeathInterceptorMixin"
+    "SlotAccessor"
   ],
   "client": [
     "ArmorHudMixin",
