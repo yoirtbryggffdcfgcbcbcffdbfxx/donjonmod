@@ -44,6 +44,7 @@ public class CyclopsTradeManager {
 
     public ActionResult openTradeShop(PlayerEntity player) {
         if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+        if (ogre.dialogueTicks > 0) return ActionResult.SUCCESS;
         if (ogre.usedTradeIndices.size() >= 4 || ogre.clothsGiven >= 4) {
             sendSubtitles(player, com.dungeonmod.client.dialogue.CyclopsDialogue.ALL_GIVEN);
             return ActionResult.SUCCESS;
@@ -124,7 +125,7 @@ public class CyclopsTradeManager {
             // (ou qui skip le typing) peut arriver APRÈS l'expiration du
             // cooldown serveur alors que le client affiche encore, et ça
             // relance le même dialogue.
-            ogre.dialogueTicks = 200;
+            ogre.dialogueTicks = 100;
             net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload("Cyclope", lines, true));
         }
     }
