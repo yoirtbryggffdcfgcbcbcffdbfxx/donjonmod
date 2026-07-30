@@ -4,10 +4,12 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.ServerBossBar;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.PathAwareEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
@@ -144,6 +146,59 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         if (bossBar != null) bossBar.clearPlayers();
         super.remove(reason);
     }
+
+    // ---------- Interception des dégâts (coup fatal → phase DEAD au lieu de remove) ----------
+
+    /**
+     * Hook de multiplicateur de dégâts : appliqué au montant AVANT la réduction.
+     * Ex. le Cyclope l'override pour faire ×4 quand l'œil vient d'être frappé.
+     */
+    protected float damageMultiplier(DamageSource source, float amount) { return 1.0f; }
+
+    /** Hook de réduction (0.5 = -50 %). Ex. le Cyclope pendant l'anim œil caché. */
+    protected float damageReduction(DamageSource source, float amount) { return 1.0f; }
+
+    /**
+     * Override du damage vanilla (2 args) : intercepte le coup fatal
+     * pour basculer en phase DEAD (mort scénarisée via tickDeath()) au lieu
+     * de laisser Minecraft retirer l'entité immédiatement.
+     */
+    @Override
+    public boolean damage(DamageSource source, float amount) {
+        // Phase DEAD : on ne prend plus aucun dégât. Si un joueur nous frappe
+        // (self-hit = même attaquant et source), on déclenche le hook post-mortem
+        // (utile pour la capability BossBecomesNpc : dialogue, etc.).
+        if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
+            if (source.getAttacker() instanceof PlayerEntity attacker
+                && source.getAttacker() == source.getSource()) {
+                onPostMortemHit(attacker);
+            }
+            return false;
+        }
+
+        // Application des modificateurs custom du boss.
+        amount *= damageMultiplier(source, amount);
+        amount *= damageReduction(source, amount);
+
+        // Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD.
+        if (this.getHealth() - amount <= 0.01f) {
+            this.setHealth(0.1f);
+            this.setPhase(BossPhase.DEAD);
+            this.animTimer = 0;
+            this.setInvulnerable(true);
+            this.getNavigation().stop();
+            if (bossBar != null) bossBar.clearPlayers();
+            onFatalHit(source);
+            return false;
+        }
+        return super.damage(source, amount);
+    }
+
+    /** Appelé quand le boss vient d'être tué (avant la phase DEAD). */
+    protected void onFatalHit(DamageSource source) { }
+
+    /** Appelé quand un joueur frappe un boss déjà mort (post-mortem). */
+    protected void onPostMortemHit(PlayerEntity attacker) { }
 
     // ---------- Tick : dispatch par phase ----------
 

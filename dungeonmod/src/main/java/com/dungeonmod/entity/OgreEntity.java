@@ -409,30 +409,33 @@ public class OgreEntity extends BossEntity
         return tradeManager.openTradeShop(player);
     }
 
-    // ---------- damage() custom (3 args) — conservé tel quel ----------
+    // ---------- Hooks de dégâts ----------
 
-    public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
-        if (getPhase() == 4 && deathStage == 3
-            && source.getAttacker() instanceof PlayerEntity player && source.getAttacker() == source.getSource()) {
-            startDialogue(player);
-            return false;
+    @Override
+    protected float damageMultiplier(DamageSource source, float amount) {
+        if (eyeHitBoosted) {
+            eyeHitBoosted = false;
+            return 4.0f;
         }
-        if (isDeadPermanent || getPhase() == 4) return false;
+        return 1.0f;
+    }
 
-        if (eyeHitBoosted) { amount *= 4.0f; eyeHitBoosted = false; }
-        if (getAttackState() == 4) amount *= 0.5f;
+    @Override
+    protected float damageReduction(DamageSource source, float amount) {
+        if (getAttackState() == 4) return 0.5f;
+        return 1.0f;
+    }
 
-        if (this.getHealth() - amount <= 0.01f) {
-            this.setHealth(0.1f);
-            this.setPhase(4);
-            this.deathStage = 0;
-            this.animTimer = 0;
-            this.setInvulnerable(true);
-            this.getNavigation().stop();
-            if (bossBar != null) bossBar.clearPlayers();
-            return false;
-        }
-        return super.damage(world, source, amount);
+    @Override
+    protected void onFatalHit(DamageSource source) {
+        // Démarre la séquence de mort scénarisée.
+        this.deathStage = 0;
+        this.animTimer = 0;
+    }
+
+    @Override
+    protected void onPostMortemHit(PlayerEntity attacker) {
+        if (deathStage == 3) startDialogue(attacker);
     }
 
     // ---------- Effets de combat ----------
