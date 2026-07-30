@@ -152,7 +152,6 @@ public class OgreEntity extends BossEntity
 
     @Override
     public void tickDeathSequence() {
-        System.out.println("[Cyclops-death] tick deathStage=" + deathStage + " animTimer=" + animTimer + " pos=(" + (int)getX() + "," + (int)getY() + "," + (int)getZ() + ")");
         int cx = room.isDefined() ? room.centerX() : 0;
         int cz = room.isDefined() ? room.centerZ() : 0;
         animTimer++;
@@ -164,7 +163,9 @@ public class OgreEntity extends BossEntity
             deathStage = 1;
         }
         if (deathStage == 1) {
-            if (squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 || animTimer > 100) {
+            // On attend au moins 30 ticks (1.5s) à stage 1 pour que la marche
+            // vers le centre soit visible, même si le boss est déjà au centre.
+            if ((squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 && animTimer >= 30) || animTimer > 100) {
                 getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
                 setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
                 prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
