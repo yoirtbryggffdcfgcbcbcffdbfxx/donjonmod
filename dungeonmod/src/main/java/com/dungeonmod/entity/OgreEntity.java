@@ -187,6 +187,10 @@ public class OgreEntity extends BossEntity
 
     @Override
     protected void tickDeath() {
+        // Décrément du cooldown de dialogue (était un bug : dialogueTicks n'était
+        // jamais décrémenté, d'où l'impression de "cooldown infini" sur le PNJ).
+        if (dialogueTicks > 0) dialogueTicks--;
+
         if (deathStage < 3) {
             tickDeathSequence();
         } else {
@@ -291,7 +295,7 @@ public class OgreEntity extends BossEntity
                                 double kx = p.getX() - getX(), kz = p.getZ() - getZ();
                                 if (kx*kx + kz*kz > 0.01) { double len = Math.sqrt(kx*kx + kz*kz); p.setVelocity(p.getVelocity().add(kx/len*4.0, 0.4, kz/len*4.0)); p.velocityModified = true; }
                                 p.damage(sw, getDamageSources().mobAttack(this), 5.0f);
-                                p.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 40, 10, false, true, true));
+                                // (Slowness removed — charge reste un burst dégât + knockback)
                             }
                         }
                     }
@@ -431,11 +435,10 @@ public class OgreEntity extends BossEntity
         // Démarre la séquence de mort scénarisée.
         this.deathStage = 0;
         this.animTimer = 0;
-    }
-
-    @Override
-    protected void onPostMortemHit(PlayerEntity attacker) {
-        if (deathStage == 3) startDialogue(attacker);
+        // Vider les mains (le bloc de pierre du lancer ne doit pas rester
+        // affiché pendant l'anim de mort).
+        setStackInHand(Hand.MAIN_HAND, ItemStack.EMPTY);
+        setStackInHand(Hand.OFF_HAND, ItemStack.EMPTY);
     }
 
     // ---------- Effets de combat ----------
@@ -475,6 +478,11 @@ public class OgreEntity extends BossEntity
 
     @Override
     public ActionResult interactMob(PlayerEntity player, Hand hand) {
+        // Post-mortem : le boss mort est un PNJ. Clic gauche = dialogue.
+        if (getPhase() == BossPhase.DEAD && deathStage == 3) {
+            startDialogue(player);
+            return ActionResult.SUCCESS;
+        }
         return ActionResult.PASS;
     }
 
@@ -652,7 +660,7 @@ public class OgreEntity extends BossEntity
     public static void registerAttributes() {
         net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(TYPE,
             PathAwareEntity.createMobAttributes()
-                .add(EntityAttributes.MAX_HEALTH, 200.0)
+                .add(EntityAttributes.MAX_HEALTH, 400.0)  // 200 coeurs
                 .add(EntityAttributes.ATTACK_DAMAGE, 4.0)
                 .add(EntityAttributes.FOLLOW_RANGE, 16.0)
                 .add(EntityAttributes.MOVEMENT_SPEED, 0.2));
