@@ -536,13 +536,22 @@ public class TestGenerator {
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
 
-            // M5 = couloir monstre structurel, PAS de spawn pour l'instant
             if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey)) {
                 for (int[] off : normalOffsets) {
                     int rx = rotateX(off[0], off[1], rc.rot);
                     int rz = rotateZ(off[0], off[1], rc.rot);
                     spawnNormalGoblin(world, wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
                 }
+            } else if ("M5".equals(rc.typeKey)) {
+                int rx = rotateX(4, 4, rc.rot);
+                int rz = rotateZ(4, 4, rc.rot);
+                var boss = new com.dungeonmod.entity.GoblinMinibossEntity(
+                    com.dungeonmod.entity.GoblinMinibossEntity.TYPE, world);
+                boss.setPosition(wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
+                boss.setPersistent();
+                boss.setCustomName(net.minecraft.text.Text.literal("§cMiniboss Gobelin"));
+                boss.setCustomNameVisible(false);
+                world.spawnEntity(boss);
             } else if ("Ogre".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
                 int rz = rotateZ(4, 4, rc.rot);
