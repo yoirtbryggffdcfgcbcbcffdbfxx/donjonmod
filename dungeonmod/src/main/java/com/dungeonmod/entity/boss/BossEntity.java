@@ -225,6 +225,8 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         this.setInvulnerable(true);
         this.getNavigation().stop();
         if (bossBar != null) bossBar.clearPlayers();
+        // Reset pour qu'un éventuel respawn rejoue le welcome proprement.
+        this.hasPlayedWelcome = false;
     }
 
     // ---------- Tick : dispatch par phase ----------
