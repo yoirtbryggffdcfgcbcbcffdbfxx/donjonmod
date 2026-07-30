@@ -318,37 +318,60 @@ final class DungeonPart1 {
 
             boolean failed = false;
             for (int i = 0; i < maxLen; i++) {
-                // Ne PAS forcer le droit sauf sur la première cellule après la porte :
-                // la structure "porte" est un couloir droit, pas un virage.
                 Point straight = new Point(cx + dx, cy + dy);
                 boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                         && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-                if (i == 0 && !straightOk) { failed = true; break; }
-                boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
-                // Si droit impossible ou non choisi → virage
-                int ndx = dx, ndy = dy;
-                if (!goStraight) {
-                    int[][] perp = {{dy, -dx}, {-dy, dx}};
-                    boolean turned = false;
-                    int startP = rng.nextInt(2);
-                    for (int k = 0; k < 2; k++) {
-                        int[] turn = perp[(startP + k) % 2];
-                        Point t = new Point(cx + turn[0], cy + turn[1]);
-                        if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
-                        if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                        ndx = turn[0]; ndy = turn[1];
-                        dx = ndx; dy = ndy;
-                        turned = true;
-                        break;
-                    }
-                    if (!turned) {
-                        // Dernier recours : droit si encore possible
-                        if (!straightOk) { failed = true; break; }
-                        ndx = dx; ndy = dy;
+
+                boolean goStraight;
+                int ndx, ndy;
+                if (i == 0) {
+                    // 1ère cellule après la porte : droit en priorité. Si bloqué,
+                    // virage immédiat autorisé (la porte reste un couloir droit,
+                    // la 1ère cellule du chemin devient un virage).
+                    if (straightOk) {
                         goStraight = true;
+                        ndx = dx; ndy = dy;
+                    } else {
+                        int[][] perp = {{dy, -dx}, {-dy, dx}};
+                        boolean turned = false;
+                        ndx = dx; ndy = dy;
+                        for (int[] turn : perp) {
+                            Point t = new Point(cx + turn[0], cy + turn[1]);
+                            if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
+                            if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                            ndx = turn[0]; ndy = turn[1];
+                            dx = ndx; dy = ndy;
+                            turned = true;
+                            break;
+                        }
+                        if (!turned) { failed = true; break; }
+                        goStraight = false;
                     }
                 } else {
+                    goStraight = straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f);
                     ndx = dx; ndy = dy;
+                    // Si droit impossible ou non choisi → virage
+                    if (!goStraight) {
+                        int[][] perp = {{dy, -dx}, {-dy, dx}};
+                        boolean turned = false;
+                        int startP = rng.nextInt(2);
+                        for (int k = 0; k < 2; k++) {
+                            int[] turn = perp[(startP + k) % 2];
+                            Point t = new Point(cx + turn[0], cy + turn[1]);
+                            if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
+                            if (DungeonConstraints.colinearRunAfterEdge(curTmp, t, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                            ndx = turn[0]; ndy = turn[1];
+                            dx = ndx; dy = ndy;
+                            turned = true;
+                            break;
+                        }
+                        if (!turned) {
+                            // Dernier recours : droit si encore possible
+                            if (!straightOk) { failed = true; break; }
+                            ndx = dx; ndy = dy;
+                            goStraight = true;
+                        }
+                    }
                 }
                 Point next = new Point(cx + ndx, cy + ndy);
                 if (tmpAdj.containsKey(next) || next.isOutOfBounds()) { failed = true; break; }
