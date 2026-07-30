@@ -86,26 +86,33 @@ final class DungeonPart1 {
             trunkCells.add(n);
             c = n;
 
-            if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
-                int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                DungeonPart2.growMiniTreeBounded(n, pDir, adj, occupied, rng);
-            }
+            // Branche differee (poussee apres reservation)
         }
 
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
-        if (!trunkCells.isEmpty()) {
-            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
-        }
 
         // Reserve l'espace devant le tronc pour la sortie + chemin + taverne
+        // AVANT les branches pour qu'elles contournent le couloir.
         int[] td = DungeonAlgo.DIR_OFFSET[dir];
-        for (int ri = 1; ri <= 10; ri++) {
-            for (int sj = -2; sj <= 2; sj++) {
+        for (int ri = 1; ri <= 12; ri++) {
+            for (int sj = -5; sj <= 5; sj++) {
                 Point rp = new Point(trunkEnd.x() + td[0] * ri - td[1] * sj,
                                      trunkEnd.y() + td[1] * ri + td[0] * sj);
                 if (!rp.isOutOfBounds()) occupied.add(rp);
             }
+        }
+
+        // Pousser les branches (respectent occupied -> contournent le couloir)
+        for (int ti = 0; ti < trunkCells.size(); ti++) {
+            Point tc = trunkCells.get(ti);
+            if (ti >= trunkTarget - 3) continue;
+            if (rng.nextFloat() >= 0.55f) continue;
+            int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(tc, pDir, adj, occupied, rng);
+        }
+        if (!trunkCells.isEmpty()) {
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
         }
 
         int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
