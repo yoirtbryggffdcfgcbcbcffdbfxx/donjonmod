@@ -9,7 +9,9 @@ import net.minecraft.entity.ai.goal.LookAtEntityGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.WanderAroundGoal;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.Registries;
@@ -31,6 +33,9 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     private static final int ATTACK_MAIN = 1;
     private static final int ATTACK_PIED = 2;
 
+    private static final TrackedData<Integer> ATTACK_TYPE =
+        DataTracker.registerData(GoblinMinibossEntity.class, TrackedDataHandlerRegistry.INTEGER);
+
     public static final EntityType<GoblinMinibossEntity> TYPE = Registry.register(
         Registries.ENTITY_TYPE, Identifier.of("dungeonmod", "miniboss_goblin"),
         EntityType.Builder.<GoblinMinibossEntity>create(GoblinMinibossEntity::new, SpawnGroup.MONSTER)
@@ -39,11 +44,16 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     );
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    private int currentAttackType = 0;
     private int attackCooldown = 0;
 
     public GoblinMinibossEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
+    }
+
+    @Override
+    protected void initDataTracker(DataTracker.Builder builder) {
+        super.initDataTracker(builder);
+        builder.add(ATTACK_TYPE, 0);
     }
 
     @Override
@@ -58,12 +68,12 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar registrar) {
         registrar.add(new AnimationController<>(this, "main", 5, state -> {
-            if (currentAttackType != 0) {
-                String anim = currentAttackType == ATTACK_MAIN ? "attack_main_1" : "attack_pied";
-                currentAttackType = 0;
+            int atk = dataTracker.get(ATTACK_TYPE);
+            if (atk != 0) {
+                String anim = atk == ATTACK_MAIN ? "attack_main_1" : "attack_pied";
                 return state.setAndContinue(RawAnimation.begin().thenPlay(anim));
             }
-            if (state.isMoving()) {
+            if (getVelocity().horizontalLengthSquared() > 0.0001) {
                 return state.setAndContinue(RawAnimation.begin().thenLoop("walk"));
             }
             return PlayState.CONTINUE;
@@ -77,6 +87,10 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     public void tick() {
         super.tick();
         if (attackCooldown > 0) attackCooldown--;
+        int atk = dataTracker.get(ATTACK_TYPE);
+        if (atk != 0 && handSwingTicks == 0) {
+            dataTracker.set(ATTACK_TYPE, 0);
+        }
     }
 
     private class MinibossAttackGoal extends Goal {
@@ -91,11 +105,12 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         public void start() {
             LivingEntity target = getTarget();
             if (target == null) return;
-            currentAttackType = random.nextBoolean() ? ATTACK_PIED : ATTACK_MAIN;
+            int atk = random.nextBoolean() ? ATTACK_PIED : ATTACK_MAIN;
+            dataTracker.set(ATTACK_TYPE, atk);
             swingHand(Hand.MAIN_HAND);
-            float dmg = currentAttackType == ATTACK_PIED ? 4.0f : 3.0f;
+            float dmg = atk == ATTACK_PIED ? 4.0f : 3.0f;
             target.damage((net.minecraft.server.world.ServerWorld)getWorld(), getDamageSources().mobAttack(GoblinMinibossEntity.this), dmg);
-            attackCooldown = currentAttackType == ATTACK_PIED ? 20 : 30;
+            attackCooldown = atk == ATTACK_PIED ? 20 : 30;
             getNavigation().stop();
         }
 
