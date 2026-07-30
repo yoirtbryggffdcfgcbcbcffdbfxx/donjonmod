@@ -42,7 +42,7 @@ public class TestGenerator {
 
     // ===================== Constantes de Compatibilité (DungeonCommand) =====================
     public static final int CENTRALE = 47;
-    
+
     public static final String[] TYPE_NAMES = {
         "Couloir","I3","I2","CulSac","M1","Depart","M2","Prison","Loot1","Fontaine",
         "Puits","Porte2","T1","T2","T3","T4","I4","Porte","CJ1","CJ2","CJ3",
@@ -265,17 +265,17 @@ public class TestGenerator {
 
     // ===================== Main Public Generation API =====================
 
-    public static void generateRandomCave(ServerWorld world, BlockPos origin, int maxRooms) {
-        generateRandomCave(world, origin, maxRooms, 0);
+    public static boolean generateRandomCave(ServerWorld world, BlockPos origin, int maxRooms) {
+        return generateRandomCave(world, origin, maxRooms, 0);
     }
 
-    public static void generateRandomCave(ServerWorld world, BlockPos origin, int maxRooms, long seed) {
+    public static boolean generateRandomCave(ServerWorld world, BlockPos origin, int maxRooms, long seed) {
         loadAll();
         int ox = origin.getX(), oy = origin.getY(), oz = origin.getZ();
         DungeonAlgo.DungeonResult result = (seed != 0) ? generateWithSeed(seed) : generateValidDungeon();
         if (result == null) {
             System.out.println("[TestGenerator] ECHEC de génération.");
-            return;
+            return false;
         }
 
         if (result.topLabels != null) {
@@ -310,12 +310,12 @@ public class TestGenerator {
         for (RoomCell rc : cells) {
             int wy = rc.topLevel ? oy + 10 : oy;
             int wx = ox + rc.cx * CELL, wz = oz + rc.cz * CELL;
-            
+
             BlockState[][][] data = getData(rc.typeKey, rc.corrIdx);
             placeRoom(world, wx, wy, wz, data, rc.rot, rc.typeKey);
-            
+
             com.dungeonmod.entity.NpcSpawnHelper.scanRoom(world, wx, wy, wz, CELL, LABEL_TO_TYPE.getOrDefault(rc.typeKey, 0));
-            
+
             if ("D".equals(rc.typeKey)) { lastDepartX = wx + CELL / 2; lastDepartZ = wz + CELL / 2; }
 
             if (!isCorridorOrIntersection(rc.typeKey)) {
@@ -339,6 +339,7 @@ public class TestGenerator {
 
         spawnGoblins(world, cells, ox, oy, oz);
         saveToDisk(world.getServer());
+        return true;
     }
 
     private static final Set<String> CORRIDOR_OR_INTERSECTION_TYPES = Set.of(
@@ -472,9 +473,9 @@ public class TestGenerator {
                 }
 
                 // RECADRAGE EXPLICITE DES STRUCTURES SPÉCIALES P4
-                if ("Chapelle1".equals(typeKey) || "Chapelle2".equals(typeKey) || "Crypte1".equals(typeKey) || 
+                if ("Chapelle1".equals(typeKey) || "Chapelle2".equals(typeKey) || "Crypte1".equals(typeKey) ||
                     "Crypte2".equals(typeKey) || "PrisonC1".equals(typeKey) || "PorteGob".equals(typeKey)) {
-                    
+
                     int[] purplePorts = roomPurplePorts.get(typeKey);
                     if (purplePorts != null && purplePorts.length == 1) {
                         int purpleLocal = purplePorts[0];
@@ -749,11 +750,37 @@ public class TestGenerator {
 
     // ===================== Utilities & NBT Loaders =====================
 
-    private static DungeonAlgo.DungeonResult generateValidDungeon() { return generateWithSeed(0); }
+    /**
+     * Mode joueur (/teste) : comme ouvrir_donjon.py, on ne livre jamais volontairement
+     * une génération nulle au joueur. generateDungeon(0) fait déjà ses retries internes ;
+     * ici on relance des batches complets si, exceptionnellement, un batch revient null.
+     *
+     * Garde une limite haute pour éviter de bloquer le thread serveur à l'infini si une
+     * régression rendait toute génération impossible.
+     */
+    private static DungeonAlgo.DungeonResult generateValidDungeon() {
+        final int maxPlayerBatches = 50;
+        for (int attempt = 1; attempt <= maxPlayerBatches; attempt++) {
+            DungeonAlgo.DungeonResult result = generateWithSeed(0);
+            if (result != null) {
+                if (attempt > 1) {
+                    System.out.println("[TestGenerator] Donjon valide obtenu apres " + attempt
+                            + " batch(s) joueur — seed: " + lastSeed);
+                }
+                return result;
+            }
+            if (attempt == 1 || attempt % 5 == 0) {
+                System.out.println("[TestGenerator] Batch joueur " + attempt + " nul, retry...");
+            }
+        }
+        System.out.println("[TestGenerator] ECHEC: aucun donjon valide apres " + maxPlayerBatches
+                + " batch(s) joueur.");
+        return null;
+    }
 
     private static DungeonAlgo.DungeonResult generateWithSeed(long seed) {
         DungeonAlgo.DungeonResult result = DungeonAlgo.generateDungeon(seed);
-        lastSeed = DungeonAlgo.getLastSeed();
+        if (result != null) lastSeed = DungeonAlgo.getLastSeed();
         return result;
     }
 
