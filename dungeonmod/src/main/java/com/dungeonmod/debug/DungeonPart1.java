@@ -21,7 +21,7 @@ final class DungeonPart1 {
     private DungeonPart1() {}
 
     /** Nombre de variantes chemin+taverne testées avant de rejeter une porte P1. */
-    private static final int TAVERN_PATH_ATTEMPTS = 12;
+    private static final int TAVERN_PATH_ATTEMPTS = 30;
 
     static boolean hasPrisonCandidate(Map<Point, Set<Point>> adj, Point startPoint) {
         for (var e : adj.entrySet()) {
