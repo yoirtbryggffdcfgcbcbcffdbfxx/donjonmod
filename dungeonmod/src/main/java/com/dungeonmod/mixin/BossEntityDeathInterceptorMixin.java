@@ -29,8 +29,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(LivingEntity.class)
 public class BossEntityDeathInterceptorMixin {
 
-    @Inject(method = "damage(Lnet/minecraft/entity/damage/DamageSource;F)Z", at = @At("TAIL"))
-    private void onDamageTail(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "damage", at = @At("TAIL"))
+    private void onDamageTail(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         LivingEntity self = (LivingEntity) (Object) this;
         if (!(self instanceof BossEntity boss)) return;
 
