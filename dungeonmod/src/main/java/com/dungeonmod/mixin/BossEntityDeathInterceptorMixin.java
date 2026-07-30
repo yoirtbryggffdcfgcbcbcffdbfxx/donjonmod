@@ -42,10 +42,7 @@ public class BossEntityDeathInterceptorMixin {
             // Post-mortem : clic gauche du joueur (self-hit) → dialogue
             if (source.getAttacker() instanceof net.minecraft.entity.player.PlayerEntity attacker
                 && source.getAttacker() == source.getSource()) {
-                System.out.println("[Cyclops-debug] onPostMortemHit called, attacker=" + attacker.getName().getString() + " deathStage=" + ((com.dungeonmod.entity.OgreEntity) boss).deathStage);
                 boss.onPostMortemHit(attacker);
-            } else {
-                System.out.println("[Cyclops-debug] phase DEAD but condition failed: attacker=" + source.getAttacker() + " source=" + source.getSource());
             }
             return;
         }
