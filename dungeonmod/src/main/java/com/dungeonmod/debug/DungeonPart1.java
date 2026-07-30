@@ -10,14 +10,9 @@ import com.dungeonmod.debug.DungeonAlgo.TreeResult;
 
 import java.util.*;
 
-/**
- * Generation/analyse de la premiere partie du donjon (grotte de depart),
- * chemin de taverne et M5 avant porte1.
- */
 final class DungeonPart1 {
     private DungeonPart1() {}
 
-    /** Nombre de variantes chemin+taverne testees avant de rejeter une porte P1. */
     private static final int TAVERN_PATH_ATTEMPTS = 30;
 
     static boolean hasPrisonCandidate(Map<Point, Set<Point>> adj, Point startPoint) {
@@ -67,6 +62,12 @@ final class DungeonPart1 {
 
         int trunkTarget = DungeonAlgo.PART2_TRUNK_MIN + rng.nextInt(DungeonAlgo.PART2_TRUNK_MAX - DungeonAlgo.PART2_TRUNK_MIN + 1);
 
+        // Phase 1 : tronc seul, sans branches (les branches sont differees).
+        // On memorise les points et directions de branches pour les pousser
+        // APRES la reservation du couloir de sortie.
+        List<Point> branchRoots = new ArrayList<>();
+        List<Integer> branchDirs = new ArrayList<>();
+
         for (int t = 1; t < trunkTarget; t++) {
             int runIfStraight = DungeonConstraints.colinearRunAfterEdge(c, c.move(DungeonAlgo.DIR_OFFSET[dir]), adj);
             boolean forceTurn = runIfStraight > DungeonAlgo.MAX_COLINEAR_RUN;
@@ -91,31 +92,37 @@ final class DungeonPart1 {
             trunkCells.add(n);
             c = n;
 
+            // Differer les branches : memoriser au lieu de pousser immediatement
             if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                DungeonPart2.growMiniTreeBounded(n, pDir, adj, occupied, rng);
+                branchRoots.add(n);
+                branchDirs.add(pDir);
             }
         }
 
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
 
-        // Reserve l'espace devant le tronc pour la sortie + chemin + taverne
-        // AVANT les branches laterales. La taverne 2x2 + chemin de 2-5 cellules
-        // necessitent une zone de ~14x9 cellules devant trunkEnd.
+        // Phase 2 : reservation du couloir (AVANT toute branche)
         int[] td = DungeonAlgo.DIR_OFFSET[dir];
-        for (int ri = 1; ri <= 14; ri++) {
-            for (int sj = -4; sj <= 4; sj++) {
+        for (int ri = 1; ri <= 10; ri++) {
+            for (int sj = -3; sj <= 3; sj++) {
                 Point rp = new Point(trunkEnd.x() + td[0] * ri - td[1] * sj,
                                      trunkEnd.y() + td[1] * ri + td[0] * sj);
                 if (!rp.isOutOfBounds()) occupied.add(rp);
             }
         }
 
+        // Phase 3 : pousser toutes les branches differees
+        // (respectent occupied donc contournent le couloir reserve)
         if (!trunkCells.isEmpty()) {
             int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
             DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
         }
+        for (int bi = 0; bi < branchRoots.size(); bi++) {
+            DungeonPart2.growMiniTreeBounded(branchRoots.get(bi), branchDirs.get(bi), adj, occupied, rng);
+        }
 
+        // Phase 4 : remplissage classique
         int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
@@ -284,7 +291,6 @@ final class DungeonPart1 {
         return finalLabels;
     }
 
-    /** Verifie que les specials P1 sont restes poses sur une forme compatible. */
     private static boolean validatePart1SpecialShapes(Map<Point, String> labels, Map<Point, Set<Point>> adj) {
         for (var e : labels.entrySet()) {
             String label = e.getValue();
@@ -303,7 +309,6 @@ final class DungeonPart1 {
 
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
-        // Direction sortante porte -> chemin (alignee sur l'entree interieure)
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
         for (int attempt = 1; attempt <= TAVERN_PATH_ATTEMPTS; attempt++) {
@@ -311,9 +316,6 @@ final class DungeonPart1 {
             int maxLen = 2 + rng.nextInt(4);
             int cx = porte.x(), cy = porte.y();
             List<Point> pathCells = new ArrayList<>();
-            // Copie complete de adj pour l'isolation (le chemin ne peut pas
-            // traverser le donjon). MAX_COLINEAR_RUN n'est pas verifie ici :
-            // le chemin de taverne est externe au donjon.
             Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
             Point curTmp = porte;
 
@@ -321,12 +323,10 @@ final class DungeonPart1 {
             for (int i = 0; i < maxLen; i++) {
                 int ndx, ndy;
                 if (i == 0) {
-                    // Droit obligatoire apres la porte.
                     ndx = dx; ndy = dy;
                     Point s = new Point(cx + dx, cy + dy);
                     if (s.isOutOfBounds() || tmpAdj.containsKey(s)) { failed = true; break; }
                 } else {
-                    // Droit ou virage aleatoire. Seule condition : cellule libre.
                     Point s = new Point(cx + dx, cy + dy);
                     if (!s.isOutOfBounds() && !tmpAdj.containsKey(s) && rng.nextFloat() < 0.35f) {
                         ndx = dx; ndy = dy;
@@ -362,12 +362,12 @@ final class DungeonPart1 {
             }
             if (failed || pathCells.size() < 2) continue;
 
-            // Approche de la taverne : essayer les 4 orientations de la structure 2x2.
             DungeonCompositeRooms.Placement tavern = null;
-            int[] dirs90 = {dx, dy, -dy, dx, -dx, -dy, dy, -dx}; // rotations 0, 90, 180, 270
+            // Essayer les 4 orientations de la structure 2x2.
+            int[] dxs = {dx, -dy, -dx, dy};
+            int[] dys = {dy, dx, -dy, -dx};
             for (int rot = 0; rot < 4 && tavern == null; rot++) {
-                int rdx = dirs90[rot * 2];
-                int rdy = dirs90[rot * 2 + 1];
+                int rdx = dxs[rot], rdy = dys[rot];
                 Point t1 = new Point(cx + rdx, cy + rdy);
                 if (t1.isOutOfBounds() || adj.containsKey(t1) || tmpAdj.containsKey(t1)) continue;
                 tavern = DungeonCompositeRooms.plan(adj, t1, rdx, rdy, DungeonCompositeRooms.TAVERN);
@@ -459,7 +459,6 @@ final class DungeonPart1 {
 
         Map<Point, Point> parent = bfsParents(startPoint, adj);
 
-        // Chaine porte <- p1 <- p2 <- p3 (vers le depart)
         Point p1 = parent.get(door);
         Point p2 = p1 != null ? parent.get(p1) : null;
         Point p3 = p2 != null ? parent.get(p2) : null;
