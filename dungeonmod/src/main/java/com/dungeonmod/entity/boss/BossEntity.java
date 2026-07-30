@@ -179,9 +179,6 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             // de mort) pour que ça marche dès que la phase passe en DEAD.
             if (source.getAttacker() instanceof PlayerEntity attacker
                 && source.getAttacker() == source.getSource()) {
-                if (!world.isClient()) {
-                    System.out.println("[Cyclops-boss-damage] self-hit detected, calling onPostMortemHit");
-                }
                 onPostMortemHit(attacker);
             }
             return false;

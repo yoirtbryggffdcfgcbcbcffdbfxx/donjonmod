@@ -29,13 +29,6 @@ public class BossEntityDeathInterceptorMixin {
         LivingEntity self = (LivingEntity) (Object) this;
         if (!(self instanceof BossEntity boss)) return;
 
-        if (!world.isClient()) {
-            System.out.println("[Cyclops-mixin] damage TAIL phase=" + boss.getPhase()
-                + " deadPerm=" + boss.getDeadPermanent()
-                + " hp=" + boss.getHealth() + " amount=" + amount
-                + " attacker=" + source.getAttacker());
-        }
-
         // Filet de sécurité : si HP <= 0.01f et qu'on n'est pas encore
         // en phase DEAD, forcer la transition. C'est un cas dégénéré
         // (devrait déjà être attrapé par l'override BossEntity.damage()).

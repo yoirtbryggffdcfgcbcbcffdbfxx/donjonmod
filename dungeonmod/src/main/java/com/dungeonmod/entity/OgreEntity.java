@@ -155,8 +155,6 @@ public class OgreEntity extends BossEntity
         int cx = room.isDefined() ? room.centerX() : 0;
         int cz = room.isDefined() ? room.centerZ() : 0;
         animTimer++;
-        if (!getWorld().isClient)
-            System.out.println("[Cyclops-death] tick deathStage=" + deathStage + " animTimer=" + animTimer + " pos=(" + (int)getX() + "," + (int)getY() + "," + (int)getZ() + ")");
         if (deathStage == 0) {
             double dx = cx - getX(), dz = cz - getZ();
             float targetYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
@@ -458,11 +456,7 @@ public class OgreEntity extends BossEntity
         // Anti-spam : tant qu'un dialogue est "frais" (cooldown 3s), on
         // ignore le clic — sinon le user peut spammer et relancer le même
         // dialogue plein de fois (cf. BaseNpcEntity.damage + dialogueCooldown).
-        if (dialogueTicks > 0) {
-            System.out.println("[Cyclops-postmortem] click ignored (cooldown " + dialogueTicks + " ticks left)");
-            return;
-        }
-        System.out.println("[Cyclops-postmortem] onPostMortemHit called deathStage=" + deathStage + " attacker=" + attacker.getName().getString());
+        if (dialogueTicks > 0) return;
         startDialogue(attacker);
     }
 
