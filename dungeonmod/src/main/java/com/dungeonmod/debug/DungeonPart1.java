@@ -303,6 +303,17 @@ final class DungeonPart1 {
             if (!okT) return null;
         }
         DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
+        if (tavern == null) {
+            // Essayer les 3 autres orientations (90, 180, 270 degres)
+            int[] rdx = {-dy, -dx, dy};
+            int[] rdy = {dx, -dy, -dx};
+            for (int rot = 0; rot < 3 && tavern == null; rot++) {
+                Point rt = new Point(cx + rdx[rot], cy + rdy[rot]);
+                if (rt.isOutOfBounds() || adj.containsKey(rt) || tmpAdj.containsKey(rt)) continue;
+                if (DungeonConstraints.colinearRunAfterEdge(lastPath, rt, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                tavern = DungeonCompositeRooms.plan(adj, rt, rdx[rot], rdy[rot], DungeonCompositeRooms.TAVERN);
+            }
+        }
         if (tavern == null) return null;
 
         Set<Point> pathSet = new HashSet<>();
