@@ -62,12 +62,6 @@ final class DungeonPart1 {
 
         int trunkTarget = DungeonAlgo.PART2_TRUNK_MIN + rng.nextInt(DungeonAlgo.PART2_TRUNK_MAX - DungeonAlgo.PART2_TRUNK_MIN + 1);
 
-        // Phase 1 : tronc seul, sans branches (les branches sont differees).
-        // On memorise les points et directions de branches pour les pousser
-        // APRES la reservation du couloir de sortie.
-        List<Point> branchRoots = new ArrayList<>();
-        List<Integer> branchDirs = new ArrayList<>();
-
         for (int t = 1; t < trunkTarget; t++) {
             int runIfStraight = DungeonConstraints.colinearRunAfterEdge(c, c.move(DungeonAlgo.DIR_OFFSET[dir]), adj);
             boolean forceTurn = runIfStraight > DungeonAlgo.MAX_COLINEAR_RUN;
@@ -92,37 +86,28 @@ final class DungeonPart1 {
             trunkCells.add(n);
             c = n;
 
-            // Differer les branches : memoriser au lieu de pousser immediatement
             if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                branchRoots.add(n);
-                branchDirs.add(pDir);
+                DungeonPart2.growMiniTreeBounded(n, pDir, adj, occupied, rng);
             }
         }
 
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
+        if (!trunkCells.isEmpty()) {
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
+        }
 
-        // Phase 2 : reservation du couloir (AVANT toute branche)
+        // Reserve l'espace devant le tronc pour la sortie + chemin + taverne
         int[] td = DungeonAlgo.DIR_OFFSET[dir];
         for (int ri = 1; ri <= 10; ri++) {
-            for (int sj = -3; sj <= 3; sj++) {
+            for (int sj = -2; sj <= 2; sj++) {
                 Point rp = new Point(trunkEnd.x() + td[0] * ri - td[1] * sj,
                                      trunkEnd.y() + td[1] * ri + td[0] * sj);
                 if (!rp.isOutOfBounds()) occupied.add(rp);
             }
         }
 
-        // Phase 3 : pousser toutes les branches differees
-        // (respectent occupied donc contournent le couloir reserve)
-        if (!trunkCells.isEmpty()) {
-            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-            DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
-        }
-        for (int bi = 0; bi < branchRoots.size(); bi++) {
-            DungeonPart2.growMiniTreeBounded(branchRoots.get(bi), branchDirs.get(bi), adj, occupied, rng);
-        }
-
-        // Phase 4 : remplissage classique
         int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
@@ -363,7 +348,6 @@ final class DungeonPart1 {
             if (failed || pathCells.size() < 2) continue;
 
             DungeonCompositeRooms.Placement tavern = null;
-            // Essayer les 4 orientations de la structure 2x2.
             int[] dxs = {dx, -dy, -dx, dy};
             int[] dys = {dy, dx, -dy, -dx};
             for (int rot = 0; rot < 4 && tavern == null; rot++) {
