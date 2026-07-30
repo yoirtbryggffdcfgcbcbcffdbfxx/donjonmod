@@ -55,13 +55,13 @@ final class DungeonLabelState {
         return specials.get(point);
     }
 
-    /** Vue mutable des specials. */
+    /** Vue immuable des specials (lecture seule). */
     Map<Point, RoomType> specials() {
-        return specials;
+        return Collections.unmodifiableMap(specials);
     }
 
-    Map<Point, Theme> themes() {
-        return themes;
+    Set<Point> specialPoints() {
+        return Collections.unmodifiableSet(specials.keySet());
     }
 
     Map<Point, RoomType> buildLabels(Map<Point, Set<Point>> adj, Random rng) {
