@@ -278,8 +278,9 @@ final class DungeonPart4 {
         boolean hlt = topLabels.containsValue(RoomType.LOOT_DJ_1) || topLabels.containsValue(RoomType.LOOT_DJ_2) || topLabels.containsValue(RoomType.LOOT_DJ_3);
         boolean hPuitDJ = topLabels.containsValue(RoomType.WELL_DJ);
         int gbc = 0; for (RoomType v : topLabels.values()) if (v == RoomType.GOBLIN_WELL || v == RoomType.GOBLIN_MARCH || v == RoomType.GOBLIN_ARMORY || v == RoomType.GOBLIN_TREASURE) gbc++;
-        boolean hmg = false; for (RoomType v : topLabels.values()) if (v != null && v.isGoblinHouse()) { hmg = true; break; }
-        return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc >= 2 && mjPlacedKeys.size() >= 5;
+        boolean hmg = false; int hmgCount = 0; for (RoomType v : topLabels.values()) if (v != null && v.isGoblinHouse()) { hmgCount++; }
+        hmg = hmgCount >= 3;
+        return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc == 4 && mjPlacedKeys.size() >= 5;
     }
 
     private static boolean isStraight(Point p1, Point p2) { return p1.x() == p2.x() || p1.y() == p2.y(); }
