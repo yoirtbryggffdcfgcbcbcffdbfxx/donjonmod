@@ -155,8 +155,8 @@ public class OgreEntity extends BossEntity
         int cx = room.isDefined() ? room.centerX() : 0;
         int cz = room.isDefined() ? room.centerZ() : 0;
         animTimer++;
-        if ((this.getWorld().isClient ? "CLIENT" : "SERVER").equals("SERVER"))
-            System.out.println("[Cyclops-death] tick deathStage=" + deathStage + " animTimer=" + animTimer + " pos=(" + (int)getX() + "," + (int)getY() + "," + (int)getZ() + ") phase=" + getPhase() + " deathStage===" + deathStage);
+        if (!getWorld().isClient)
+            System.out.println("[Cyclops-death] tick deathStage=" + deathStage + " animTimer=" + animTimer + " pos=(" + (int)getX() + "," + (int)getY() + "," + (int)getZ() + ")");
         if (deathStage == 0) {
             double dx = cx - getX(), dz = cz - getZ();
             float targetYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
@@ -165,7 +165,9 @@ public class OgreEntity extends BossEntity
             deathStage = 1;
         }
         if (deathStage == 1) {
-            if (squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 || animTimer > 100) {
+            // Simple: on attend 30 ticks (1.5s) au stage 1 pour que la marche
+            // au centre soit visible, peu importe la position du boss.
+            if (animTimer >= 30) {
                 getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
                 setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
                 prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
