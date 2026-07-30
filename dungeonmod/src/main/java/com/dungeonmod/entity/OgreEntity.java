@@ -441,6 +441,16 @@ public class OgreEntity extends BossEntity
         setStackInHand(Hand.OFF_HAND, ItemStack.EMPTY);
     }
 
+    /**
+     * Clic gauche sur le boss mort = dialogue (comme BaseNpcEntity).
+     * Le mixin BossEntityDeathInterceptorMixin appelle ce hook à TAIL de
+     * damage() quand la condition d'auto-hit (self) est remplie.
+     */
+    @Override
+    protected void onPostMortemHit(PlayerEntity attacker) {
+        if (deathStage == 3) startDialogue(attacker);
+    }
+
     // ---------- Effets de combat ----------
 
     private void applyHeadbuttEffects() {
@@ -478,11 +488,7 @@ public class OgreEntity extends BossEntity
 
     @Override
     public ActionResult interactMob(PlayerEntity player, Hand hand) {
-        // Post-mortem : le boss mort est un PNJ. Clic gauche = dialogue.
-        if (getPhase() == BossPhase.DEAD && deathStage == 3) {
-            startDialogue(player);
-            return ActionResult.SUCCESS;
-        }
+        // Clic droit : on ne fait rien de spécial. Le dialogue passe par damage() (clic gauche).
         return ActionResult.PASS;
     }
 

@@ -170,15 +170,13 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      */
     @Override
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
-        // Phase DEAD : on ne prend plus aucun dégât. Si un joueur nous frappe
-        // (self-hit = même attaquant et source), on déclenche le hook post-mortem
-        // (utile pour la capability BossBecomesNpc : dialogue, etc.).
+        // Phase DEAD : on est invulnérable (santé figée à 0.1f par le mixin tick),
+        // mais on veut quand même le feedback visuel (flash de dégât) pour que
+        // le joueur sache qu'il a "touché" l'entité. Le dialogue est déclenché
+        // par le mixin BossEntityDeathInterceptorMixin (TAIL de damage).
         if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
-            if (source.getAttacker() instanceof PlayerEntity attacker
-                && source.getAttacker() == source.getSource()) {
-                onPostMortemHit(attacker);
-            }
-            return false;
+            // On laisse Minecraft appliquer le flash (hurtTime) sans changer la santé.
+            return super.damage(world, source, 0.0f);
         }
 
         // Application des modificateurs custom du boss.
@@ -205,7 +203,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     protected void onFatalHit(DamageSource source) { }
 
     /** Appelé quand un joueur frappe un boss déjà mort (post-mortem). */
-    protected void onPostMortemHit(PlayerEntity attacker) { }
+    public void onPostMortemHit(PlayerEntity attacker) { }
 
     /**
      * Déclenche la séquence de mort : à appeler depuis un mixin ou un

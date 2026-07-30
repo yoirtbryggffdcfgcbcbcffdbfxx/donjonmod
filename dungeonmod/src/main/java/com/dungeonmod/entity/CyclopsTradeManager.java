@@ -112,8 +112,9 @@ public class CyclopsTradeManager {
 
     public void sendSubtitles(PlayerEntity player, List<String> lines) {
         if (player instanceof ServerPlayerEntity sp) {
-            int totalTicks = (lines.size() * 60) + 20;
-            if (totalTicks > ogre.dialogueTicks) ogre.dialogueTicks = totalTicks;
+            // Cooldown anti-spam côté serveur (l'overlay client gère son propre
+            // timing d'affichage des sous-titres). 40 ticks = 2 secondes.
+            ogre.dialogueTicks = 40;
             net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload("Cyclope", lines, true));
         }
     }

@@ -35,17 +35,18 @@ public class BossEntityDeathInterceptorMixin {
         LivingEntity self = (LivingEntity) (Object) this;
         if (!(self instanceof BossEntity boss)) return;
 
-        // Si on est en phase DEAD, on force la santé à 0.1f pour empêcher
-        // Minecraft de considérer l'entité comme morte (et de la retirer).
         if (boss.getPhase() == BossPhase.DEAD) {
             if (boss.getHealth() <= 0.01f) {
                 boss.setHealth(0.1f);
             }
+            // Post-mortem : clic gauche du joueur (self-hit) → dialogue
+            if (source.getAttacker() instanceof net.minecraft.entity.player.PlayerEntity attacker
+                && source.getAttacker() == source.getSource()) {
+                boss.onPostMortemHit(attacker);
+            }
             return;
         }
 
-        // Sinon, si on est sous le seuil de mort (0.01f) sans être en phase DEAD,
-        // on bascule en phase DEAD avant que le code vanilla ne suive son cours.
         if (boss.getHealth() <= 0.01f) {
             boss.triggerDeathSequence();
         }
