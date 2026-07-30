@@ -376,7 +376,7 @@ final class DungeonPart4 {
             Map<Point, Set<Point>> tr = new HashMap<>();
             tr.put(startPoint, new HashSet<>());
             globalOccupied.add(startPoint);
-            int ci3 = 0, ci4 = 0, target = 13 + rng.nextInt(5);
+            int ci3 = 0, ci4 = 0, target = 9 + rng.nextInt(5);
 
             // Chaîne initiale f1/f2 : déjà réservée (voir plus haut) → garantie libre,
             // sans vérification d'occupation ici (c'est tout l'intérêt de la réservation).
