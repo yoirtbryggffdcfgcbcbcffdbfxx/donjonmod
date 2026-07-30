@@ -165,9 +165,9 @@ public class OgreEntity extends BossEntity
             deathStage = 1;
         }
         if (deathStage == 1) {
-            // Simple: on attend 30 ticks (1.5s) au stage 1 pour que la marche
-            // au centre soit visible, peu importe la position du boss.
-            if (animTimer >= 30) {
+            // 20 ticks (1s) de marche au centre, c'est suffisant pour voir
+            // la cinématique sans faire trop attendre le joueur.
+            if (animTimer >= 20) {
                 getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
                 setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
                 prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
@@ -176,7 +176,8 @@ public class OgreEntity extends BossEntity
         }
         if (deathStage == 2) {
             getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
-            if (animTimer >= 60) {
+            // 30 ticks (1.5s) de gel avant mort permanente.
+            if (animTimer >= 30) {
                 deathStage = 3; isDeadPermanent = true;
             }
         }
@@ -447,13 +448,15 @@ public class OgreEntity extends BossEntity
 
     /**
      * Clic gauche sur le boss mort = dialogue (comme BaseNpcEntity).
-     * Le mixin BossEntityDeathInterceptorMixin appelle ce hook à TAIL de
-     * damage() quand la condition d'auto-hit (self) est remplie.
+     * Appelé par BossEntity.damage() (override direct, pas via mixin)
+     * dès que la phase est DEAD — donc même pendant la cinématique de mort.
+     * La condition "phase DEAD" est vérifiée dans BossEntity.damage(),
+     * pas besoin de re-tester deathStage == 3 ici.
      */
     @Override
     public void onPostMortemHit(PlayerEntity attacker) {
         System.out.println("[Cyclops-postmortem] onPostMortemHit called deathStage=" + deathStage + " attacker=" + attacker.getName().getString());
-        if (deathStage == 3) startDialogue(attacker);
+        startDialogue(attacker);
     }
 
     // ---------- Effets de combat ----------

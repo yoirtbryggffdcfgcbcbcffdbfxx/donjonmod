@@ -115,6 +115,8 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         dataTracker.set(ATTACK_STATE, v);
         animTimer = (v == 0) ? 0 : 1;
     }
+    public boolean getDeadPermanent() { return isDeadPermanent; }
+    public void setDeadPermanent(boolean v) { this.isDeadPermanent = v; }
     public boolean isAnimating() {
         return getAttackState() != 0
             || getPhase() == BossPhase.WELCOME
@@ -170,8 +172,25 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      */
     @Override
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
-        // Phase DEAD : pas de flash, pas de dégât (comme BaseNpcEntity).
+        // Phase DEAD : pas de dégât, mais clic gauche du joueur → dialogue (comme BaseNpcEntity).
         if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
+            if (!world.isClient()) {
+                System.out.println("[Cyclops-boss-damage] damage on DEAD boss phase=" + getPhase()
+                    + " deadPerm=" + isDeadPermanent
+                    + " source=" + source
+                    + " attacker=" + source.getAttacker()
+                    + " src=" + source.getSource());
+            }
+            // Clic gauche d'un joueur (auto-hit) sur le boss mort = dialogue.
+            // On l'appelle inconditionnellement (même avant la fin de la cinématique
+            // de mort) pour que ça marche dès que la phase passe en DEAD.
+            if (source.getAttacker() instanceof PlayerEntity attacker
+                && source.getAttacker() == source.getSource()) {
+                if (!world.isClient()) {
+                    System.out.println("[Cyclops-boss-damage] self-hit detected, calling onPostMortemHit");
+                }
+                onPostMortemHit(attacker);
+            }
             return false;
         }
 

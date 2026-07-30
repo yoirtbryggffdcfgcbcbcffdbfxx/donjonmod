@@ -16,7 +16,10 @@ public class CyclopsTradeManager {
     }
 
     public void startDialogue(PlayerEntity player) {
-        if (ogre.getPhase() != 4 || ogre.deathStage != 3) return;
+        // Phase DEAD = le boss est mort (peu importe le deathStage interne).
+        // On accepte le dialogue dès la bascule en DEAD, pas besoin d'attendre
+        // la fin de la cinétique.
+        if (ogre.getPhase() != 4) return;
         if (ogre.dialogueTicks > 0) return;
         if (player instanceof ServerPlayerEntity sp) {
             com.dungeonmod.DungeonMod.npcShopCache.put(sp.getUuid(), ogre.getUuid());
