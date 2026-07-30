@@ -244,18 +244,21 @@ final class DungeonPart4 {
         int mjT = 5 + rng.nextInt(6); Map<Point, Integer> treeForNode = new HashMap<>(); for (int ti = 0; ti < allTrees.size(); ti++) for (Point k : allTrees.get(ti).keySet()) treeForNode.put(k, ti);
         Set<Point> mjPlacedKeys = new HashSet<>(); Map<Integer, Set<RoomType>> mjTypesOnTree = new HashMap<>(); for (int ti = 0; ti < allTrees.size(); ti++) mjTypesOnTree.put(ti, new HashSet<>());
         for (int attempt = 0; attempt < 50 && mjPlacedKeys.size() < mjT; attempt++) {
-            Point best = null; RoomType bestType = null;
-            for (Point k : topLabels.keySet()) { if (mjPlacedKeys.contains(k) || goblinCells.contains(k) || isHubExit.test(k)) continue; if (mjPlacedKeys.size() >= mjT) break;
+            List<Object[]> cands = new ArrayList<>();
+            for (Point k : topLabels.keySet()) { if (mjPlacedKeys.contains(k) || goblinCells.contains(k) || isHubExit.test(k)) continue;
                 RoomType v = topLabels.get(k); if (v == null) continue;
                 boolean isLeaf = v == RoomType.CUL_DJ; boolean isCorr = v.isDjCorridor() || v.isGoblinCorridor();
                 if (!isLeaf && !isCorr) continue;
                 if (!DungeonConstraints.isFarFromAll(adj, k, mjPlacedKeys, DungeonAlgo.MONSTER_MIN_DIST)) continue;
                 int ti = treeForNode.getOrDefault(k, -1); Set<RoomType> usedOnTree = mjTypesOnTree.getOrDefault(ti, new HashSet<>());
                 List<RoomType> pool = isLeaf ? RoomType.LEAF_MONSTERS_P3_P4 : RoomType.CORRIDOR_MONSTERS_P3_P4;
-                RoomType availType = null; for (RoomType t : pool) if (!usedOnTree.contains(t)) { availType = t; break; }
-                if (availType == null) continue; best = k; bestType = availType; break;
+                for (RoomType t : pool) if (!usedOnTree.contains(t)) cands.add(new Object[]{k, t, ti});
             }
-            if (best != null) { putSpecial(labelState, topLabels, best, bestType); mjPlacedKeys.add(best); int ti = treeForNode.getOrDefault(best, -1); if (ti >= 0) mjTypesOnTree.get(ti).add(bestType); }
+            if (cands.isEmpty()) break;
+            Object[] ch = cands.get(rng.nextInt(cands.size()));
+            Point best = (Point) ch[0]; RoomType bestType = (RoomType) ch[1]; int ti = (int) ch[2];
+            putSpecial(labelState, topLabels, best, bestType); mjPlacedKeys.add(best);
+            if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
         }
         for (var e : new ArrayList<>(topLabels.entrySet())) { if (e.getValue() == RoomType.CUL_DJ && !isHubExit.test(e.getKey())) { putSpecial(labelState, topLabels, e.getKey(), RoomType.BLACK_MARKET); break; } }
         if (missingLootType != null) {
