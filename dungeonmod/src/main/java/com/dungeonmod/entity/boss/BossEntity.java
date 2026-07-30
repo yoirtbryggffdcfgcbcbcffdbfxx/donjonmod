@@ -169,12 +169,12 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      * tickDeath()) au lieu de laisser Minecraft retirer l'entité immédiatement.
      */
     @Override
-    public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
+    protected void applyDamage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
         // Phase DEAD : pas de flash, pas de dégât (comme BaseNpcEntity).
         // Le dialogue est déclenché par le mixin BossEntityDeathInterceptorMixin
         // à TAIL de damage() (sans dépendre du return value).
         if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
-            return false;
+            return;
         }
 
         // Application des modificateurs custom du boss.
@@ -182,11 +182,8 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         amount *= damageReduction(source, amount);
 
         // Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD.
-        // Seuil large (50% PV max) pour garantir le déclenchement même si
-        // d'autres dégâts (effets de statut, fire ticks, projectiles) passent
-        // après super.damage() et font descendre la santé sous 0 sans repasser
-        // par notre override. Le boss a 400 PV → seuil à 200 PV (= moitié).
-        if (this.getHealth() <= this.getMaxHealth() * 0.5f || this.getHealth() - amount <= 0.01f) {
+        // Seuil à 0.01f (le boss a 0.1 PV à la fin).
+        if (this.getHealth() - amount <= 0.01f) {
             this.setHealth(0.1f);
             this.setPhase(BossPhase.DEAD);
             this.animTimer = 0;
@@ -194,9 +191,9 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             this.getNavigation().stop();
             if (bossBar != null) bossBar.clearPlayers();
             onFatalHit(source);
-            return false;
+            return;
         }
-        return super.damage(world, source, amount);
+        super.applyDamage(world, source, amount);
     }
 
     /** Appelé quand le boss vient d'être tué (avant la phase DEAD). */
@@ -232,18 +229,6 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         else if (phase == BossPhase.WELCOME) tickWelcome();
         else if (phase == BossPhase.COMBAT)  tickCombat();
         else if (phase == BossPhase.DEAD)    tickDeath();
-
-        // Filet ultime : si la santé descend sous 30% en combat et qu'on n'est
-        // pas encore en phase DEAD, on bascule. Garantit le déclenchement de
-        // la séquence de mort même si un dégât passe par un chemin qui
-        // contourne notre override de damage() (ex. multi-hit weapons).
-        if (phase == BossPhase.COMBAT
-            && !isDeadPermanent
-            && getMaxHealth() > 0
-            && getHealth() > 0
-            && getHealth() <= getMaxHealth() * 0.30f) {
-            triggerDeathSequence();
-        }
     }
 
     protected void updateBossBar() {
