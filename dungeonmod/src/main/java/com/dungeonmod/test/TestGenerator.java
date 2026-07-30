@@ -550,10 +550,9 @@ public class TestGenerator {
                 ogre.setPersistent();
                 ogre.setCustomName(net.minecraft.text.Text.literal("§eCyclope"));
                 ogre.setCustomNameVisible(false);
-                ogre.roomMinX = wx; ogre.roomMaxX = wx + CELL;
-                ogre.roomMinZ = wz; ogre.roomMaxZ = wz + CELL;
                 int[] ports = getWorldPorts(rc.typeKey, rc.rot);
-                if (ports.length > 0) ogre.roomFacing = ports[0] * 90.0f;
+                float facing = (ports.length > 0) ? ports[0] * 90.0f : 0f;
+                ogre.setRoom(wx, wx + CELL, wz, wz + CELL, facing);
                 world.spawnEntity(ogre);
             } else if ("M3".equals(rc.typeKey) || "M4".equals(rc.typeKey)) {
                 int[][] m34BottomOffsets = {{3, 6}, {6, 6}};

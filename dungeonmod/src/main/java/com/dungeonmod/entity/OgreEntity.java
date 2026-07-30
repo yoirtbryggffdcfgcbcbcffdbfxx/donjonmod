@@ -124,8 +124,7 @@ public class OgreEntity extends BossEntity
         for (var p : getWorld().getPlayers()) {
             if (p instanceof ServerPlayerEntity sp) {
                 double dist = distanceTo(sp);
-                boolean inRoom = roomMaxX > 0 && sp.getBlockX() >= roomMinX - 2 && sp.getBlockX() <= roomMaxX + 2
-                    && sp.getBlockZ() >= roomMinZ - 2 && sp.getBlockZ() <= roomMaxZ + 2;
+                boolean inRoom = room.isDefined() && room.contains(sp.getBlockX(), sp.getBlockZ());
 
                 if (inRoom && !isDeadPermanent && getPhase() < BossPhase.DEAD) {
                     if (getPhase() == BossPhase.IDLE) {
@@ -153,8 +152,8 @@ public class OgreEntity extends BossEntity
 
     @Override
     public void tickDeathSequence() {
-        int cx = roomMinX == 0 ? 0 : (roomMinX + roomMaxX) / 2;
-        int cz = roomMinZ == 0 ? 0 : (roomMinZ + roomMaxZ) / 2;
+        int cx = room.isDefined() ? room.centerX() : 0;
+        int cz = room.isDefined() ? room.centerZ() : 0;
         animTimer++;
         if (deathStage == 0) {
             double dx = cx - getX(), dz = cz - getZ();
