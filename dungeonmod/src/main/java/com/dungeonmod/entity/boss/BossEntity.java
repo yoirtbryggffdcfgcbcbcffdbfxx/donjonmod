@@ -161,6 +161,18 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     protected float damageReduction(DamageSource source, float amount) { return 1.0f; }
 
     /**
+     * Cooldown anti-spam côté serveur pour le clic-to-talk du boss mort.
+     * <p>Aligné sur le pattern {@code BaseNpcEntity.damage + dialogueCooldown} :
+     * tant que ce compteur est > 0, le clic gauche sur le boss est ignoré.
+     * Par défaut 0 (pas de cooldown, les sous-classes gèrent via leur propre champ —
+     * ex. OgreEntity.dialogueTicks). Voir aussi {@code getPostMortemCooldown()}.
+     */
+    protected int getPostMortemCooldown() { return 0; }
+
+    /** Vrai cooldown (positif) ou 0 si pas en cooldown. Appelé par {@code damage()}. */
+    protected boolean isPostMortemOnCooldown() { return getPostMortemCooldown() > 0; }
+
+    /**
      * Override du damage vanilla (3 args en 1.21.4 : ServerWorld, DamageSource, float).
      * <p>Comportement :
      * <ul>
@@ -180,9 +192,13 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         // Phase DEAD : pas de dégât, mais clic gauche du joueur → dialogue (comme BaseNpcEntity).
         if (deadPermanent || getPhase() == BossPhase.DEAD) {
             // Clic gauche d'un joueur (auto-hit) sur le boss mort = dialogue.
-            // On l'appelle inconditionnellement (même avant la fin de la cinématique
-            // de mort) pour que ça marche dès que la phase passe en DEAD.
-            if (source.getAttacker() instanceof PlayerEntity attacker
+            // On respecte le cooldown anti-spam ici (cf. BaseNpcEntity.damage) :
+            // si un dialogue est encore "frais" (délai non expiré), on ignore le
+            // clic — ça évite que le user puisse spammer et relancer le même
+            // dialogue plein de fois (et que le clic qui ferme le dialogue côté
+            // client ne le re-déclenche pas côté serveur).
+            if (!isPostMortemOnCooldown()
+                && source.getAttacker() instanceof PlayerEntity attacker
                 && source.getAttacker() == source.getSource()) {
                 onPostMortemHit(attacker);
             }

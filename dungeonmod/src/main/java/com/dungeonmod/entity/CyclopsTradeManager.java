@@ -115,11 +115,16 @@ public class CyclopsTradeManager {
 
     public void sendSubtitles(PlayerEntity player, List<String> lines) {
         if (player instanceof ServerPlayerEntity sp) {
-            // Cooldown anti-spam côté serveur (cf. BaseNpcEntity.damage + dialogueCooldown).
-            // 60 ticks = 3 sec, aligné sur Mira/Gaspard. Tant que ce compteur est > 0,
-            // OgreEntity.onPostMortemHit() ignore le clic → le même dialogue ne peut
-            // pas être re-déclenché plein de fois par un spam de clic gauche.
-            ogre.dialogueTicks = 60;
+            // Cooldown anti-spam côté serveur. Le compteur est lu par
+            // BossEntity.damage() via OgreEntity.getPostMortemCooldown() et
+            // décrémenté dans OgreEntity.tickDeath().
+            // On met 200 ticks (10 sec) pour largement couvrir la durée
+            // d'affichage côté client (TICKS_PER_LINE=90 par ligne dans
+            // SubtitleOverlay). Sans ça, un clic qui ferme le dialogue
+            // (ou qui skip le typing) peut arriver APRÈS l'expiration du
+            // cooldown serveur alors que le client affiche encore, et ça
+            // relance le même dialogue.
+            ogre.dialogueTicks = 200;
             net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload("Cyclope", lines, true));
         }
     }

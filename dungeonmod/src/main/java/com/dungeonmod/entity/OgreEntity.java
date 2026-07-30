@@ -445,18 +445,20 @@ public class OgreEntity extends BossEntity
     }
 
     /**
+     * Cooldown anti-spam pour le clic-to-talk. Le compteur est décrémenté
+     * dans {@code tickDeath()} (voir la branche {@code dialogueTicks > 0}).
+     * Aligné sur {@code BaseNpcEntity.dialogueCooldown}.
+     */
+    @Override
+    protected int getPostMortemCooldown() { return dialogueTicks; }
+
+    /**
      * Clic gauche sur le boss mort = dialogue (comme BaseNpcEntity).
-     * Appelé par BossEntity.damage() (override direct, pas via mixin)
-     * dès que la phase est DEAD — donc même pendant la cinématique de mort.
-     * La condition "phase DEAD" est vérifiée dans BossEntity.damage(),
-     * pas besoin de re-tester deathStage == 3 ici.
+     * Appelé par {@code BossEntity.damage()} qui a déjà vérifié le cooldown
+     * anti-spam via {@code isPostMortemOnCooldown()}.
      */
     @Override
     public void onPostMortemHit(PlayerEntity attacker) {
-        // Anti-spam : tant qu'un dialogue est "frais" (cooldown 3s), on
-        // ignore le clic — sinon le user peut spammer et relancer le même
-        // dialogue plein de fois (cf. BaseNpcEntity.damage + dialogueCooldown).
-        if (dialogueTicks > 0) return;
         startDialogue(attacker);
     }
 
