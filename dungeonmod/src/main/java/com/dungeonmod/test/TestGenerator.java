@@ -177,6 +177,7 @@ public class TestGenerator {
             registerRoom("D", "/test_structures/salle_depart.nbt");
             registerRoom("Prison", "/test_structures/salle_prison.nbt");
             registerRoom("Loot1", "/test_structures/salle_loot_1.nbt");
+            registerRoom("GardeManger", "/test_structures/salle_garde_manger.nbt");
             registerRoom("M1", "/test_structures/salle_monstre_1.nbt");
             registerRoom("M2", "/test_structures/salle_monstre_2.nbt");
             registerRoom("M5", "/test_structures/salle_monstre_5.nbt");

@@ -16,6 +16,7 @@ public class DungeonViz {
         put(RoomType.I2, "#4FC3F7", "Virage"); put(RoomType.I3, "#29B6F6", "Intersec 3"); put(RoomType.I4, "#0288D1", "Intersec 4");
         put(RoomType.CUL, "#616161", "Cul-de-sac"); put(RoomType.MONSTER_1, "#E53935", "Monstre 1"); put(RoomType.MONSTER_2, "#C62828", "Monstre 2");
         put(RoomType.MONSTER_5, "#B71C1C", "Monstre 5"); put(RoomType.PRISON, "#B71C1C", "Prison"); put(RoomType.LOOT_1, "#FFD600", "Loot");
+        put(RoomType.GARDE_MANGER, "#FF8F00", "Garde Manger");
         put(RoomType.FOUNTAIN, "#42A5F5", "Fontaine"); put(RoomType.WELL, "#0D47A1", "Puits");
         put(RoomType.DOOR_1, "#757575", "Porte"); put(RoomType.DOOR_2, "#757575", "Porte 2"); put(RoomType.DOOR_3, "#757575", "Porte 3");
         put(RoomType.TAVERN_1, "#8D6E63", "Taverne 1"); put(RoomType.TAVERN_2, "#8D6E63", "Taverne 2"); put(RoomType.TAVERN_3, "#8D6E63", "Taverne 3"); put(RoomType.TAVERN_4, "#8D6E63", "Taverne 4");

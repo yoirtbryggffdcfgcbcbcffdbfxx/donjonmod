@@ -103,7 +103,7 @@ final class DungeonPart2 {
             if (!hasAdj) { lootLeaf = n; break; }
         }
         if (lootLeaf == null) { for (Point n : remain) { if (!labelState.hasSpecial(n)) { lootLeaf = n; break; } } }
-        labelState.putSpecial(lootLeaf, RoomType.LOOT_1);
+        labelState.putSpecial(lootLeaf, RoomType.GARDE_MANGER);
 
         Point m4Corr = null;
         for (Point n : cList) {
@@ -145,6 +145,7 @@ final class DungeonPart2 {
                     for (Point nb : adj.get(n)) {
                         RoomType lbl = specials.get(nb);
                         if (lbl != null && (lbl == RoomType.OGRE || lbl == RoomType.FOUNTAIN || lbl == RoomType.LOOT_1
+                            || lbl == RoomType.GARDE_MANGER
                             || lbl == RoomType.MONSTER_1 || lbl == RoomType.MONSTER_2 || lbl == RoomType.MONSTER_3
                             || lbl == RoomType.MONSTER_4 || lbl == RoomType.MONSTER_5)) {
                             adjSpecial = true; break;
@@ -272,7 +273,7 @@ final class DungeonPart2 {
             Shape shape = DungeonLabels.shapeOf(adj.getOrDefault(e.getKey(), Set.of()));
             if (label == RoomType.OGRE || label == RoomType.FOUNTAIN
                     || label == RoomType.MONSTER_1 || label == RoomType.MONSTER_3
-                    || label == RoomType.LOOT_1) {
+                    || label == RoomType.LOOT_1 || label == RoomType.GARDE_MANGER) {
                 if (shape != Shape.DEAD_END) return false;
             } else if (label == RoomType.MONSTER_2 || label == RoomType.MONSTER_4
                     || label == RoomType.MONSTER_5 || label == RoomType.WELL) {
