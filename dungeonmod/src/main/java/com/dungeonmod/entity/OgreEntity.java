@@ -447,7 +447,7 @@ public class OgreEntity extends BossEntity
      * damage() quand la condition d'auto-hit (self) est remplie.
      */
     @Override
-    protected void onPostMortemHit(PlayerEntity attacker) {
+    public void onPostMortemHit(PlayerEntity attacker) {
         if (deathStage == 3) startDialogue(attacker);
     }
 
