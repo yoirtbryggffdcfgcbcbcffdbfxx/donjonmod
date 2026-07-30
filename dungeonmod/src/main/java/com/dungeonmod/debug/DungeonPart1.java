@@ -106,6 +106,16 @@ final class DungeonPart1 {
             DungeonPart2.growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
         }
 
+        // Réserve l'espace devant le tronc pour la sortie + chemin + taverne
+        int[] td = DungeonAlgo.DIR_OFFSET[dir];
+        for (int ri = 1; ri <= 10; ri++) {
+            for (int sj = -2; sj <= 2; sj++) {
+                Point rp = new Point(trunkEnd.x() + td[0] * ri - td[1] * sj,
+                                     trunkEnd.y() + td[1] * ri + td[0] * sj);
+                if (!rp.isOutOfBounds()) occupied.add(rp);
+            }
+        }
+
         int targetSize = DungeonAlgo.PART1_TARGET_MIN + rng.nextInt(DungeonAlgo.PART1_TARGET_MAX - DungeonAlgo.PART1_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
@@ -146,7 +156,7 @@ final class DungeonPart1 {
         int dir = trunkEndDir;
         Point cursor = trunkEnd;
         List<Point> gapCells = new ArrayList<>();
-        int need = 1 + rng.nextInt(2);
+        int need = 0;
         for (int i = 0; i < need + 1; i++) {
             Point next = null; int chosenDir = -1;
             int[] tryOrder = (i == 0)
