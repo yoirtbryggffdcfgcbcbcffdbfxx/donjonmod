@@ -205,6 +205,22 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     /** Appelé quand un joueur frappe un boss déjà mort (post-mortem). */
     protected void onPostMortemHit(PlayerEntity attacker) { }
 
+    /**
+     * Déclenche la séquence de mort : à appeler depuis un mixin ou un
+     * autre code qui veut forcer la transition (ex. filet de sécurité
+     * si damage() n'est pas appelé). Idempotent.
+     */
+    public void triggerDeathSequence() {
+        if (isDeadPermanent || getPhase() == BossPhase.DEAD) return;
+        this.setHealth(0.1f);
+        this.setPhase(BossPhase.DEAD);
+        this.animTimer = 0;
+        this.setInvulnerable(true);
+        this.getNavigation().stop();
+        if (bossBar != null) bossBar.clearPlayers();
+        onFatalHit(null);
+    }
+
     // ---------- Tick : dispatch par phase ----------
 
     @Override
