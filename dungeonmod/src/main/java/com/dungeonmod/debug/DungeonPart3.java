@@ -206,6 +206,7 @@ final class DungeonPart3 {
             }
             if (shopNode != null) break;
         }
+        if (shopNode == null) return null;
 
         Set<Point> allNodes = new HashSet<>(adj.keySet());
         List<Point> leaves = new ArrayList<>(), internals = new ArrayList<>();
@@ -299,10 +300,9 @@ final class DungeonPart3 {
         List<Point> restLeaves = new ArrayList<>();
         for (int i = leafLoot; i < leaves.size(); i++) if (!labelState.hasSpecial(leaves.get(i))) restLeaves.add(leaves.get(i));
         restLeaves.sort(Comparator.comparingInt(lp -> -Math.abs(lp.x() - campExit.x()) - Math.abs(lp.y() - campExit.y())));
-        for (Point n : restLeaves) {
-            if (n.equals(restLeaves.get(0))) labelState.putSpecial(n, RoomType.GARDEN);
-            else if (restLeaves.size() > 1 && n.equals(restLeaves.get(1))) labelState.putSpecial(n, RoomType.STATUE);
-        }
+        if (restLeaves.size() < 2) return null;
+        labelState.putSpecial(restLeaves.get(0), RoomType.GARDEN);
+        labelState.putSpecial(restLeaves.get(1), RoomType.STATUE);
 
         if (cjList.size() < corrM3 + corrLoot + 1) return null;
         Collections.shuffle(cjList, rng);
