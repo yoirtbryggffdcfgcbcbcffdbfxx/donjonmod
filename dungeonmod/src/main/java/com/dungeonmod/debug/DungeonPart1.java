@@ -302,6 +302,7 @@ final class DungeonPart1 {
 
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
+        // Direction sortante porte -> chemin (alignee sur l'entree interieure)
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
         for (int attempt = 1; attempt <= TAVERN_PATH_ATTEMPTS; attempt++) {
@@ -309,10 +310,10 @@ final class DungeonPart1 {
             int maxLen = 2 + rng.nextInt(4);
             int cx = porte.x(), cy = porte.y();
             List<Point> pathCells = new ArrayList<>();
-            // Adj temporaire pour le chemin. MAX_COLINEAR_RUN ne s'applique
-            // pas ici : le chemin de taverne est externe au donjon.
-            Map<Point, Set<Point>> tmpAdj = new HashMap<>();
-            tmpAdj.put(porte, new HashSet<>(adj.get(porte)));
+            // Copie complete de adj pour l'isolation (le chemin ne peut pas
+            // traverser le donjon). MAX_COLINEAR_RUN n'est pas verifie ici :
+            // le chemin de taverne est externe au donjon.
+            Map<Point, Set<Point>> tmpAdj = DungeonTreeBuilder.copyAdj(adj);
             Point curTmp = porte;
 
             boolean failed = false;
@@ -324,7 +325,7 @@ final class DungeonPart1 {
                     Point s = new Point(cx + dx, cy + dy);
                     if (s.isOutOfBounds() || tmpAdj.containsKey(s)) { failed = true; break; }
                 } else {
-                    // Droit ou virage aleatoire. Cellule libre = ok.
+                    // Droit ou virage aleatoire. Seule condition : cellule libre.
                     Point s = new Point(cx + dx, cy + dy);
                     if (!s.isOutOfBounds() && !tmpAdj.containsKey(s) && rng.nextFloat() < 0.35f) {
                         ndx = dx; ndy = dy;
@@ -332,8 +333,9 @@ final class DungeonPart1 {
                         int[][] perp = {{dy, -dx}, {-dy, dx}};
                         boolean turned = false;
                         ndx = dx; ndy = dy;
+                        int startP = rng.nextInt(2);
                         for (int k = 0; k < 2; k++) {
-                            int[] turn = perp[rng.nextInt(2)];
+                            int[] turn = perp[(startP + k) % 2];
                             Point t = new Point(cx + turn[0], cy + turn[1]);
                             if (t.isOutOfBounds() || tmpAdj.containsKey(t)) continue;
                             ndx = turn[0]; ndy = turn[1];

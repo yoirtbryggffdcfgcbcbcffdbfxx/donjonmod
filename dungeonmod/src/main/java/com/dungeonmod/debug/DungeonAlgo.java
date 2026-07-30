@@ -680,12 +680,6 @@ public class DungeonAlgo {
                 int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
                 if (m5 < 1) continue; // M5 obligatoire avant porte1 (gap inclus)
 
-                // Garde-fou FINAL : après M5 + chemins taverne/camp + P3, aucune droite
-                // géométrique de l'adj (I3/M5/porte/couloirs comptés) ne doit dépasser
-                // MAX_COLINEAR_RUN segments. Couvre le cas :
-                //   I3—C—I3—M5—C—porte—C—C—virage  → run trop longue → retry
-                if (!respectsColinearLimit(sp1.adj)) continue;
-
                 // PASSE DE COHÉRENCE finale pour l'étage 0 : après toutes les mutations P1-P3
                 // (chemins taverne/camp, greffes bibliothèque/shop/hub...), tout label structurel
                 // générique est re-déduit de l'adjacence réelle. Salles spéciales jamais touchées.
