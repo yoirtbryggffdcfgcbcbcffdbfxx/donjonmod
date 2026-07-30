@@ -342,24 +342,19 @@ public class TestGenerator {
         return true;
     }
 
-    private static final Set<String> CORRIDOR_OR_INTERSECTION_TYPES = Set.of(
-        "C1", "C2", "C3", "I2", "I3", "I4",
-        "CJ1", "CJ2", "CJ3", "IJ2", "IJ3", "IJ4",
-        "cul", "culDJ", "porte", "porte2", "porte3",
-        "CG1", "GI2", "GI3", "GI4", "CDG",
-        "Centrale"
-    );
-
     private static boolean isCorridorOrIntersection(String typeKey) {
-        return CORRIDOR_OR_INTERSECTION_TYPES.contains(typeKey);
+        com.dungeonmod.debug.RoomType rt = com.dungeonmod.debug.RoomType.byId(typeKey);
+        return rt != null && rt.isGeneric();
     }
 
     private static BlockState[][][] getData(String typeKey, int corrIdx) {
-        if ("C1".equals(typeKey) || "C2".equals(typeKey) || "C3".equals(typeKey)) {
-            return NBT_CACHE.get("C" + ((corrIdx % 3) + 1));
-        }
-        if ("CJ1".equals(typeKey) || "CJ2".equals(typeKey) || "CJ3".equals(typeKey)) {
-            return NBT_CACHE.get("CJ" + ((corrIdx % 3) + 1));
+        com.dungeonmod.debug.RoomType rt = com.dungeonmod.debug.RoomType.byId(typeKey);
+        if (rt != null && rt.isGenericStraight()) {
+            String prefix = rt.theme == com.dungeonmod.debug.DungeonAlgo.Theme.GOBLIN ? "CG1"
+                     : rt.theme == com.dungeonmod.debug.DungeonAlgo.Theme.DJ ? "CJ"
+                     : "C";
+            if ("CG1".equals(prefix)) return NBT_CACHE.get("CG1");
+            return NBT_CACHE.get(prefix + ((corrIdx % 3) + 1));
         }
         return NBT_CACHE.get(typeKey);
     }
@@ -473,8 +468,10 @@ public class TestGenerator {
                 }
 
                 // RECADRAGE EXPLICITE DES STRUCTURES SPÉCIALES P4
-                if ("Chapelle1".equals(typeKey) || "Chapelle2".equals(typeKey) || "Crypte1".equals(typeKey) ||
-                    "Crypte2".equals(typeKey) || "PrisonC1".equals(typeKey) || "PorteGob".equals(typeKey)) {
+                com.dungeonmod.debug.RoomType rtP4 = com.dungeonmod.debug.RoomType.byId(typeKey);
+                if (rtP4 != null && (rtP4 == com.dungeonmod.debug.RoomType.CHAPEL_1 || rtP4 == com.dungeonmod.debug.RoomType.CHAPEL_2
+                    || rtP4 == com.dungeonmod.debug.RoomType.CRYPT_1 || rtP4 == com.dungeonmod.debug.RoomType.CRYPT_2
+                    || rtP4.isPrisonCentral() || rtP4 == com.dungeonmod.debug.RoomType.GOBLIN_DOOR)) {
 
                     int[] purplePorts = roomPurplePorts.get(typeKey);
                     if (purplePorts != null && purplePorts.length == 1) {
