@@ -260,6 +260,9 @@ final class DungeonPart4 {
             putSpecial(labelState, topLabels, best, bestType); mjPlacedKeys.add(best);
             if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
         }
+        if (!(topLabels.containsValue(RoomType.MONSTER_DJ_1) && topLabels.containsValue(RoomType.MONSTER_DJ_2)
+            && topLabels.containsValue(RoomType.MONSTER_DJ_3) && topLabels.containsValue(RoomType.MONSTER_DJ_4)
+            && topLabels.containsValue(RoomType.MONSTER_DJ_5))) return false;
         for (var e : new ArrayList<>(topLabels.entrySet())) { if (e.getValue() == RoomType.CUL_DJ && !isHubExit.test(e.getKey())) { putSpecial(labelState, topLabels, e.getKey(), RoomType.BLACK_MARKET); break; } }
         if (missingLootType != null) {
             RoomType missingLT = RoomType.byId(missingLootType);
