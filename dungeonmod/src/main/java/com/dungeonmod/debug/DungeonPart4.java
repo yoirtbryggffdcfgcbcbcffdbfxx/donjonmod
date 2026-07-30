@@ -269,22 +269,14 @@ final class DungeonPart4 {
             int dx = pk.x() - np.x(), dy = pk.y() - np.y();
             int d = dx == 1 ? 0 : dx == -1 ? 2 : dy == 1 ? 1 : 3;
 
-            // Essayer les 4 orientations de la structure 2x2.
-            DungeonCompositeRooms.Placement prison = null;
-            int[] rdxs = {dx, -dy, -dx, dy};
-            int[] rdys = {dy, dx, -dy, -dx};
-            for (int rot = 0; rot < 4 && prison == null; rot++) {
-                int rdx = rdxs[rot], rdy = rdys[rot];
-                DungeonCompositeRooms.Placement p = DungeonCompositeRooms.plan(
-                        adj, pk, rdx, rdy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
-                if (p == null) continue;
-                boolean occ = false;
-                for (Point cell : p.occupiedCells()) {
-                    if (!cell.equals(pk) && globalOccupied.contains(cell)) { occ = true; break; }
-                }
-                if (!occ) prison = p;
-            }
+            DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(
+                    adj, pk, dx, dy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
             if (prison == null) continue;
+            boolean occupied = false;
+            for (Point cell : prison.occupiedCells()) {
+                if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; }
+            }
+            if (occupied) continue;
 
             DungeonCompositeRooms.place(adj, null, prison);
             globalOccupied.addAll(prison.occupiedCells());
