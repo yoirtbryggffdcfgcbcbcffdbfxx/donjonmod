@@ -482,9 +482,13 @@ final class DungeonPart4 {
         int gIdx = idxs.get(0), cIdx = idxs.get(1), pIdx = idxs.get(2);
         Set<Point> goblinCells = new HashSet<>();
 
-        if (!placeGoblinVillage(labelState, adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
-        placeChapelAndCrypt(labelState, adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
+        // Placer la prison en premier : structure 2x2 simple qui a besoin
+        // d'une seule feuille degagee. Le village gobelin (20-25 cellules)
+        // et la chapelle (chemin + crypte) sont plus complexes et s'adaptent
+        // mieux a l'espace restant via leurs propres retries internes.
         placePrisonBlock(labelState, adj, topLabels, allTrees.get(pIdx), allStarts.get(pIdx), globalOccupied);
+        placeChapelAndCrypt(labelState, adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
+        if (!placeGoblinVillage(labelState, adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
 
         // PASSE DE COHÉRENCE FINALE : la topologie P4 est désormais figée (arbres, exits,
         // village gobelin, chapelle, prison). On re-déduit chaque label structurel générique
