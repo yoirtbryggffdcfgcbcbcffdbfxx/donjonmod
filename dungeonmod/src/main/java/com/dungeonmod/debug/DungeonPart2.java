@@ -276,16 +276,7 @@ final class DungeonPart2 {
             }
             if (!okC) return null;
         }
-        // Essayer les 4 orientations de la structure 2x2.
-        DungeonCompositeRooms.Placement camp = null;
-        int[] crdx = {dx, -dy, -dx, dy};
-        int[] crdy = {dy, dx, -dy, -dx};
-        for (int rot = 0; rot < 4 && camp == null; rot++) {
-            int rdx = crdx[rot], rdy = crdy[rot];
-            Point ct = new Point(cx + rdx, cy + rdy);
-            if (ct.isOutOfBounds() || adj.containsKey(ct) || tmpAdj.containsKey(ct)) continue;
-            camp = DungeonCompositeRooms.plan(adj, ct, rdx, rdy, DungeonCompositeRooms.CAMP);
-        }
+        DungeonCompositeRooms.Placement camp = DungeonCompositeRooms.plan(adj, c1, dx, dy, DungeonCompositeRooms.CAMP);
         if (camp == null) return null;
 
         Set<Point> campPathSet = new HashSet<>();
