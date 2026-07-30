@@ -228,7 +228,7 @@ final class DungeonPart1 {
         // Essayer plusieurs longueurs de chemin (2 a 5 cellules).
         // Un chemin plus long atteint une zone plus degagee, reduisant
         // les collisions de la structure 2x2 avec le donjon.
-        for (int maxLen = 2; maxLen <= 5; maxLen++) {
+        for (int maxLen = 2; maxLen <= 7; maxLen++) {
             int dx = baseDx, dy = baseDy;
             int cx = porte.x(), cy = porte.y();
             List<Point> pathCells = new ArrayList<>();
