@@ -1,21 +1,15 @@
 package com.dungeonmod.entity;
 
-import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.boss.ServerBossBar;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.data.TrackedData;
-import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
 import net.minecraft.particle.ParticleTypes;
@@ -25,27 +19,31 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
-import java.util.List;
-import com.dungeonmod.DungeonMod;
-import com.dungeonmod.village.NpcMerchant;
-import net.minecraft.village.TradeOffer;
-import java.util.List;
+import com.dungeonmod.entity.boss.BossAnimation;
+import com.dungeonmod.entity.boss.BossEntity;
+import com.dungeonmod.entity.boss.BossPhase;
+import com.dungeonmod.entity.boss.capability.BossBecomesNpc;
+import com.dungeonmod.entity.boss.capability.BossHasCombos;
+import com.dungeonmod.entity.boss.capability.BossHasDeathSequence;
+import com.dungeonmod.entity.boss.capability.BossHasWeakPoint;
 import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animation.AnimatableManager;
 import software.bernie.geckolib.animation.AnimationController;
 import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.animation.RawAnimation;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
-public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopProvider {
+public class OgreEntity extends BossEntity
+    implements NpcShopProvider, GeoEntity,
+               BossHasWeakPoint, BossHasCombos<CyclopsAttack>,
+               BossHasDeathSequence, BossBecomesNpc {
+
     public static final EntityType<OgreEntity> TYPE = Registry.register(
         Registries.ENTITY_TYPE, Identifier.of("dungeonmod", "ogre"),
         EntityType.Builder.<OgreEntity>create(OgreEntity::new, net.minecraft.entity.SpawnGroup.MONSTER)
@@ -53,32 +51,23 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
             .build(RegistryKey.of(Registries.ENTITY_TYPE.getKey(), Identifier.of("dungeonmod", "ogre")))
     );
 
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("pose_sans_joueur");
-    private static final RawAnimation WELCOME_ANIM = RawAnimation.begin().thenPlay("animation_when_player_going");
-    private static final RawAnimation DEAD_ANIM = RawAnimation.begin().thenPlay("dead");
-    private static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("walk");
-    private static final RawAnimation THROW_ANIM = RawAnimation.begin().thenPlay("lancer_de_pierre");
-    private static final RawAnimation ATTACK_ANIM = RawAnimation.begin().thenPlay("attack");
-    private static final RawAnimation HEADBUTT_ANIM = RawAnimation.begin().thenPlay("attack_coup_de_tete");
-    private static final RawAnimation EYE_ANIM = RawAnimation.begin().thenPlay("oeil_cache");
-    private static final RawAnimation CHARGE_ANIM = RawAnimation.begin().thenPlay("charge");
-
-    private static final TrackedData<Integer> PHASE = DataTracker.registerData(OgreEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    // PHASE: 0=IDLE, 1=WELCOME, 2=COMBAT, 4=DEAD
-    private static final TrackedData<Integer> ATTACK_STATE = DataTracker.registerData(OgreEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    // ATTACK_STATE: 0=none, 1=throw, 2=clap, 3=headbutt, 4=eye, 5=charge
-
-    // Combo definitions (sequences of ATTACK_STATE)
+    // ---------- Combos (legacy int codes conservés pour la persistance NBT) ----------
     private static final int[] COMBO_TC = {1, 5, 2};   // throw → charge → clap
     private static final int[] COMBO_TH = {1, 5, 3};   // throw → charge → headbutt
-    private static final int[] COMBO_CH = {5, 3};       // charge → headbutt
+    private static final int[] COMBO_CH = {5, 3};      // charge → headbutt
 
-    private int animTimer = 0;
-    private long nextAttackTime = 100, lastHiddenEyeTime = 0;
+    // ---------- État ----------
+    private long lastHiddenEyeTime = 0;
     private static final long COOLDOWN_HIDDEN_EYE = 200;
     public boolean throwTestMode = false;
+    // Champs room conservés publics pour compat (TestGenerator, etc.)
     public int roomMinX, roomMaxX, roomMinZ, roomMaxZ;
+    public float roomFacing = 0f;
+    public int deathStage = 0;
+    public int clothsGiven = 0;
+    public boolean hasTalked = false;
+    public int dialogueTicks = 0;
+
     private boolean stoneThrown = false;
     private StoneEntity groundStone = null;
     // Combo state
@@ -89,15 +78,7 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
     private float chargeYaw = 0f;
     private boolean chargeHitApplied = false;
     private LivingEntity attackTarget = null;
-    private ServerBossBar bossBar;
-    private boolean isDeadPermanent = false;
-    private boolean hasPlayedWelcome = false;
-    public float roomFacing = 0f;
-    public int deathStage = 0;
-    public int clothsGiven = 0;
     private boolean eyeHitBoosted = false;
-    public boolean hasTalked = false;
-    public int dialogueTicks = 0;
     private final java.util.Set<String> givenItems = new java.util.HashSet<>();
     public final java.util.Set<Integer> usedTradeIndices = new java.util.HashSet<>();
     private final java.util.Set<java.util.UUID> welcomedPlayers = new java.util.HashSet<>();
@@ -107,333 +88,218 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
         super(type, world);
     }
 
-    @Override protected void initDataTracker(DataTracker.Builder builder) {
-        super.initDataTracker(builder);
-        builder.add(PHASE, 0);
-        builder.add(ATTACK_STATE, 0);
-    }
+    // ---------- Hooks BossEntity ----------
 
-    public int getPhase() { return dataTracker.get(PHASE); }
-    public void setPhase(int v) { dataTracker.set(PHASE, v); }
-    public int getAttackState() { return dataTracker.get(ATTACK_STATE); }
-    public void setAttackState(int v) { dataTracker.set(ATTACK_STATE, v); }
-    public boolean isAnimating() { return getAttackState() != 0 || getPhase() == 1 || getPhase() == 3 || getPhase() == 4; }
-
-    @Override public void writeCustomDataToNbt(net.minecraft.nbt.NbtCompound nbt) {
-        super.writeCustomDataToNbt(nbt);
-        nbt.putLong("nextAttackTime", nextAttackTime);
-        nbt.putBoolean("throwTestMode", throwTestMode);
-        nbt.putInt("roomMinX", roomMinX); nbt.putInt("roomMaxX", roomMaxX);
-        nbt.putInt("roomMinZ", roomMinZ); nbt.putInt("roomMaxZ", roomMaxZ);
-        nbt.putFloat("roomFacing", roomFacing);
-        nbt.putInt("phase", getPhase());
-        nbt.putBoolean("dead", isDeadPermanent);
-        nbt.putInt("deathStage", deathStage);
-        nbt.putInt("clothsGiven", clothsGiven);
-        nbt.putBoolean("hasTalked", hasTalked);
-        var givenList = new net.minecraft.nbt.NbtList();
-        for (String id : givenItems) { givenList.add(net.minecraft.nbt.NbtString.of(id)); }
-        nbt.put("givenItems", givenList);
-        var usedList = new net.minecraft.nbt.NbtList();
-        for (int idx : usedTradeIndices) { usedList.add(net.minecraft.nbt.NbtInt.of(idx)); }
-        nbt.put("usedTradeIndices", usedList);
-    }
-
-    @Override public void readCustomDataFromNbt(net.minecraft.nbt.NbtCompound nbt) {
-        super.readCustomDataFromNbt(nbt);
-        if (nbt.contains("nextAttackTime")) {
-            nextAttackTime = nbt.getLong("nextAttackTime");
-            if (this.age - nextAttackTime < 0) nextAttackTime = 0;
-        }
-        if (nbt.contains("throwTestMode")) throwTestMode = nbt.getBoolean("throwTestMode");
-        if (nbt.contains("roomMinX")) {
-            roomMinX = nbt.getInt("roomMinX"); roomMaxX = nbt.getInt("roomMaxX");
-            roomMinZ = nbt.getInt("roomMinZ"); roomMaxZ = nbt.getInt("roomMaxZ");
-        }
-        if (nbt.contains("roomFacing")) roomFacing = nbt.getFloat("roomFacing");
-        if (nbt.contains("dead")) { isDeadPermanent = nbt.getBoolean("dead"); setPhase(isDeadPermanent ? 4 : 0); }
-        if (nbt.contains("phase")) setPhase(nbt.getInt("phase"));
-        if (nbt.contains("deathStage")) deathStage = nbt.getInt("deathStage");
-        else if (nbt.contains("returnStage")) deathStage = nbt.getInt("returnStage"); // compatibilité
-        if (nbt.contains("clothsGiven")) clothsGiven = nbt.getInt("clothsGiven");
-        if (nbt.contains("hasTalked")) hasTalked = nbt.getBoolean("hasTalked");
-        if (nbt.contains("givenItems")) {
-            givenItems.clear();
-            for (var t : nbt.getList("givenItems", net.minecraft.nbt.NbtElement.STRING_TYPE)) givenItems.add(t.asString());
-        }
-        if (nbt.contains("usedTradeIndices")) {
-            usedTradeIndices.clear();
-            for (var t : nbt.getList("usedTradeIndices", net.minecraft.nbt.NbtElement.INT_TYPE)) usedTradeIndices.add(((net.minecraft.nbt.NbtInt)t).intValue());
-        }
-    }
-
-    @Override public void remove(Entity.RemovalReason reason) {
-        if (bossBar != null) bossBar.clearPlayers();
-        super.remove(reason);
-    }
-
-    @Override public AnimatableInstanceCache getAnimatableInstanceCache() { return cache; }
-    @Override public double getTick(Object object) { return this.age; }
+    @Override protected Text getBossBarName()         { return Text.literal("§eCyclope"); }
+    @Override protected SoundEvent getWelcomeSound()   { return SoundEvents.ENTITY_WITHER_SPAWN; }
+    @Override protected Text getWelcomeMessage()       { return Text.literal("§6⚔ Salle du Cyclope ⚔"); }
+    @Override protected BossAnimation getIdleAnimation() { return CyclopsAttack.IDLE; }
+    @Override protected BossAnimation getWalkAnimation() { return CyclopsAttack.WALK; }
+    @Override protected int welcomeDurationTicks()       { return 40; }
+    @Override protected int postAttackCooldownTicks()    { return 20 + random.nextInt(41); }
 
     @Override
-    public void registerControllers(AnimatableManager.ControllerRegistrar registrar) {
-        final int[] prevAttack = {0};
-        final int[] prevPhase = {-1};
-        final boolean[] wasMoving = {false};
-        registrar.add(new AnimationController<>(this, "main", 2, state -> {
-            int phase = getPhase();
-            int attack = getAttackState();
-            
-            // Si mort définitive et qu'il a fini de s'allonger -> "pose_sans_joueur" permanente
-            if (phase == 4 && deathStage == 3) { prevPhase[0] = 4; return state.setAndContinue(IDLE_ANIM); }
-
-            if (phase == 0 && prevPhase[0] != 0) { prevPhase[0] = 0; prevAttack[0] = 0; return state.setAndContinue(IDLE_ANIM); }
-            if (phase == 0) return PlayState.CONTINUE;
-            if (phase == 1 && prevPhase[0] != 1) { prevPhase[0] = 1; prevAttack[0] = 0; return state.setAndContinue(WELCOME_ANIM); }
-            if (phase == 1) return PlayState.CONTINUE;
-            if (phase == 4 && prevPhase[0] != 4) { prevPhase[0] = 4; prevAttack[0] = 0; return state.setAndContinue(DEAD_ANIM); }
-            if (phase == 4) return PlayState.CONTINUE;
-            
-            // COMBAT
-            if (attack != 0 && attack != prevAttack[0]) {
-                prevAttack[0] = attack; prevPhase[0] = 2;
-                RawAnimation a;
-                switch (attack) {
-                    case 1: a = THROW_ANIM; break; case 2: a = ATTACK_ANIM; break;
-                    case 3: a = HEADBUTT_ANIM; break; case 4: a = EYE_ANIM; break;
-                    case 5: a = CHARGE_ANIM; break;
-                    default: a = WALK_ANIM;
-                }
-                return state.setAndContinue(a);
-            }
-            if (attack == 0) {
-                prevAttack[0] = 0; prevPhase[0] = 2;
-                boolean moving = this.getVelocity().horizontalLengthSquared() > 0.0001 || state.isMoving();
-                if (moving && !wasMoving[0]) {
-                    wasMoving[0] = true;
-                    return state.setAndContinue(WALK_ANIM);
-                }
-                if (!moving && wasMoving[0]) {
-                    wasMoving[0] = false;
-                    return PlayState.STOP;
-                }
-                if (moving) return PlayState.CONTINUE;
-                return PlayState.STOP;
-            }
-            return PlayState.CONTINUE;
-        }).setAnimationSpeed(1.0f));
-    }
-
-    // Interception des dégâts pour déclencher la mort scénarisée au centre de la salle
-    public boolean damage(net.minecraft.server.world.ServerWorld world, net.minecraft.entity.damage.DamageSource source, float amount) {
-        if (getPhase() == 4 && deathStage == 3
-            && source.getAttacker() instanceof PlayerEntity player && source.getAttacker() == source.getSource()) {
-            startDialogue(player);
-            return false;
-        }
-        if (isDeadPermanent || getPhase() == 4) return false;
-
-        // 4x dégâts si ce coup a déclenché l'œil
-        if (eyeHitBoosted) { amount *= 4.0f; eyeHitBoosted = false; }
-
-        // 50% de réduction pendant l'anim œil
-        if (getAttackState() == 4) amount *= 0.5f;
-
-        if (this.getHealth() - amount <= 0.01f) {
-            this.setHealth(0.1f);
-            this.setPhase(4);
-            this.deathStage = 0;
-            this.animTimer = 0;
-            this.setInvulnerable(true);
-            this.getNavigation().stop();
-            if (bossBar != null) bossBar.clearPlayers();
-            return false;
-        }
-        return super.damage(world, source, amount);
+    protected RawAnimation phaseAnimation(int phase) {
+        return switch (phase) {
+            case BossPhase.WELCOME -> CyclopsAttack.WELCOME.toRaw();
+            case BossPhase.DEAD    -> CyclopsAttack.DEAD.toRaw();
+            default -> null;
+        };
     }
 
     @Override
-    public void tick() {
-        super.tick();
+    protected RawAnimation attackAnimation(int attackState) {
+        CyclopsAttack atk = CyclopsAttack.fromCode(attackState);
+        return atk == null ? null : atk.toRaw();
+    }
 
+    // ---------- Bossbar custom : style notched pendant l'œil caché ----------
 
+    @Override
+    protected void updateBossBar() {
+        if (bossBar == null) return;
+        bossBar.setPercent(getHealth() / getMaxHealth());
+        boolean playerVisible = false;
 
-        // Bossbar + welcome simple (une seule fois, pas de RETURN)
-        if (bossBar != null) {
-            bossBar.setPercent(getHealth() / getMaxHealth());
-            boolean playerVisible = false;
-            
-            for (var p : getWorld().getPlayers()) {
-                if (p instanceof ServerPlayerEntity sp) {
-                    double dist = distanceTo(sp);
-                    boolean inRoom = roomMaxX > 0 && sp.getBlockX() >= roomMinX - 2 && sp.getBlockX() <= roomMaxX + 2
-                        && sp.getBlockZ() >= roomMinZ - 2 && sp.getBlockZ() <= roomMaxZ + 2;
-                    
-                    if (inRoom && !isDeadPermanent && getPhase() < 4) {
-                        if (getPhase() == 0) {
-                            setPhase(1); animTimer = 1; setInvulnerable(true);
-                            if (!hasPlayedWelcome) {
-                                hasPlayedWelcome = true;
-                                sp.sendMessage(Text.literal(""), true);
-                                sp.sendMessage(Text.literal("§6⚔ Salle du Cyclope ⚔"), false);
-                                sp.playSoundToPlayer(SoundEvents.ENTITY_WITHER_SPAWN, SoundCategory.HOSTILE, 1.0f, 1.0f);
-                            }
+        for (var p : getWorld().getPlayers()) {
+            if (p instanceof ServerPlayerEntity sp) {
+                double dist = distanceTo(sp);
+                boolean inRoom = roomMaxX > 0 && sp.getBlockX() >= roomMinX - 2 && sp.getBlockX() <= roomMaxX + 2
+                    && sp.getBlockZ() >= roomMinZ - 2 && sp.getBlockZ() <= roomMaxZ + 2;
+
+                if (inRoom && !isDeadPermanent && getPhase() < BossPhase.DEAD) {
+                    if (getPhase() == BossPhase.IDLE) {
+                        setPhase(BossPhase.WELCOME);
+                        animTimer = 1;
+                        setInvulnerable(true);
+                        if (!hasPlayedWelcome) {
+                            hasPlayedWelcome = true;
+                            sp.sendMessage(Text.literal(""), true);
+                            sp.sendMessage(Text.literal("§6⚔ Salle du Cyclope ⚔"), false);
+                            sp.playSoundToPlayer(SoundEvents.ENTITY_WITHER_SPAWN, SoundCategory.HOSTILE, 1.0f, 1.0f);
                         }
-                        if (dist <= 10.0) playerVisible = true;
                     }
+                    if (dist <= 10.0) playerVisible = true;
                 }
             }
-            
-            boolean invuln = getPhase() == 1 || getPhase() == 4 || isDeadPermanent;
-            bossBar.setColor(invuln ? BossBar.Color.WHITE : BossBar.Color.YELLOW);
-            // Style différent pendant l'œil caché (dégâts réduits)
-            bossBar.setStyle(getAttackState() == 4 ? BossBar.Style.NOTCHED_6 : BossBar.Style.PROGRESS);
-            bossBar.setVisible(playerVisible);
+        }
+        boolean invuln = getPhase() == BossPhase.WELCOME || getPhase() == BossPhase.DEAD || isDeadPermanent;
+        bossBar.setColor(invuln ? BossBar.Color.WHITE : BossBar.Color.YELLOW);
+        bossBar.setStyle(getAttackState() == 4 ? BossBar.Style.NOTCHED_6 : BossBar.Style.PROGRESS);
+        bossBar.setVisible(playerVisible);
+    }
+
+    // ---------- Mort scénarisée (BossHasDeathSequence) ----------
+
+    @Override
+    public void tickDeathSequence() {
+        int cx = roomMinX == 0 ? 0 : (roomMinX + roomMaxX) / 2;
+        int cz = roomMinZ == 0 ? 0 : (roomMinZ + roomMaxZ) / 2;
+        animTimer++;
+        if (deathStage == 0) {
+            double dx = cx - getX(), dz = cz - getZ();
+            float targetYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
+            setBodyYaw(targetYaw); setHeadYaw(targetYaw); setYaw(targetYaw);
+            getNavigation().startMovingTo(cx, getY(), cz, 0.8);
+            deathStage = 1;
+        }
+        if (deathStage == 1) {
+            if (squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 || animTimer > 100) {
+                getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
+                setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
+                prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
+                deathStage = 2; animTimer = 0;
+            }
+        }
+        if (deathStage == 2) {
+            getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
+            if (animTimer >= 60) {
+                deathStage = 3; isDeadPermanent = true;
+            }
+        }
+        if (deathStage == 3) {
+            getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
+            setInvulnerable(true); setHealth(0.01f);
+        }
+    }
+
+    @Override
+    public boolean isDeathSequenceDone() { return deathStage == 3 && isDeadPermanent; }
+
+    @Override
+    protected void tickDeath() {
+        if (deathStage < 3) {
+            tickDeathSequence();
+        } else {
+            getNavigation().stop();
+            setVelocity(0, getVelocity().y, 0);
+            setInvulnerable(true); setHealth(0.01f);
+        }
+    }
+
+    // ---------- Combat (la grosse partie) ----------
+
+    @Override
+    protected void tickCombat() {
+        // Combo timer between steps
+        if (animTimer == 0 && comboTimer > 0) {
+            comboTimer--;
+            if (comboTimer == 0) { startComboStep(); }
         }
 
-        int phase = getPhase();
+        // Test mode
+        if (throwTestMode) {
+            getNavigation().stop();
+            if (getAttackState() == 0) {
+                setAttackState(1); animTimer = 1;
+                attackTarget = getWorld().getClosestPlayer(this, 20.0);
+            }
+        }
 
-        if (phase == 0) { // IDLE
-            getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
-            setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
-            prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
-        } else if (phase == 1) { // WELCOME
+        if (animTimer > 0) {
             animTimer++;
-            getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
-            if (animTimer >= 40) { setPhase(2); animTimer = 0; setInvulnerable(false); nextAttackTime = age + 20; }
-        } else if (phase == 4) { // DEATH: walk to center → dead anim → permanent IDLE
-            int cx = (roomMinX + roomMaxX) / 2, cz = (roomMinZ + roomMaxZ) / 2;
-            animTimer++;
-            
-            if (deathStage == 0) {
-                double dx = cx - getX(), dz = cz - getZ();
-                float targetYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
-                setBodyYaw(targetYaw); setHeadYaw(targetYaw); setYaw(targetYaw);
-                getNavigation().startMovingTo(cx, getY(), cz, 0.8);
-                deathStage = 1;
-            }
-            if (deathStage == 1) {
-                if (squaredDistanceTo(new Vec3d(cx + 0.5, getY(), cz + 0.5)) <= 4.0 || animTimer > 100) {
-                    getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
-                    setBodyYaw(roomFacing); setHeadYaw(roomFacing); setYaw(roomFacing);
-                    prevBodyYaw = roomFacing; prevHeadYaw = roomFacing; prevYaw = roomFacing;
-                    deathStage = 2; animTimer = 0;
+            getNavigation().stop();
+            int as = getAttackState();
+            if (attackTarget != null) {
+                double dx = attackTarget.getX() - getX(), dz = attackTarget.getZ() - getZ();
+                float yaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
+                if (as != 5) { // charge keeps its own yaw
+                    setBodyYaw(yaw); setHeadYaw(yaw); setYaw(yaw);
+                    prevBodyYaw = yaw; prevHeadYaw = yaw; prevYaw = yaw;
                 }
             }
-            if (deathStage == 2) {
-                getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
-                if (animTimer >= 60) {
-                    deathStage = 3; isDeadPermanent = true;
-                }
-            }
-            if (deathStage == 3) {
-                getNavigation().stop(); setVelocity(0, getVelocity().y, 0);
-                setInvulnerable(true); setHealth(0.01f);
-            }
-        // Dialogue timeout ticking
-        if (dialogueTicks > 0) dialogueTicks--;
+            setVelocity(0, getVelocity().y, 0);
 
-        } else if (phase == 2) { // COMBAT
-            // Combo timer between steps
-            if (animTimer == 0 && comboTimer > 0) {
-                comboTimer--;
-                if (comboTimer == 0) { startComboStep(); }
-            }
-
-            // Test mode
-            if (throwTestMode) {
-                getNavigation().stop();
-                if (getAttackState() == 0) { setAttackState(1); animTimer = 1; attackTarget = getWorld().getClosestPlayer(this, 20.0); }
-            }
-
-            if (animTimer > 0) {
-                animTimer++;
-                getNavigation().stop();
-                int as = getAttackState();
-                if (attackTarget != null) {
-                    double dx = attackTarget.getX() - getX(), dz = attackTarget.getZ() - getZ();
-                    float yaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
-                    if (as != 5) { // charge keeps its own yaw
-                        setBodyYaw(yaw); setHeadYaw(yaw); setYaw(yaw);
-                        prevBodyYaw = yaw; prevHeadYaw = yaw; prevYaw = yaw;
-                    }
-                }
-                setVelocity(0, getVelocity().y, 0);
-
-                if (as == 1) { // Lancer
-                    if (animTimer == 12) setStackInHand(Hand.MAIN_HAND, new net.minecraft.item.ItemStack(StoneEntity.STONE_ITEM));
-                    else if (animTimer == 22) {
-                        setStackInHand(Hand.MAIN_HAND, net.minecraft.item.ItemStack.EMPTY);
-                        if (attackTarget != null && attackTarget.isAlive() && !stoneThrown) {
-                            stoneThrown = true;
-                            var look = getRotationVec(1.0f);
-                            var spawnPos = getPos().add(look.x * 2.0, 1.2, look.z * 2.0);
-                            var s = new StoneEntity.CyclopsStoneEntity(StoneEntity.CYCLOPS_STONE_TYPE, getWorld());
-                            s.setPosition(spawnPos.x, spawnPos.y, spawnPos.z);
-                            Vec3d targetPos = attackTarget.getPos().add(0, attackTarget.getHeight() * 0.3, 0);
-                            double dx = targetPos.x - spawnPos.x, dy = targetPos.y - spawnPos.y, dz = targetPos.z - spawnPos.z;
-                            double horizDist = Math.sqrt(dx * dx + dz * dz);
-                            if (horizDist > 0.01) {
-                                double speed = Math.min(3.0, 0.8 + horizDist * 0.15);
-                                double time = horizDist / speed;
-                                double vy = dy / time + 0.5 * 0.03 * time;
-                                s.setVelocity(dx / time, vy, dz / time);
-                            }
-                            s.setOwner(this); getWorld().spawnEntity(s);
+            if (as == 1) { // Lancer
+                if (animTimer == 12) setStackInHand(Hand.MAIN_HAND, new ItemStack(StoneEntity.STONE_ITEM));
+                else if (animTimer == 22) {
+                    setStackInHand(Hand.MAIN_HAND, ItemStack.EMPTY);
+                    if (attackTarget != null && attackTarget.isAlive() && !stoneThrown) {
+                        stoneThrown = true;
+                        var look = getRotationVec(1.0f);
+                        var spawnPos = getPos().add(look.x * 2.0, 1.2, look.z * 2.0);
+                        var s = new StoneEntity.CyclopsStoneEntity(StoneEntity.CYCLOPS_STONE_TYPE, getWorld());
+                        s.setPosition(spawnPos.x, spawnPos.y, spawnPos.z);
+                        Vec3d targetPos = attackTarget.getPos().add(0, attackTarget.getHeight() * 0.3, 0);
+                        double dx = targetPos.x - spawnPos.x, dy = targetPos.y - spawnPos.y, dz = targetPos.z - spawnPos.z;
+                        double horizDist = Math.sqrt(dx * dx + dz * dz);
+                        if (horizDist > 0.01) {
+                            double speed = Math.min(3.0, 0.8 + horizDist * 0.15);
+                            double time = horizDist / speed;
+                            double vy = dy / time + 0.5 * 0.03 * time;
+                            s.setVelocity(dx / time, vy, dz / time);
                         }
-                    } else if (animTimer >= 30) endAttack(1);
-                } else if (as == 2 && animTimer >= 35 && animTimer <= 40) {
-                    if (animTimer == 35) {
-                        if (getWorld() instanceof ServerWorld sw) {
-                            var box = getBoundingBox().expand(3.0);
-                            for (var e : getWorld().getOtherEntities(this, box)) {
-                                if (e instanceof PlayerEntity p && !p.isDead()) {
-                                    double kx = p.getX() - getX(), kz = p.getZ() - getZ();
-                                    if (kx*kx + kz*kz > 0.01) { double len = Math.sqrt(kx*kx + kz*kz); p.setVelocity(p.getVelocity().add(kx/len*3.0, 0.3, kz/len*3.0)); p.velocityModified = true; }
-                                    p.damage(sw, getDamageSources().mobAttack(this), 3.0f);
-                                }
-                            }
-                            sw.playSound(null, getX(), getY(), getZ(), SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.HOSTILE, 1.5f, 0.8f);
-                            sw.spawnParticles(ParticleTypes.CRIT, getX(), getY()+1.5, getZ(), 60, 2.5, 1.5, 2.5, 0.2);
-                        }
+                        s.setOwner(this); getWorld().spawnEntity(s);
                     }
-                } else if (as == 2 && animTimer >= 75) endAttack(2);
-                else if (as == 3 && animTimer == 15) applyHeadbuttEffects();
-                else if (as == 3 && animTimer >= 60) endAttack(3);
-                else if (as == 4 && animTimer >= 50) endAttack(4);
-                else if (as == 5) { // Charge
-                    if (animTimer == 10 && attackTarget != null) {
-                        // Lock facing direction at start of charge movement
-                        double dx = attackTarget.getX() - getX();
-                        double dz = attackTarget.getZ() - getZ();
-                        chargeYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
-                        chargeHitApplied = false;
-                    }
-                    if (animTimer >= 10 && animTimer <= 35) {
-                        // Move forward in locked direction
-                        setBodyYaw(chargeYaw); setHeadYaw(chargeYaw); setYaw(chargeYaw);
-                        prevBodyYaw = chargeYaw; prevHeadYaw = chargeYaw; prevYaw = chargeYaw;
-                        float rad = chargeYaw * (float)Math.PI / 180.0f;
-                        double speed = 4.0 / 25.0; // 4 blocks in 25 ticks
-                        setVelocity(-Math.sin(rad) * speed, getVelocity().y, Math.cos(rad) * speed);
-                        // Check collision with players
-                        if (!chargeHitApplied && getWorld() instanceof ServerWorld sw) {
-                            var box = getBoundingBox().expand(1.5);
-                            for (var e : getWorld().getOtherEntities(this, box)) {
-                                if (e instanceof PlayerEntity p && !p.isDead() && squaredDistanceTo(p) <= 16.0) {
-                                    chargeHitApplied = true;
-                                    double kx = p.getX() - getX(), kz = p.getZ() - getZ();
-                                    if (kx*kx + kz*kz > 0.01) { double len = Math.sqrt(kx*kx + kz*kz); p.setVelocity(p.getVelocity().add(kx/len*4.0, 0.4, kz/len*4.0)); p.velocityModified = true; }
-                                    p.damage(sw, getDamageSources().mobAttack(this), 5.0f);
-                                    p.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 40, 10, false, true, true));
-                                }
+                } else if (animTimer >= 30) endAttack(1);
+            } else if (as == 2 && animTimer >= 35 && animTimer <= 40) {
+                if (animTimer == 35) {
+                    if (getWorld() instanceof ServerWorld sw) {
+                        var box = getBoundingBox().expand(3.0);
+                        for (var e : getWorld().getOtherEntities(this, box)) {
+                            if (e instanceof PlayerEntity p && !p.isDead()) {
+                                double kx = p.getX() - getX(), kz = p.getZ() - getZ();
+                                if (kx*kx + kz*kz > 0.01) { double len = Math.sqrt(kx*kx + kz*kz); p.setVelocity(p.getVelocity().add(kx/len*3.0, 0.3, kz/len*3.0)); p.velocityModified = true; }
+                                p.damage(sw, getDamageSources().mobAttack(this), 3.0f);
                             }
                         }
-                    } else {
-                        setVelocity(0, getVelocity().y, 0);
+                        sw.playSound(null, getX(), getY(), getZ(), SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.HOSTILE, 1.5f, 0.8f);
+                        sw.spawnParticles(ParticleTypes.CRIT, getX(), getY()+1.5, getZ(), 60, 2.5, 1.5, 2.5, 0.2);
                     }
-                    if (animTimer >= 40) endCharge();
                 }
+            } else if (as == 2 && animTimer >= 75) endAttack(2);
+            else if (as == 3 && animTimer == 15) applyHeadbuttEffects();
+            else if (as == 3 && animTimer >= 60) endAttack(3);
+            else if (as == 4 && animTimer >= 50) endAttack(4);
+            else if (as == 5) { // Charge
+                if (animTimer == 10 && attackTarget != null) {
+                    double dx = attackTarget.getX() - getX();
+                    double dz = attackTarget.getZ() - getZ();
+                    chargeYaw = (float)(Math.atan2(dz, dx) * 180.0 / Math.PI) - 90.0f;
+                    chargeHitApplied = false;
+                }
+                if (animTimer >= 10 && animTimer <= 35) {
+                    setBodyYaw(chargeYaw); setHeadYaw(chargeYaw); setYaw(chargeYaw);
+                    prevBodyYaw = chargeYaw; prevHeadYaw = chargeYaw; prevYaw = chargeYaw;
+                    float rad = chargeYaw * (float)Math.PI / 180.0f;
+                    double speed = 4.0 / 25.0;
+                    setVelocity(-Math.sin(rad) * speed, getVelocity().y, Math.cos(rad) * speed);
+                    if (!chargeHitApplied && getWorld() instanceof ServerWorld sw) {
+                        var box = getBoundingBox().expand(1.5);
+                        for (var e : getWorld().getOtherEntities(this, box)) {
+                            if (e instanceof PlayerEntity p && !p.isDead() && squaredDistanceTo(p) <= 16.0) {
+                                chargeHitApplied = true;
+                                double kx = p.getX() - getX(), kz = p.getZ() - getZ();
+                                if (kx*kx + kz*kz > 0.01) { double len = Math.sqrt(kx*kx + kz*kz); p.setVelocity(p.getVelocity().add(kx/len*4.0, 0.4, kz/len*4.0)); p.velocityModified = true; }
+                                p.damage(sw, getDamageSources().mobAttack(this), 5.0f);
+                                p.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 40, 10, false, true, true));
+                            }
+                        }
+                    }
+                } else {
+                    setVelocity(0, getVelocity().y, 0);
+                }
+                if (animTimer >= 40) endCharge();
             }
         }
     }
@@ -447,14 +313,12 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
     private void proceedCombo() {
         comboStep++;
         if (currentCombo != null && comboStep < currentCombo.length) {
-            // Schedule next move in combo after 10 ticks (0.5s)
             comboTimer = 10;
         } else {
-            // Combo finished: full cooldown
             currentCombo = null;
             comboStep = 0;
             comboTimer = 0;
-            nextAttackTime = age + 20 + random.nextInt(41);
+            nextAttackTime = age + postAttackCooldownTicks();
             if (groundStone != null) { groundStone.discard(); groundStone = null; }
             if (!throwTestMode) attackTarget = null;
         }
@@ -465,7 +329,7 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
         if (currentCombo != null) {
             proceedCombo();
         } else {
-            nextAttackTime = age + 20 + random.nextInt(41);
+            nextAttackTime = age + postAttackCooldownTicks();
             if (groundStone != null) { groundStone.discard(); groundStone = null; }
             if (!throwTestMode) attackTarget = null;
         }
@@ -485,16 +349,94 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
         getNavigation().stop();
     }
 
+    // ---------- BossHasCombos ----------
+
+    @Override
+    public CyclopsAttack[] pickCombo(LivingEntity target, double distSq) {
+        int[] codes;
+        if (distSq > 25.0 && distSq <= 144.0) {
+            codes = random.nextBoolean() ? COMBO_TC : COMBO_TH;
+        } else if (distSq > 9.0 && distSq <= 25.0) {
+            codes = COMBO_CH;
+        } else {
+            codes = random.nextBoolean() ? COMBO_TC : COMBO_TH;
+        }
+        CyclopsAttack[] out = new CyclopsAttack[codes.length];
+        for (int i = 0; i < codes.length; i++) {
+            out[i] = CyclopsAttack.fromCode(codes[i]);
+        }
+        return out;
+    }
+
+    /** Implémentation non utilisée : la combo est gérée dans tickCombat via comboTimer. */
+    @Override
+    public void tickCombos() { /* géré par tickCombat */ }
+
+    /** Helper interne pour démarrer un combo à partir des codes legacy. */
+    private void startComboFromCodes(int[] combo) { startCombo(combo); }
+
+    // ---------- BossHasWeakPoint (œil) ----------
+
     public void onEyeHit(boolean boosted) {
         if (getWorld().isClient()) return;
         long now = age;
         if (now - lastHiddenEyeTime < COOLDOWN_HIDDEN_EYE) return;
         if (boosted) eyeHitBoosted = true;
         int cs = getAttackState();
-        if (cs == 2 && animTimer >= 17) return; if (cs == 3 && animTimer >= 15) return; if (cs == 1 && animTimer >= 22) return; if (cs == 5 && animTimer >= 10) return;
+        if (cs == 2 && animTimer >= 17) return;
+        if (cs == 3 && animTimer >= 15) return;
+        if (cs == 1 && animTimer >= 22) return;
+        if (cs == 5 && animTimer >= 10) return;
         if (cs != 0) { setAttackState(0); animTimer = 0; }
-        lastHiddenEyeTime = now; setAttackState(4); animTimer = 1; getNavigation().stop();
+        lastHiddenEyeTime = now;
+        setAttackState(4); animTimer = 1; getNavigation().stop();
     }
+
+    @Override
+    public boolean onWeakPointHit(PlayerEntity attacker) {
+        onEyeHit(true);
+        return getAttackState() == 4;
+    }
+
+    // ---------- BossBecomesNpc (post-mortem dialogue/shop) ----------
+
+    @Override
+    public void startDialogue(PlayerEntity player) {
+        tradeManager.startDialogue(player);
+    }
+
+    @Override
+    public ActionResult openTradeShop(PlayerEntity player) {
+        return tradeManager.openTradeShop(player);
+    }
+
+    // ---------- damage() custom (3 args) — conservé tel quel ----------
+
+    public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
+        if (getPhase() == 4 && deathStage == 3
+            && source.getAttacker() instanceof PlayerEntity player && source.getAttacker() == source.getSource()) {
+            startDialogue(player);
+            return false;
+        }
+        if (isDeadPermanent || getPhase() == 4) return false;
+
+        if (eyeHitBoosted) { amount *= 4.0f; eyeHitBoosted = false; }
+        if (getAttackState() == 4) amount *= 0.5f;
+
+        if (this.getHealth() - amount <= 0.01f) {
+            this.setHealth(0.1f);
+            this.setPhase(4);
+            this.deathStage = 0;
+            this.animTimer = 0;
+            this.setInvulnerable(true);
+            this.getNavigation().stop();
+            if (bossBar != null) bossBar.clearPlayers();
+            return false;
+        }
+        return super.damage(world, source, amount);
+    }
+
+    // ---------- Effets de combat ----------
 
     private void applyHeadbuttEffects() {
         if (!(getWorld() instanceof ServerWorld sw)) return;
@@ -513,17 +455,19 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
         sw.spawnParticles(ParticleTypes.SNOWFLAKE, getX(), getY()+1.5, getZ(), 80, 3.0, 2.0, 3.0, 0.3);
     }
 
+    // ---------- AI Goals ----------
+
     @Override
     protected void initGoals() {
         goalSelector.add(0, new AttackGoal());
         goalSelector.add(1, new net.minecraft.entity.ai.goal.WanderAroundGoal(this, 0.6, 10) {
-            @Override public boolean canStart() { return getPhase() == 2 && super.canStart(); }
+            @Override public boolean canStart() { return getPhase() == BossPhase.COMBAT && super.canStart(); }
         });
         goalSelector.add(2, new net.minecraft.entity.ai.goal.LookAroundGoal(this) {
-            @Override public boolean canStart() { return getPhase() == 2 && super.canStart(); }
+            @Override public boolean canStart() { return getPhase() == BossPhase.COMBAT && super.canStart(); }
         });
         goalSelector.add(3, new net.minecraft.entity.ai.goal.LookAtEntityGoal(this, PlayerEntity.class, 8.0f) {
-            @Override public boolean canStart() { return getPhase() == 2 && super.canStart(); }
+            @Override public boolean canStart() { return getPhase() == BossPhase.COMBAT && super.canStart(); }
         });
     }
 
@@ -532,22 +476,14 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
         return ActionResult.PASS;
     }
 
-    private void startDialogue(PlayerEntity player) {
-        tradeManager.startDialogue(player);
-    }
-
-    public ActionResult openTradeShop(PlayerEntity player) {
-        return tradeManager.openTradeShop(player);
-    }
+    // ---------- API publique (compat BoutTissuItem, TradeManager, etc.) ----------
 
     public void processBuyRequest(ServerPlayerEntity player, int originalIndex) {
         tradeManager.processBuyRequest(player, originalIndex);
     }
-
     public void sendSubtitles(PlayerEntity player, java.util.List<String> lines) {
         tradeManager.sendSubtitles(player, lines);
     }
-
     public void openShop(ServerPlayerEntity player) { openTradeShop(player); }
     public void processBuy(ServerPlayerEntity player, int tradeIndex, int quantity) {
         for (int i = 0; i < quantity; i++) processBuyRequest(player, tradeIndex);
@@ -567,20 +503,117 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
     ItemStack createReward(String id) {
         var custom = com.dungeonmod.ModItems.get(id);
         if (custom != null) return custom.createStack();
-        var key = net.minecraft.util.Identifier.of("dungeonmod", id);
-        var item = net.minecraft.registry.Registries.ITEM.get(key);
+        var key = Identifier.of("dungeonmod", id);
+        var item = Registries.ITEM.get(key);
         if (item == net.minecraft.item.Items.AIR) return ItemStack.EMPTY;
         return new ItemStack(item);
     }
 
+    // ---------- GeckoLib controller (override : walk plus stable) ----------
 
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar registrar) {
+        final int[] prevAttack = {0};
+        final int[] prevPhase = {-1};
+        final boolean[] wasMoving = {false};
+        registrar.add(new AnimationController<>(this, "main", 2, state -> {
+            int phase = getPhase();
+            int attack = getAttackState();
 
+            if (phase == BossPhase.DEAD && deathStage == 3) {
+                prevPhase[0] = 4;
+                return state.setAndContinue(CyclopsAttack.IDLE.toRaw());
+            }
+            if (phase == BossPhase.IDLE && prevPhase[0] != BossPhase.IDLE) {
+                prevPhase[0] = BossPhase.IDLE; prevAttack[0] = 0;
+                return state.setAndContinue(CyclopsAttack.IDLE.toRaw());
+            }
+            if (phase == BossPhase.IDLE) return PlayState.CONTINUE;
+            if (phase == BossPhase.WELCOME && prevPhase[0] != BossPhase.WELCOME) {
+                prevPhase[0] = BossPhase.WELCOME; prevAttack[0] = 0;
+                return state.setAndContinue(CyclopsAttack.WELCOME.toRaw());
+            }
+            if (phase == BossPhase.WELCOME) return PlayState.CONTINUE;
+            if (phase == BossPhase.DEAD && prevPhase[0] != BossPhase.DEAD) {
+                prevPhase[0] = BossPhase.DEAD; prevAttack[0] = 0;
+                return state.setAndContinue(CyclopsAttack.DEAD.toRaw());
+            }
+            if (phase == BossPhase.DEAD) return PlayState.CONTINUE;
 
+            // COMBAT
+            if (attack != 0 && attack != prevAttack[0]) {
+                prevAttack[0] = attack; prevPhase[0] = BossPhase.COMBAT;
+                CyclopsAttack atk = CyclopsAttack.fromCode(attack);
+                return state.setAndContinue(atk == null ? CyclopsAttack.WALK.toRaw() : atk.toRaw());
+            }
+            if (attack == 0) {
+                prevAttack[0] = 0; prevPhase[0] = BossPhase.COMBAT;
+                boolean moving = this.getVelocity().horizontalLengthSquared() > 0.0001 || state.isMoving();
+                if (moving && !wasMoving[0]) {
+                    wasMoving[0] = true;
+                    return state.setAndContinue(CyclopsAttack.WALK.toRaw());
+                }
+                if (!moving && wasMoving[0]) {
+                    wasMoving[0] = false;
+                    return PlayState.STOP;
+                }
+                if (moving) return PlayState.CONTINUE;
+                return PlayState.STOP;
+            }
+            return PlayState.CONTINUE;
+        }).setAnimationSpeed(1.0f));
+    }
+
+    // ---------- NBT : étend la version de la base ----------
+
+    @Override
+    public void writeCustomDataToNbt(net.minecraft.nbt.NbtCompound nbt) {
+        super.writeCustomDataToNbt(nbt);
+        nbt.putBoolean("throwTestMode", throwTestMode);
+        nbt.putInt("deathStage", deathStage);
+        nbt.putInt("clothsGiven", clothsGiven);
+        nbt.putBoolean("hasTalked", hasTalked);
+        var givenList = new net.minecraft.nbt.NbtList();
+        for (String id : givenItems) { givenList.add(net.minecraft.nbt.NbtString.of(id)); }
+        nbt.put("givenItems", givenList);
+        var usedList = new net.minecraft.nbt.NbtList();
+        for (int idx : usedTradeIndices) { usedList.add(net.minecraft.nbt.NbtInt.of(idx)); }
+        nbt.put("usedTradeIndices", usedList);
+    }
+
+    @Override
+    public void readCustomDataFromNbt(net.minecraft.nbt.NbtCompound nbt) {
+        super.readCustomDataFromNbt(nbt);
+        if (nbt.contains("throwTestMode")) throwTestMode = nbt.getBoolean("throwTestMode");
+        if (nbt.contains("deathStage")) deathStage = nbt.getInt("deathStage");
+        else if (nbt.contains("returnStage")) deathStage = nbt.getInt("returnStage"); // compatibilité
+        if (nbt.contains("clothsGiven")) clothsGiven = nbt.getInt("clothsGiven");
+        if (nbt.contains("hasTalked")) hasTalked = nbt.getBoolean("hasTalked");
+        if (nbt.contains("givenItems")) {
+            givenItems.clear();
+            for (var t : nbt.getList("givenItems", net.minecraft.nbt.NbtElement.STRING_TYPE)) givenItems.add(t.asString());
+        }
+        if (nbt.contains("usedTradeIndices")) {
+            usedTradeIndices.clear();
+            for (var t : nbt.getList("usedTradeIndices", net.minecraft.nbt.NbtElement.INT_TYPE)) usedTradeIndices.add(((net.minecraft.nbt.NbtInt)t).intValue());
+        }
+    }
+
+    // ---------- Synchro room (public pour TestGenerator / spawn helpers) ----------
+
+    public void setRoom(int minX, int maxX, int minZ, int maxZ, float facing) {
+        this.roomMinX = minX; this.roomMaxX = maxX;
+        this.roomMinZ = minZ; this.roomMaxZ = maxZ;
+        this.roomFacing = facing;
+        this.room = new com.dungeonmod.entity.boss.BossRoom(minX, maxX, minZ, maxZ, facing);
+    }
+
+    // ---------- AttackGoal : utilise pickCombo de BossHasCombos ----------
 
     class AttackGoal extends Goal {
         @Override
         public boolean canStart() {
-            if (getPhase() != 2) return false;
+            if (getPhase() != BossPhase.COMBAT) return false;
             if (getAttackState() != 0) return false;
             if (comboTimer > 0) return false;
             if (currentCombo != null) return false;
@@ -596,7 +629,8 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
 
         @Override
         public void start() {
-            LivingEntity t = getTarget(); if (t == null) return;
+            LivingEntity t = getTarget();
+            if (t == null) return;
             attackTarget = t;
             double dist = squaredDistanceTo(t);
             int[] combo;
@@ -607,26 +641,10 @@ public class OgreEntity extends PathAwareEntity implements GeoEntity, NpcShopPro
             } else {
                 combo = random.nextBoolean() ? COMBO_TC : COMBO_TH;
             }
-            startCombo(combo);
+            startComboFromCodes(combo);
         }
 
         @Override public boolean shouldContinue() { return false; }
-    }
-
-    @Override
-    public void onStartedTrackingBy(ServerPlayerEntity player) {
-        super.onStartedTrackingBy(player);
-        if (bossBar == null) {
-            bossBar = new ServerBossBar(Text.literal("§eCyclope"), BossBar.Color.YELLOW, BossBar.Style.PROGRESS);
-            bossBar.setDarkenSky(false); bossBar.setThickenFog(false); bossBar.setVisible(false);
-        }
-        bossBar.addPlayer(player);
-    }
-
-    @Override
-    public void onStoppedTrackingBy(ServerPlayerEntity player) {
-        super.onStoppedTrackingBy(player);
-        if (bossBar != null) bossBar.removePlayer(player);
     }
 
     public static void registerAttributes() {
