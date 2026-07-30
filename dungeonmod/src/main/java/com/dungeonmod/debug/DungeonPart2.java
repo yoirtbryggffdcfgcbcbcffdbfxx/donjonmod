@@ -137,28 +137,27 @@ final class DungeonPart2 {
 
         List<Point> remC = new ArrayList<>();
         for (Point n : cList) { if (!labelState.hasSpecial(n)) remC.add(n); }
-        if (!remC.isEmpty()) {
-            Point pn = null;
-            for (Point n : remC) {
-                if (!pathSet.contains(n)) {
-                    boolean adjSpecial = false;
-                    for (Point nb : adj.get(n)) {
-                        RoomType lbl = specials.get(nb);
-                        if (lbl != null && (lbl == RoomType.OGRE || lbl == RoomType.FOUNTAIN || lbl == RoomType.LOOT_1
-                            || lbl == RoomType.GARDE_MANGER
-                            || lbl == RoomType.MONSTER_1 || lbl == RoomType.MONSTER_2 || lbl == RoomType.MONSTER_3
-                            || lbl == RoomType.MONSTER_4 || lbl == RoomType.MONSTER_5)) {
-                            adjSpecial = true; break;
-                        }
+        if (remC.isEmpty()) return null;
+        Point pn = null;
+        for (Point n : remC) {
+            if (!pathSet.contains(n)) {
+                boolean adjSpecial = false;
+                for (Point nb : adj.get(n)) {
+                    RoomType lbl = specials.get(nb);
+                    if (lbl != null && (lbl == RoomType.OGRE || lbl == RoomType.FOUNTAIN || lbl == RoomType.LOOT_1
+                        || lbl == RoomType.GARDE_MANGER
+                        || lbl == RoomType.MONSTER_1 || lbl == RoomType.MONSTER_2 || lbl == RoomType.MONSTER_3
+                        || lbl == RoomType.MONSTER_4 || lbl == RoomType.MONSTER_5)) {
+                        adjSpecial = true; break;
                     }
-                    if (!adjSpecial) { pn = n; break; }
                 }
+                if (!adjSpecial) { pn = n; break; }
             }
-            if (pn == null) { for (Point n : remC) { if (!pathSet.contains(n)) { pn = n; break; } } }
-            if (pn == null) pn = remC.get(0);
-            labelState.putSpecial(pn, RoomType.WELL);
-            remC.remove(pn);
         }
+        if (pn == null) { for (Point n : remC) { if (!pathSet.contains(n)) { pn = n; break; } } }
+        if (pn == null) pn = remC.get(0);
+        labelState.putSpecial(pn, RoomType.WELL);
+        remC.remove(pn);
 
         List<Point> genericOrder = new ArrayList<>();
         genericOrder.addAll(leaves);
