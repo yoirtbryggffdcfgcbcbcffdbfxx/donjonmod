@@ -272,15 +272,15 @@ public class SeedHarness {
      *  - un cul-de-sac générique (cul/culDJ/CDG) jamais après une ligne droite : son parent
      *    à 2 voisins doit être un VIRAGE, pas un couloir droit (intersection = toujours OK).
      */
-    private static void checkSpacingRules(List<String> problems, Map<Point, String> labels,
+    private static void checkSpacingRules(List<String> problems, Map<Point, RoomType> labels,
                                           Map<Point, Set<Point>> adj, String scope, String tag, boolean checkOgre) {
         if (labels == null || labels.isEmpty() || adj == null) return;
 
         List<Point> monsters = new ArrayList<>();
         Point ogre = null;
         for (var e : labels.entrySet()) {
-            if (DungeonAlgo.isMonsterLabel(e.getValue())) monsters.add(e.getKey());
-            if ("Ogre".equals(e.getValue())) ogre = e.getKey();
+            if (RoomType::isMonster(e.getValue())) monsters.add(e.getKey());
+            if (e.getValue() == RoomType.OGRE) ogre = e.getKey();
         }
         for (int i = 0; i < monsters.size(); i++) {
             Map<Point, Integer> d = DungeonAlgo.bfsDistances(adj, monsters.get(i));
@@ -329,7 +329,7 @@ public class SeedHarness {
      * une cellule différente). On les traite comme un seul super-nœud pour le BFS,
      * sinon le graphe paraît à tort en plusieurs composantes.
      */
-    private static void checkConnectivity(List<String> problems, Map<Point, String> labels,
+    private static void checkConnectivity(List<String> problems, Map<Point, RoomType> labels,
                                           Map<Point, Set<Point>> adj, String scope, String tag) {
         if (labels == null || labels.isEmpty() || adj == null) return;
 
@@ -378,23 +378,23 @@ public class SeedHarness {
         Set<String> l1 = dr.topLabels == null ? Set.of() : new HashSet<>(dr.topLabels.values());
 
         // Étage 0 (P1-P3)
-        if (!l0.contains("Prison")) problems.add(tag + " : ETAGE 0 sans Prison");
-        if (l0.stream().noneMatch(v -> v != null && (v.equals("Loot1") || v.startsWith("Lootdj")))) {
+        if (!l0.contains(RoomType.PRISON)) problems.add(tag + " : ETAGE 0 sans Prison");
+        if (l0.stream().noneMatch(v -> v != null && (v == RoomType.LOOT_1 || v.isDjLoot()))) {
             problems.add(tag + " : ETAGE 0 sans aucun loot");
         }
-        if (!l0.contains("Ogre")) problems.add(tag + " : ETAGE 0 sans Ogre");
-        if (!l0.contains("Centrale")) problems.add(tag + " : ETAGE 0 sans Centrale");
+        if (!l0.contains(RoomType.OGRE)) problems.add(tag + " : ETAGE 0 sans Ogre");
+        if (!l0.contains(RoomType.CENTRALE)) problems.add(tag + " : ETAGE 0 sans Centrale");
         // M5 : une avant porte1 (chemin taverne) + une en P2 (couloir droit) = 2 attendues.
-        long nbM5 = dr.labels.values().stream().filter(v -> "M5".equals(v)).count();
+        long nbM5 = dr.labels.values().stream().filter(v -> v == RoomType.MONSTER_5).count();
         if (nbM5 < 2) problems.add(tag + " : ETAGE 0 avec seulement " + nbM5 + " M5 (2 attendues)");
 
         // Étage 1 (P4)
         if (l1.isEmpty()) return; // déjà signalé comme P4 absente
-        if (!l1.contains("Centrale")) problems.add(tag + " : ETAGE 1 sans Centrale");
-        if (!l1.contains("PorteGob")) problems.add(tag + " : ETAGE 1 sans PorteGob");
-        if (!l1.contains("MarchandNoir")) problems.add(tag + " : ETAGE 1 sans MarchandNoir");
-        if (!l1.contains("PuitDJ")) problems.add(tag + " : ETAGE 1 sans PuitDJ");
-        if (l1.stream().noneMatch(v -> v != null && v.startsWith("Lootdj"))) {
+        if (!l1.contains(RoomType.CENTRALE)) problems.add(tag + " : ETAGE 1 sans Centrale");
+        if (!l1.contains(RoomType.GOBLIN_DOOR)) problems.add(tag + " : ETAGE 1 sans PorteGob");
+        if (!l1.contains(RoomType.BLACK_MARKET)) problems.add(tag + " : ETAGE 1 sans MarchandNoir");
+        if (!l1.contains(RoomType.WELL_DJ)) problems.add(tag + " : ETAGE 1 sans PuitDJ");
+        if (l1.stream().noneMatch(v -> v != null && v.isDjLoot())) {
             problems.add(tag + " : ETAGE 1 sans aucun lootdj");
         }
     }

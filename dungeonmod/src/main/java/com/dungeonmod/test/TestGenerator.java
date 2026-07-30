@@ -397,7 +397,7 @@ public class TestGenerator {
             Point p = e.getKey();
             int x = p.x(), y = p.y();
 
-            String typeKey = e.getValue();
+            String typeKey = e.getValue() != null ? e.getValue().id : null;
             if (typeKey == null || !NBT_CACHE.containsKey(typeKey)) continue;
 
             String orientation = getRoomOrientation(p, adj.get(p));
@@ -443,7 +443,7 @@ public class TestGenerator {
         if (g.topLabels != null && g.p4Adj != null) {
             for (var e : g.topLabels.entrySet()) {
                 Point p = e.getKey();
-                String typeKey = e.getValue();
+                String typeKey = e.getValue() != null ? e.getValue().id : null;
                 if (typeKey == null || "Centrale".equals(typeKey)) continue;
 
                 int x = p.x(), y = p.y();
@@ -488,7 +488,7 @@ public class TestGenerator {
                         var nbs = g.p4Adj.get(p);
                         if (nbs != null) {
                             for (Point nb : nbs) {
-                                String nl = g.topLabels.get(nb);
+                                com.dungeonmod.debug.RoomType nlr = g.topLabels.get(nb); String nl = nlr != null ? nlr.id : null;
                                 if (nl == null) continue;
                                 if (targetLabel != null && !nl.equals(targetLabel)) continue;
                                 if (exts.contains(nl)) continue;

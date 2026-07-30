@@ -1,8 +1,6 @@
 package com.dungeonmod.debug;
 
 import com.dungeonmod.debug.DungeonAlgo.Point;
-import com.dungeonmod.debug.DungeonAlgo.RoomIds;
-import com.dungeonmod.debug.DungeonAlgo.RoomPools;
 import com.dungeonmod.debug.DungeonAlgo.Shape;
 import com.dungeonmod.debug.DungeonAlgo.Theme;
 import com.dungeonmod.debug.DungeonAlgo.TavernResult;
@@ -10,13 +8,6 @@ import com.dungeonmod.debug.DungeonAlgo.TreeResult;
 
 import java.util.*;
 
-/**
- * Génération/analyse de la première partie du donjon (grotte de départ),
- * chemin de taverne et M5 avant porte1.
- *
- * Extraction mécanique depuis DungeonAlgo : l'objectif est de déplacer le code
- * sans modifier volontairement le comportement.
- */
 final class DungeonPart1 {
     private DungeonPart1() {}
 
@@ -28,12 +19,10 @@ final class DungeonPart1 {
             if (adj.get(parent).size() == 2) {
                 Set<Point> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
                 Point gp = pn.iterator().next();
-
                 int pdx = parent.x() - gp.x();
                 int pdy = parent.y() - gp.y();
                 int cdx = leaf.x() - parent.x();
                 int cdy = leaf.y() - parent.y();
-
                 if (pdx == cdx && pdy == cdy) return true;
             }
         }
@@ -44,10 +33,9 @@ final class DungeonPart1 {
         return DungeonTreeBuilder.generateRawTree(DungeonAlgo.PART1_TARGET_MIN, DungeonAlgo.PART1_TARGET_MAX, DungeonAlgo.PART1_MAX_I3, DungeonAlgo.PART1_MAX_I4, DungeonAlgo.PART1_STRAIGHT_WEIGHT, null, null, DungeonAlgo.MAX_COLINEAR_RUN, rng);
     }
 
-    static Map<Point, String> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
+    static Map<Point, RoomType> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {
         DungeonLabelState labelState = new DungeonLabelState();
         labelState.setTheme(adj.keySet(), Theme.P12);
-        // Les labels finaux ne sont pas encore construits ici : on ne pose que les specials.
         List<Point> leaves = new ArrayList<>();
         for (var e : adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(startPoint)) leaves.add(e.getKey());
         if (leaves.size() < 5) return null;
@@ -59,7 +47,6 @@ final class DungeonPart1 {
             if (adj.get(parent).size() == 2) {
                 Set<Point> pn = new HashSet<>(adj.get(parent)); pn.remove(leaf);
                 Point gp = pn.iterator().next();
-
                 if ((parent.x() - gp.x() == leaf.x() - parent.x()) && (parent.y() - gp.y() == leaf.y() - parent.y())) {
                     prison = leaf; break;
                 }
@@ -70,8 +57,6 @@ final class DungeonPart1 {
         List<Point> others = new ArrayList<>();
         for (Point l : leaves) if (!l.equals(prison)) others.add(l);
 
-        // Porte1 : leaf avec parent couloir DROIT et profondeur ≥3 (M5 + 1–2 gap)
-        // Parcours : … → M5 → [1–2 C/I2] → porte → chemin taverne
         Map<Point, Integer> depthFromStart = new HashMap<>();
         {
             Deque<Point> dq = new ArrayDeque<>();
@@ -103,7 +88,6 @@ final class DungeonPart1 {
             if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
         }
         if (porte == null) {
-            // Fallback : leaf la plus profonde
             for (Point leaf : others) {
                 int depth = depthFromStart.getOrDefault(leaf, 0);
                 if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
@@ -111,19 +95,13 @@ final class DungeonPart1 {
         }
         if (porte == null) porte = others.get(0);
         others.remove(porte);
-        // others[0] était la porte : on l'a retirée, les indices loot/M1 suivent
-        labelState.putSpecial(startPoint, RoomIds.START);
-        labelState.putSpecial(porte, RoomIds.DOOR_1);
-        labelState.putSpecial(prison, RoomIds.PRISON);
+        labelState.putSpecial(startPoint, RoomType.START);
+        labelState.putSpecial(porte, RoomType.DOOR_1);
+        labelState.putSpecial(prison, RoomType.PRISON);
         Point prisonParent = adj.get(prison).iterator().next();
-        labelState.putSpecial(prisonParent, RoomIds.MONSTER_2);
-        // others a déjà la porte retirée → indice 0 = loot, le reste = feuilles candidates
-        labelState.putSpecial(others.get(0), RoomIds.LOOT_1);
+        labelState.putSpecial(prisonParent, RoomType.MONSTER_2);
+        labelState.putSpecial(others.get(0), RoomType.LOOT_1);
 
-        // ESPACEMENT MONSTRES (règle dure, conversation 3) : chaque salle monstre (M1-M5)
-        // doit être à distance >= DungeonAlgo.MONSTER_MIN_DIST des autres (au moins 2 salles neutres
-        // entre elles). Infaisable => rejet (return null => retry amont). M2 (parent de la
-        // prison) est structurelle et sert de point de référence.
         Set<Point> monsters = new HashSet<>();
         monsters.add(prisonParent);
         List<Point> freeLeaves = new ArrayList<>();
@@ -132,7 +110,7 @@ final class DungeonPart1 {
 
         Point m1 = DungeonConstraints.firstFar(adj, freeLeaves, monsters, DungeonAlgo.MONSTER_MIN_DIST);
         if (m1 == null) return null;
-        labelState.putSpecial(m1, RoomIds.MONSTER_1);
+        labelState.putSpecial(m1, RoomType.MONSTER_1);
         monsters.add(m1);
         freeLeaves.remove(m1);
         boolean isM4 = rng.nextBoolean();
@@ -149,9 +127,7 @@ final class DungeonPart1 {
             else if (deg == 4) i4Nodes.add(e.getKey());
         }
 
-        // 2e salle monstre de P1 : M4 (couloir) ou M3 (feuille) selon le tirage, avec repli
-        // sur l'autre variante si l'espacement est impossible. Échec des deux => rejet (null).
-        String secondMonster = null;
+        String secondMonster = null; // legacy string for internal flow control
         for (int variant = 0; variant < 2 && secondMonster == null; variant++) {
             boolean tryCorr = (variant == 0) == isM4;
             if (tryCorr) {
@@ -161,60 +137,51 @@ final class DungeonPart1 {
                 }
                 if (!validC.isEmpty()) {
                     Point m4Point = validC.get(rng.nextInt(validC.size()));
-                    labelState.putSpecial(m4Point, RoomIds.MONSTER_4);
+                    labelState.putSpecial(m4Point, RoomType.MONSTER_4);
                     monsters.add(m4Point);
-                    secondMonster = RoomIds.MONSTER_4;
+                    secondMonster = "M4";
                 }
             } else {
                 Point m3 = DungeonConstraints.firstFar(adj, freeLeaves, monsters, DungeonAlgo.MONSTER_MIN_DIST);
                 if (m3 != null) {
-                    labelState.putSpecial(m3, RoomIds.MONSTER_3);
+                    labelState.putSpecial(m3, RoomType.MONSTER_3);
                     monsters.add(m3);
                     freeLeaves.remove(m3);
-                    secondMonster = RoomIds.MONSTER_3;
+                    secondMonster = "M3";
                 }
             }
         }
         if (secondMonster == null) return null;
 
-        // Les feuilles non utilisées restent génériques : elles deviendront "cul"
-        // lors de la construction finale des labels depuis adj + theme.
-
         for (Point n : cNodes) {
-            if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomIds.WELL); break; }
+            if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomType.WELL); break; }
         }
 
-        // Les labels génériques (C/I/cul) sont construits à la fin depuis l'adj réelle.
-        // Construction finale P1 : adj = géométrie, theme = P12, specials = salles imposées.
-        // L'ordre reproduit l'ancien flux autant que possible pour les variantes C1/C2/C3.
         List<Point> genericOrder = new ArrayList<>();
         genericOrder.addAll(freeLeaves);
         genericOrder.addAll(cNodes);
         genericOrder.addAll(i2Nodes);
         genericOrder.addAll(i3Nodes);
         genericOrder.addAll(i4Nodes);
-        Map<Point, String> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
+        Map<Point, RoomType> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
 
         if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
-
-        // Règle cul-de-sac (conversation 3) : jamais au bout d'une ligne droite
-        // (virage/intersection requis) — sinon rejet et retry amont.
         if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
         if (!validatePart1SpecialShapes(finalLabels, adj)) return null;
         return finalLabels;
     }
 
-    /** Vérifie que les specials P1 sont restés posés sur une forme compatible. */
-    private static boolean validatePart1SpecialShapes(Map<Point, String> labels, Map<Point, Set<Point>> adj) {
+    private static boolean validatePart1SpecialShapes(Map<Point, RoomType> labels, Map<Point, Set<Point>> adj) {
         for (var e : labels.entrySet()) {
-            String label = e.getValue();
+            RoomType label = e.getValue();
+            if (label == null) continue;
             Shape shape = DungeonLabels.shapeOf(adj.getOrDefault(e.getKey(), Set.of()));
-            if (RoomIds.START.equals(label) || RoomIds.DOOR_1.equals(label)
-                    || RoomIds.PRISON.equals(label) || RoomIds.LOOT_1.equals(label)
-                    || RoomIds.MONSTER_1.equals(label) || RoomIds.MONSTER_3.equals(label)) {
+            if (label == RoomType.START || label == RoomType.DOOR_1
+                    || label == RoomType.PRISON || label == RoomType.LOOT_1
+                    || label == RoomType.MONSTER_1 || label == RoomType.MONSTER_3) {
                 if (shape != Shape.DEAD_END) return false;
-            } else if (RoomIds.MONSTER_2.equals(label) || RoomIds.MONSTER_4.equals(label)
-                    || RoomIds.WELL.equals(label)) {
+            } else if (label == RoomType.MONSTER_2 || label == RoomType.MONSTER_4
+                    || label == RoomType.WELL) {
                 if (shape != Shape.STRAIGHT) return false;
             }
         }
@@ -225,9 +192,6 @@ final class DungeonPart1 {
         Point parent = adj.get(porte).iterator().next();
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
-        // Essayer plusieurs longueurs de chemin (2 a 5 cellules).
-        // Un chemin plus long atteint une zone plus degagee, reduisant
-        // les collisions de la structure 2x2 avec le donjon.
         for (int maxLen = 2; maxLen <= 7; maxLen++) {
             int dx = baseDx, dy = baseDy;
             int cx = porte.x(), cy = porte.y();
@@ -292,7 +256,6 @@ final class DungeonPart1 {
                 if (!okT) continue;
             }
 
-            // Essayer les 4 orientations de la structure 2x2.
             DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
             if (tavern == null) {
                 int[] rdx = {-dy, -dx, dy};
@@ -318,54 +281,40 @@ final class DungeonPart1 {
             tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
             return tr;
         }
-
-        // Aucune longueur de chemin n'a fonctionne
         return null;
     }
 
-
-    private static Point findPointByValue(Map<Point, String> map, String value) {
+    private static Point findPointByValue(Map<Point, RoomType> map, RoomType value) {
         if (map == null || value == null) return null;
-        for (var e : map.entrySet()) if (value.equals(e.getValue())) return e.getKey();
+        for (var e : map.entrySet()) if (value == e.getValue()) return e.getKey();
         return null;
-    }
-
-    private static String pickC(Random rng) {
-        return RoomPools.CORRIDORS_P1_P2.get(rng.nextInt(3));
     }
 
     private static boolean isStraight(Point p1, Point p2) {
         return p1.x() == p2.x() || p1.y() == p2.y();
     }
 
-
-    static int placeMonster5OnDoorPaths(Map<Point, String> labels, Map<Point, Set<Point>> adj,
+    static int placeMonster5OnDoorPaths(Map<Point, RoomType> labels, Map<Point, Set<Point>> adj,
                                                  Point startPoint) {
         int placed = 0;
-        for (String doorId : List.of(RoomIds.DOOR_1)) {
-            Point door = findPointByValue(labels, doorId);
-            if (door == null) continue;
-            // Déjà un M5 correctement espacé pour cette porte ?
-            if (hasM5WithGapBeforeDoor(door, labels, adj, startPoint)) {
-                placed++;
-                continue;
-            }
+        Point door = findPointByValue(labels, RoomType.DOOR_1);
+        if (door == null) return 0;
+        if (hasM5WithGapBeforeDoor(door, labels, adj, startPoint)) placed++;
+        else {
             Point candidate = findM5WithGapBeforeDoor(door, labels, adj, startPoint);
-            if (candidate == null) continue;
-            labels.put(candidate, RoomIds.MONSTER_5);
-            placed++;
+            if (candidate != null) { labels.put(candidate, RoomType.MONSTER_5); placed++; }
         }
         return placed;
     }
 
-    private static boolean hasM5WithGapBeforeDoor(Point door, Map<Point, String> labels,
+    private static boolean hasM5WithGapBeforeDoor(Point door, Map<Point, RoomType> labels,
                                                    Map<Point, Set<Point>> adj, Point startPoint) {
         Map<Point, Point> parent = bfsParents(startPoint, adj);
         Point p1 = parent.get(door);
         Point p2 = p1 != null ? parent.get(p1) : null;
         Point p3 = p2 != null ? parent.get(p2) : null;
         for (Point cand : new Point[]{p2, p3}) {
-            if (cand != null && RoomIds.MONSTER_5.equals(labels.get(cand))) return true;
+            if (cand != null && labels.get(cand) == RoomType.MONSTER_5) return true;
         }
         return false;
     }
@@ -385,72 +334,60 @@ final class DungeonPart1 {
         return parent;
     }
 
-    private static Point findM5WithGapBeforeDoor(Point door, Map<Point, String> labels,
+    private static Point findM5WithGapBeforeDoor(Point door, Map<Point, RoomType> labels,
                                                   Map<Point, Set<Point>> adj, Point startPoint) {
         if (startPoint == null || door == null) return null;
-
         Map<Point, Point> parent = bfsParents(startPoint, adj);
-
-        // Chaîne porte ← p1 ← p2 ← p3 (vers le départ)
-        Point p1 = parent.get(door);       // distance 1 — trop proche, gap interdit
-        Point p2 = p1 != null ? parent.get(p1) : null; // distance 2 — gap = 1 cellule
-        Point p3 = p2 != null ? parent.get(p2) : null; // distance 3 — gap = 2 cellules
-
+        Point p1 = parent.get(door);
+        Point p2 = p1 != null ? parent.get(p1) : null;
+        Point p3 = p2 != null ? parent.get(p2) : null;
         for (Point cand : new Point[]{p2, p3}) {
             if (cand == null || cand.equals(startPoint)) continue;
             if (!isReplaceableStraightCorridor(cand, labels, adj)) continue;
-            // ESPACEMENT MONSTRES (règle dure, conversation 3) : la M5 posée ici tardivement
-            // doit aussi être à distance >= DungeonAlgo.MONSTER_MIN_DIST de toute salle monstre existante.
             if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) continue;
-            // Les nœuds entre cand et door doivent rester des couloirs structurels (gap)
             if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) continue;
             return cand;
         }
         return null;
     }
 
-    private static boolean isReplaceableStraightCorridor(Point cand, Map<Point, String> labels,
+    private static boolean isReplaceableStraightCorridor(Point cand, Map<Point, RoomType> labels,
                                                           Map<Point, Set<Point>> adj) {
         Set<Point> nb = adj.getOrDefault(cand, Set.of());
         if (nb.size() != 2) return false;
         List<Point> nbs = new ArrayList<>(nb);
         if (!isStraight(nbs.get(0), nbs.get(1))) return false;
-
-        String lbl = labels.get(cand);
-        if (lbl != null && (lbl.equals(RoomIds.MONSTER_2) || lbl.equals(RoomIds.PRISON)
-                || lbl.equals(RoomIds.START) || lbl.equals(RoomIds.LOOT_1)
-                || lbl.equals(RoomIds.MONSTER_1) || lbl.equals(RoomIds.MONSTER_3)
-                || lbl.equals(RoomIds.FOUNTAIN) || lbl.equals(RoomIds.OGRE)
-                || lbl.equals(RoomIds.DOOR_1) || lbl.equals(RoomIds.DOOR_2)
-                || lbl.startsWith("T") || lbl.startsWith("Ca"))) {
+        RoomType lbl = labels.get(cand);
+        if (lbl != null && (lbl == RoomType.MONSTER_2 || lbl == RoomType.PRISON
+                || lbl == RoomType.START || lbl == RoomType.LOOT_1
+                || lbl == RoomType.MONSTER_1 || lbl == RoomType.MONSTER_3
+                || lbl == RoomType.FOUNTAIN || lbl == RoomType.OGRE
+                || lbl == RoomType.DOOR_1 || lbl == RoomType.DOOR_2
+                || lbl.isTavern() || lbl.isCamp())) {
             return false;
         }
         return lbl == null
-                || RoomPools.CORRIDORS_P1_P2.contains(lbl)
-                || lbl.equals(RoomIds.WELL)
-                || lbl.equals(RoomIds.MONSTER_4)
-                || lbl.equals(RoomIds.MONSTER_5)
-                || lbl.equals(RoomIds.CORRIDOR_TURN);
+                || RoomType.CORRIDORS_P1_P2.contains(lbl)
+                || lbl == RoomType.WELL
+                || lbl == RoomType.MONSTER_4
+                || lbl == RoomType.MONSTER_5
+                || lbl == RoomType.I2;
     }
 
     private static boolean gapCellsAreCorridors(Point from, Point door, Map<Point, Point> parent,
-                                                 Map<Point, String> labels, Map<Point, Set<Point>> adj) {
+                                                 Map<Point, RoomType> labels, Map<Point, Set<Point>> adj) {
         Point cur = parent.get(door);
         int guard = 0;
         while (cur != null && !cur.equals(from) && guard++ < 8) {
             Set<Point> nb = adj.getOrDefault(cur, Set.of());
-            // STRICT géométrie : deg 2 seulement → C ou I2, jamais intersection
             if (nb.size() != 2) return false;
             Shape sh = DungeonLabels.shapeOf(nb);
             if (sh != Shape.STRAIGHT && sh != Shape.TURN) return false;
-
-            String lbl = labels.get(cur);
+            RoomType lbl = labels.get(cur);
             if (lbl != null) {
-                boolean okGap = RoomPools.CORRIDORS_P1_P2.contains(lbl)
-                        || lbl.equals(RoomIds.CORRIDOR_TURN)
-                        || lbl.equals(RoomIds.WELL)
-                        || lbl.equals("I2");
-                // Refuse I3/I4/M*/spéciales dans le gap
+                boolean okGap = RoomType.CORRIDORS_P1_P2.contains(lbl)
+                        || lbl == RoomType.I2
+                        || lbl == RoomType.WELL;
                 if (!okGap) return false;
             }
             cur = parent.get(cur);
