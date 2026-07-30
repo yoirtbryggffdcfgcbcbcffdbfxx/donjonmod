@@ -281,11 +281,11 @@ public class TestGenerator {
         if (result.topLabels != null) {
             Point hubPoint = null;
             for (var e : result.topLabels.entrySet()) {
-                if ("Centrale".equals(e.getValue())) { hubPoint = e.getKey(); break; }
+                if (e.getValue() == com.dungeonmod.debug.RoomType.CENTRALE) { hubPoint = e.getKey(); break; }
             }
             if (hubPoint != null && NBT_CACHE.get("Centrale") != null) {
                 for (var e : detectCentraleExits(NBT_CACHE.get("Centrale"), hubPoint.x(), hubPoint.y()).entrySet()) {
-                    if (!result.topLabels.containsKey(e.getKey())) result.topLabels.put(e.getKey(), e.getValue());
+                    com.dungeonmod.debug.RoomType rt = com.dungeonmod.debug.RoomType.byId(e.getValue()); if (rt != null && !result.topLabels.containsKey(e.getKey())) result.topLabels.put(e.getKey(), rt);
                 }
             }
         }
