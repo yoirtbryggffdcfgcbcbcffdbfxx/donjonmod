@@ -161,14 +161,18 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     protected float damageReduction(DamageSource source, float amount) { return 1.0f; }
 
     /**
-     * Override du damage vanilla (2 args) : intercepte le coup fatal
-     * pour basculer en phase DEAD (mort scénarisée via tickDeath()) au lieu
-     * de laisser Minecraft retirer l'entité immédiatement.
-     */
-    /**
-     * Override du damage vanilla (3 args en 1.21.4 : ServerWorld, DamageSource, float)
-     * pour intercepter le coup fatal et basculer en phase DEAD (mort scénarisée via
-     * tickDeath()) au lieu de laisser Minecraft retirer l'entité immédiatement.
+     * Override du damage vanilla (3 args en 1.21.4 : ServerWorld, DamageSource, float).
+     * <p>Comportement :
+     * <ul>
+     *   <li>Si le boss est en phase DEAD (ou déjà mort permanent) : pas de dégât,
+     *       mais clic gauche d'un joueur (auto-hit) déclenche {@code onPostMortemHit}
+     *       pour ouvrir le dialogue (cf. {@code BaseNpcEntity.damage}).</li>
+     *   <li>Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD
+     *       (mort scénarisée via {@code tickDeath()}) au lieu de laisser Minecraft
+     *       retirer l'entité immédiatement.</li>
+     *   <li>Sinon : on délègue à {@code super.damage()} après application des
+     *       modificateurs custom {@code damageMultiplier} / {@code damageReduction}.</li>
+     * </ul>
      */
     @Override
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
