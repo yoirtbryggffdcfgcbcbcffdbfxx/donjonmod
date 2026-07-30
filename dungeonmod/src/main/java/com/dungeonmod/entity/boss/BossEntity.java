@@ -170,6 +170,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      */
     @Override
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
+        System.out.println("[BossEntity-damage] called: phase=" + getPhase() + " hp=" + getHealth() + " amount=" + amount + " isDeadPerm=" + isDeadPermanent);
         // Phase DEAD : pas de flash, pas de dégât (comme BaseNpcEntity).
         // Le dialogue est déclenché par le mixin BossEntityDeathInterceptorMixin
         // à TAIL de damage() (sans dépendre du return value).
@@ -185,6 +186,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         // Seuil élargi à 1.0f (au lieu de 0.01f) pour garantir le déclenchement
         // même si les coups sont petits par rapport à la santé restante.
         if (this.getHealth() <= 1.0f || this.getHealth() - amount <= 0.01f) {
+            System.out.println("[BossEntity-damage] FATAL HIT: setting phase DEAD");
             this.setHealth(0.1f);
             this.setPhase(BossPhase.DEAD);
             this.animTimer = 0;
@@ -194,6 +196,7 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
             onFatalHit(source);
             return false;
         }
+        System.out.println("[BossEntity-damage] non-fatal, super.damage()");
         return super.damage(world, source, amount);
     }
 
