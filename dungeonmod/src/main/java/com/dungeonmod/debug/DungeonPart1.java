@@ -100,10 +100,11 @@ final class DungeonPart1 {
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
 
         // Reserve l'espace devant le tronc pour la sortie + chemin + taverne
-        // AVANT les branches laterales.
+        // AVANT les branches laterales. La taverne 2x2 + chemin de 2-5 cellules
+        // necessitent une zone de ~14x9 cellules devant trunkEnd.
         int[] td = DungeonAlgo.DIR_OFFSET[dir];
-        for (int ri = 1; ri <= 10; ri++) {
-            for (int sj = -2; sj <= 2; sj++) {
+        for (int ri = 1; ri <= 14; ri++) {
+            for (int sj = -4; sj <= 4; sj++) {
                 Point rp = new Point(trunkEnd.x() + td[0] * ri - td[1] * sj,
                                      trunkEnd.y() + td[1] * ri + td[0] * sj);
                 if (!rp.isOutOfBounds()) occupied.add(rp);
@@ -361,19 +362,16 @@ final class DungeonPart1 {
             }
             if (failed || pathCells.size() < 2) continue;
 
-            // Approche de la taverne : cellule d'entree de la structure 2x2.
-            Point t1 = new Point(cx + dx, cy + dy);
-            if (t1.isOutOfBounds() || adj.containsKey(t1) || tmpAdj.containsKey(t1)) {
-                int[][] perp = {{dy, -dx}, {-dy, dx}};
-                boolean okT = false;
-                for (int[] turn : perp) {
-                    Point cand = new Point(cx + turn[0], cy + turn[1]);
-                    if (cand.isOutOfBounds() || adj.containsKey(cand) || tmpAdj.containsKey(cand)) continue;
-                    t1 = cand; dx = turn[0]; dy = turn[1]; okT = true; break;
-                }
-                if (!okT) continue;
+            // Approche de la taverne : essayer les 4 orientations de la structure 2x2.
+            DungeonCompositeRooms.Placement tavern = null;
+            int[] dirs90 = {dx, dy, -dy, dx, -dx, -dy, dy, -dx}; // rotations 0, 90, 180, 270
+            for (int rot = 0; rot < 4 && tavern == null; rot++) {
+                int rdx = dirs90[rot * 2];
+                int rdy = dirs90[rot * 2 + 1];
+                Point t1 = new Point(cx + rdx, cy + rdy);
+                if (t1.isOutOfBounds() || adj.containsKey(t1) || tmpAdj.containsKey(t1)) continue;
+                tavern = DungeonCompositeRooms.plan(adj, t1, rdx, rdy, DungeonCompositeRooms.TAVERN);
             }
-            DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
             if (tavern == null) continue;
 
             Set<Point> pathSet = new HashSet<>();
