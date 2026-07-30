@@ -70,11 +70,11 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         registrar.add(new AnimationController<>(this, "main", 5, state -> {
             int atk = dataTracker.get(ATTACK_TYPE);
             if (atk != 0) {
-                String anim = atk == ATTACK_MAIN ? "attack_main_1" : "attack_pied";
+                String anim = atk == ATTACK_MAIN ? "Attaque_main_1" : "attaque_pied";
                 return state.setAndContinue(RawAnimation.begin().thenPlay(anim));
             }
             if (getVelocity().horizontalLengthSquared() > 0.0001) {
-                return state.setAndContinue(RawAnimation.begin().thenLoop("walk"));
+                return state.setAndContinue(RawAnimation.begin().thenLoop("Marche"));
             }
             return PlayState.CONTINUE;
         }));
