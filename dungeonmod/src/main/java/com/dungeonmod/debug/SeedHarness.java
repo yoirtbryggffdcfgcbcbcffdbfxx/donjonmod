@@ -279,7 +279,7 @@ public class SeedHarness {
         List<Point> monsters = new ArrayList<>();
         Point ogre = null;
         for (var e : labels.entrySet()) {
-            if (RoomType::isMonster(e.getValue())) monsters.add(e.getKey());
+            if (e.getValue().isMonster()) monsters.add(e.getKey());
             if (e.getValue() == RoomType.OGRE) ogre = e.getKey();
         }
         for (int i = 0; i < monsters.size(); i++) {
@@ -289,8 +289,8 @@ public class SeedHarness {
                 if (dd < DungeonAlgo.MONSTER_MIN_DIST) {
                     problems.add(tag + " : " + scope + " monstres trop proches (dist " + dd
                             + " < " + DungeonAlgo.MONSTER_MIN_DIST + ") : "
-                            + labels.get(monsters.get(i)) + " @(" + monsters.get(i).key() + ") <-> "
-                            + labels.get(monsters.get(j)) + " @(" + monsters.get(j).key() + ")");
+                            + labels.get(monsters.get(i)).id + " @(" + monsters.get(i).key() + ") <-> "
+                            + labels.get(monsters.get(j)).id + " @(" + monsters.get(j).key() + ")");
                 }
             }
             if (checkOgre && ogre != null) {
@@ -298,7 +298,7 @@ public class SeedHarness {
                 if (dd < DungeonAlgo.OGRE_MIN_MONSTER_DIST) {
                     problems.add(tag + " : " + scope + " monstre trop proche de l'Ogre (dist " + dd
                             + " < " + DungeonAlgo.OGRE_MIN_MONSTER_DIST + ") : "
-                            + labels.get(monsters.get(i)) + " @(" + monsters.get(i).key() + ")");
+                            + labels.get(monsters.get(i)).id + " @(" + monsters.get(i).key() + ")");
                 }
             }
         }
@@ -311,7 +311,7 @@ public class SeedHarness {
             Set<Point> pAdj = adj.getOrDefault(parent, Set.of());
             if (pAdj.size() == 2 && DungeonAlgo.shapeOf(pAdj) == DungeonAlgo.Shape.STRAIGHT) {
                 problems.add(tag + " : " + scope + " cul-de-sac après une ligne droite @("
-                        + e.getKey().key() + "), parent @(" + parent.key() + ")=" + labels.get(parent));
+                        + e.getKey().key() + "), parent @(" + parent.key() + ")=" + labels.get(parent).id);
             }
         }
     }
@@ -374,8 +374,8 @@ public class SeedHarness {
 
     /** Invariants gameplay qui DOIVENT tenir quel que soit le layout généré. */
     private static void checkGuarantees(List<String> problems, DungeonResult dr, String tag) {
-        Set<String> l0 = new HashSet<>(dr.labels.values());
-        Set<String> l1 = dr.topLabels == null ? Set.of() : new HashSet<>(dr.topLabels.values());
+        Set<RoomType> l0 = new HashSet<>(dr.labels.values());
+        Set<RoomType> l1 = dr.topLabels == null ? Set.of() : new HashSet<>(dr.topLabels.values());
 
         // Étage 0 (P1-P3)
         if (!l0.contains(RoomType.PRISON)) problems.add(tag + " : ETAGE 0 sans Prison");
