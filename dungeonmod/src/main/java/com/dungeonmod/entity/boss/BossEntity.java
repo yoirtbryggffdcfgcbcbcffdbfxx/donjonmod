@@ -174,13 +174,6 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     public boolean damage(net.minecraft.server.world.ServerWorld world, DamageSource source, float amount) {
         // Phase DEAD : pas de dégât, mais clic gauche du joueur → dialogue (comme BaseNpcEntity).
         if (isDeadPermanent || getPhase() == BossPhase.DEAD) {
-            if (!world.isClient()) {
-                System.out.println("[Cyclops-boss-damage] damage on DEAD boss phase=" + getPhase()
-                    + " deadPerm=" + isDeadPermanent
-                    + " source=" + source
-                    + " attacker=" + source.getAttacker()
-                    + " src=" + source.getSource());
-            }
             // Clic gauche d'un joueur (auto-hit) sur le boss mort = dialogue.
             // On l'appelle inconditionnellement (même avant la fin de la cinématique
             // de mort) pour que ça marche dès que la phase passe en DEAD.

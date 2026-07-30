@@ -455,6 +455,13 @@ public class OgreEntity extends BossEntity
      */
     @Override
     public void onPostMortemHit(PlayerEntity attacker) {
+        // Anti-spam : tant qu'un dialogue est "frais" (cooldown 3s), on
+        // ignore le clic — sinon le user peut spammer et relancer le même
+        // dialogue plein de fois (cf. BaseNpcEntity.damage + dialogueCooldown).
+        if (dialogueTicks > 0) {
+            System.out.println("[Cyclops-postmortem] click ignored (cooldown " + dialogueTicks + " ticks left)");
+            return;
+        }
         System.out.println("[Cyclops-postmortem] onPostMortemHit called deathStage=" + deathStage + " attacker=" + attacker.getName().getString());
         startDialogue(attacker);
     }
