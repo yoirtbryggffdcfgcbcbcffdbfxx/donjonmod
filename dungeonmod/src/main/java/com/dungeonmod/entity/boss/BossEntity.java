@@ -168,8 +168,9 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
      *       mais clic gauche d'un joueur (auto-hit) déclenche {@code onPostMortemHit}
      *       pour ouvrir le dialogue (cf. {@code BaseNpcEntity.damage}).</li>
      *   <li>Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD
-     *       (mort scénarisée via {@code tickDeath()}) au lieu de laisser Minecraft
-     *       retirer l'entité immédiatement.</li>
+     *       (via {@code triggerDeathSequence()}, mort scénarisée via
+     *       {@code tickDeath()}) au lieu de laisser Minecraft retirer l'entité
+     *       immédiatement.</li>
      *   <li>Sinon : on délègue à {@code super.damage()} après application des
      *       modificateurs custom {@code damageMultiplier} / {@code damageReduction}.</li>
      * </ul>
@@ -193,13 +194,9 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         amount *= damageReduction(source, amount);
 
         // Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD.
+        // On délègue à triggerDeathSequence() pour garder une seule source de vérité.
         if (this.getHealth() - amount <= 0.01f) {
-            this.setHealth(0.1f);
-            this.setPhase(BossPhase.DEAD);
-            this.animTimer = 0;
-            this.setInvulnerable(true);
-            this.getNavigation().stop();
-            if (bossBar != null) bossBar.clearPlayers();
+            triggerDeathSequence();
             onFatalHit(source);
             return false;
         }
@@ -213,9 +210,10 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
     public void onPostMortemHit(PlayerEntity attacker) { }
 
     /**
-     * Déclenche la séquence de mort : à appeler depuis un mixin ou un
-     * autre code qui veut forcer la transition (ex. filet de sécurité
-     * si damage() n'est pas appelé). Idempotent.
+     * Bascule le boss en phase DEAD (mort scénarisée via {@code tickDeath()}) au lieu
+     * de laisser Minecraft le retirer. Idempotent : safe à appeler plusieurs fois.
+     * <p>Appelé depuis {@code damage()} sur coup fatal, ou depuis un filet de sécurité
+     * externe (ex. dégât environnemental qui by-pass notre override).
      */
     public void triggerDeathSequence() {
         if (deadPermanent || getPhase() == BossPhase.DEAD) return;
@@ -225,7 +223,6 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         this.setInvulnerable(true);
         this.getNavigation().stop();
         if (bossBar != null) bossBar.clearPlayers();
-        onFatalHit(null);
     }
 
     // ---------- Tick : dispatch par phase ----------
