@@ -186,7 +186,9 @@ public abstract class BossEntity extends PathAwareEntity implements GeoEntity {
         amount *= damageReduction(source, amount);
 
         // Si le coup est fatal : on ne meurt pas, on bascule en phase DEAD.
-        if (this.getHealth() - amount <= 0.01f) {
+        // Seuil élargi à 1.0f (au lieu de 0.01f) pour garantir le déclenchement
+        // même si les coups sont petits par rapport à la santé restante.
+        if (this.getHealth() <= 1.0f || this.getHealth() - amount <= 0.01f) {
             this.setHealth(0.1f);
             this.setPhase(BossPhase.DEAD);
             this.animTimer = 0;
