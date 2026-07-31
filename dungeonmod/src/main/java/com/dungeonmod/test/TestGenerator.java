@@ -536,7 +536,6 @@ public class TestGenerator {
                                      Set<com.dungeonmod.debug.DungeonAlgo.Point> p1MonsterCells,
                                      Set<com.dungeonmod.debug.DungeonAlgo.Point> p2MonsterCells,
                                      com.dungeonmod.debug.DungeonAlgo.Point p1PrisonAdjacent) {
-        int[][] normalOffsets = {{2, 2}, {7, 2}, {4, 7}};
 
         // Tirage P2 : 2 salles M différentes reçoivent une clé chacune
         List<RoomCell> p2MCandidates = new java.util.ArrayList<>();
@@ -564,32 +563,27 @@ public class TestGenerator {
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
             net.minecraft.util.math.BlockPos roomCorner = new net.minecraft.util.math.BlockPos(wx, oy, wz);
+            com.dungeonmod.debug.DungeonAlgo.Point gp = new com.dungeonmod.debug.DungeonAlgo.Point(
+                rc.cx + startX, rc.cz + startY);
+            boolean isP2 = p2MonsterCells.contains(gp);
 
             // Loot du coffre de récompense selon la salle
             if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey) || "M3".equals(rc.typeKey)
                     || "M4".equals(rc.typeKey) || "M5".equals(rc.typeKey)) {
                 String lootKey = "M";
-                com.dungeonmod.debug.DungeonAlgo.Point gp = new com.dungeonmod.debug.DungeonAlgo.Point(
-                    rc.cx + startX, rc.cz + startY);
                 if (p1PrisonAdjacent != null && gp.equals(p1PrisonAdjacent)) {
                     lootKey = "M2_PRISON";
                 } else if ("M5".equals(rc.typeKey) && !p2M5Cells.contains(gp)) {
                     lootKey = "M5_P1";
-                } else if (p2MonsterCells.contains(gp) && p2KeyRooms.containsKey(roomCorner)) {
+                } else if (isP2 && p2KeyRooms.containsKey(roomCorner)) {
                     lootKey = p2KeyRooms.get(roomCorner);
                 }
                 com.dungeonmod.util.RoomRewardManager.registerRoom(roomCorner, lootKey);
             }
 
             if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey)) {
-                for (int[] off : normalOffsets) {
-                    int rx = rotateX(off[0], off[1], rc.rot);
-                    int rz = rotateZ(off[0], off[1], rc.rot);
-                    double mx = wx + rx + 0.5, mz = wz + rz + 0.5;
-                    com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
-                        spawnNormalGoblin(world, mx, oy + 1.0, mz),
-                        new net.minecraft.util.math.BlockPos((int)mx, oy + 1, (int)mz));
-                }
+                int normals = 3 + (isP2 ? 2 : 0);
+                for (int i = 0; i < normals; i++) spawnNormalAt(world, wx, wz, oy, roomCorner);
             } else if ("M5".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
                 int rz = rotateZ(4, 4, rc.rot);
@@ -605,17 +599,8 @@ public class TestGenerator {
                 com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner, boss.getUuid(),
                     new net.minecraft.util.math.BlockPos((int)bx, oy + 1, (int)bz));
 
-                boolean isP2 = p2M5Cells.contains(new com.dungeonmod.debug.DungeonAlgo.Point(
-                    rc.cx + startX, rc.cz + startY));
                 if (isP2) {
-                    for (int[] off : normalOffsets) {
-                        int grx = rotateX(off[0], off[1], rc.rot);
-                        int grz = rotateZ(off[0], off[1], rc.rot);
-                        double gx = wx + grx + 0.5, gz = wz + grz + 0.5;
-                        com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
-                            spawnNormalGoblin(world, gx, oy + 1.0, gz),
-                            new net.minecraft.util.math.BlockPos((int)gx, oy + 1, (int)gz));
-                    }
+                    for (int i = 0; i < 5; i++) spawnNormalAt(world, wx, wz, oy, roomCorner);
                 }
             } else if ("Ogre".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
@@ -630,26 +615,71 @@ public class TestGenerator {
                 ogre.setRoom(wx, wx + CELL, wz, wz + CELL, facing);
                 world.spawnEntity(ogre);
             } else if ("M3".equals(rc.typeKey) || "M4".equals(rc.typeKey)) {
-                int[][] m34BottomOffsets = {{3, 6}, {6, 6}};
-                for (int[] off : m34BottomOffsets) {
-                    int rx = rotateX(off[0], off[1], rc.rot);
-                    int rz = rotateZ(off[0], off[1], rc.rot);
-                    double mx = wx + rx + 0.5, mz = wz + rz + 0.5;
-                    com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
-                        spawnNormalGoblin(world, mx, oy + 1.0, mz),
-                        new net.minecraft.util.math.BlockPos((int)mx, oy + 1, (int)mz));
-                }
-                int[][] platformOffsets = {{3, 2}, {6, 2}};
-                for (int[] off : platformOffsets) {
-                    int rx = rotateX(off[0], off[1], rc.rot);
-                    int rz = rotateZ(off[0], off[1], rc.rot);
-                    double px = wx + rx + 0.5, pz = wz + rz + 0.5;
-                    com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
-                        spawnStoneThrower(world, px, oy + 4.0, pz),
-                        new net.minecraft.util.math.BlockPos((int)px, oy + 4, (int)pz));
-                }
+                int normals = 2 + (isP2 ? ("M3".equals(rc.typeKey) ? 2 : 1) : 0);
+                int throwers = 2 + (isP2 ? 1 : 0);
+                for (int i = 0; i < normals; i++) spawnNormalAt(world, wx, wz, oy, roomCorner);
+                for (int i = 0; i < throwers; i++) spawnThrowerOnPlatform(world, wx, wz, oy, roomCorner);
             }
         }
+    }
+
+    /**
+     * Spot aleatoire dans la salle : bloc d'air a oy+yLevel avec un bloc
+     * solide en dessous (comme le coffre de recompense).
+     */
+    private static net.minecraft.util.math.BlockPos findRandomSpawnSpot(ServerWorld world, int wx, int wz, int oy, int yLevel) {
+        for (int attempt = 0; attempt < 40; attempt++) {
+            int rx = wx + world.random.nextInt(CELL);
+            int rz = wz + world.random.nextInt(CELL);
+            net.minecraft.util.math.BlockPos p = new net.minecraft.util.math.BlockPos(rx, oy + yLevel, rz);
+            if (!world.getBlockState(p).isAir()) continue;
+            if (world.getBlockState(p.down()).isAir()) continue;
+            return p;
+        }
+        return null;
+    }
+
+    /** Gobelin normal sur un spot aleatoire au sol, 1 bloc au-dessus du sol. */
+    private static void spawnNormalAt(ServerWorld world, int wx, int wz, int oy,
+                                      net.minecraft.util.math.BlockPos roomCorner) {
+        net.minecraft.util.math.BlockPos spot = findRandomSpawnSpot(world, wx, wz, oy, 1);
+        if (spot == null) return;
+        double mx = spot.getX() + 0.5, mz = spot.getZ() + 0.5;
+        com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
+            spawnNormalGoblin(world, mx, oy + 2.0, mz),
+            new net.minecraft.util.math.BlockPos((int)mx, oy + 2, (int)mz));
+    }
+
+    /**
+     * Cherche un bloc de plateforme dans la salle : bloc solide en hauteur
+     * (oy+2 .. oy+4) avec air au-dessus ET air en dessous (plateforme flottante,
+     * pas un mur). Retourne la position au-dessus de la plateforme.
+     */
+    private static net.minecraft.util.math.BlockPos findPlatformSpot(ServerWorld world, int wx, int wz, int oy) {
+        for (int attempt = 0; attempt < 60; attempt++) {
+            int rx = wx + world.random.nextInt(CELL);
+            int rz = wz + world.random.nextInt(CELL);
+            for (int dy = 2; dy <= 4; dy++) {
+                net.minecraft.util.math.BlockPos plat = new net.minecraft.util.math.BlockPos(rx, oy + dy, rz);
+                if (world.getBlockState(plat).isAir()) continue;
+                if (!world.getBlockState(plat.up()).isAir()) continue;
+                if (world.getBlockState(plat.down()).isAir()) continue;
+                return plat;
+            }
+        }
+        return null;
+    }
+
+    /** Lanceur pose sur la plateforme reelle de la salle, n'importe ou dessus. */
+    private static void spawnThrowerOnPlatform(ServerWorld world, int wx, int wz, int oy,
+                                               net.minecraft.util.math.BlockPos roomCorner) {
+        net.minecraft.util.math.BlockPos plat = findPlatformSpot(world, wx, wz, oy);
+        if (plat == null) return;
+        double px = plat.getX() + 0.5, pz = plat.getZ() + 0.5;
+        int py = plat.getY() + 1;
+        com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
+            spawnStoneThrower(world, px, py, pz),
+            new net.minecraft.util.math.BlockPos((int)px, py, (int)pz));
     }
 
     private static java.util.UUID spawnNormalGoblin(ServerWorld world, double x, double y, double z) {
