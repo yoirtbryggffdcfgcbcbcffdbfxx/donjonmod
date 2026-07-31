@@ -551,6 +551,7 @@ public class TestGenerator {
                 boss.setPersistent();
                 boss.setCustomName(net.minecraft.text.Text.literal("§cMiniboss Gobelin"));
                 boss.setCustomNameVisible(false);
+                boss.setRoomAnchor(wx + CELL / 2.0, oy, wz + CELL / 2.0);
                 world.spawnEntity(boss);
             } else if ("Ogre".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
