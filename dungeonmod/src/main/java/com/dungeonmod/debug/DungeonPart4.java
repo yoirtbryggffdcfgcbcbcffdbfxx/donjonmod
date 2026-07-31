@@ -118,7 +118,7 @@ final class DungeonPart4 {
             if (k.move(dx, dy).isOutOfBounds() || globalOccupied.contains(k.move(dx, dy))) continue;
             boolean placed = false;
             boolean logged = false;
-            for (int pathLen = 3; pathLen <= 5 && !placed; pathLen++) {
+            for (int pathLen = 2; pathLen <= 5 && !placed; pathLen++) {
                 for (int turnAt = 1; turnAt < pathLen && !placed; turnAt++) {
                     for (int turnDir : new int[]{1, -1}) {
                         DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder().name("CHAPEL_CRYPT")
@@ -141,8 +141,9 @@ final class DungeonPart4 {
                         DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
                         DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
                         if (placement == null) continue;
-                        boolean occupied = false; for (Point cell : placement.occupiedCells()) { if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; } }
-                        if (occupied) { if (!logged) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt); logged = true; } continue; }
+                        boolean occupied = false; Point firstBlocked = null;
+                        for (Point cell : placement.occupiedCells()) { if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; firstBlocked = cell; break; } }
+                        if (occupied) { if (!logged) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "cellule=" + firstBlocked.key() + " (turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt + ")"); logged = true; } continue; }
                         DungeonCompositeRooms.place(adj, null, placement); globalOccupied.addAll(placement.occupiedCells());
                         for (var e : placement.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
                         for (int step = 0; step < pathLocals.size(); step++) {
