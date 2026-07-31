@@ -117,7 +117,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         boolean playerVisible = false;
         if (bossBarTriggered) {
             for (var p : getWorld().getPlayers()) {
-                if (p instanceof ServerPlayerEntity sp && sp.squaredDistanceTo(this) <= 256.0) {
+                if (p instanceof ServerPlayerEntity sp && sp.squaredDistanceTo(this) <= 36.0) {
                     playerVisible = true;
                     break;
                 }
