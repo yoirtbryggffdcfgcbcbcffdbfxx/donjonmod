@@ -651,16 +651,18 @@ public class TestGenerator {
     }
 
     /**
-     * Cherche la plateforme de la salle M : dalle (SlabBlock) a la hauteur
-     * oy+3 avec de l'air au-dessus (position de marche valide). Les trapdoors
-     * du bord ne sont pas des dalles, donc ils sont exclus naturellement.
+     * Cherche la plateforme de la salle M : dalle EN BOIS (spruce_slab) a la
+     * hauteur oy+3 avec de l'air au-dessus. Les dalles andesite/stone a la
+     * meme hauteur (escaliers, bords) sont exclues.
      */
     private static net.minecraft.util.math.BlockPos findPlatformSpot(ServerWorld world, int wx, int wz, int oy) {
         for (int attempt = 0; attempt < 60; attempt++) {
             int rx = wx + world.random.nextInt(CELL);
             int rz = wz + world.random.nextInt(CELL);
             net.minecraft.util.math.BlockPos plat = new net.minecraft.util.math.BlockPos(rx, oy + 3, rz);
-            if (!(world.getBlockState(plat).getBlock() instanceof net.minecraft.block.SlabBlock)) continue;
+            net.minecraft.block.BlockState st = world.getBlockState(plat);
+            if (!(st.getBlock() instanceof net.minecraft.block.SlabBlock)) continue;
+            if (!st.isIn(net.minecraft.registry.tag.BlockTags.WOODEN_SLABS)) continue;
             if (!world.getBlockState(plat.up()).isAir()) continue;
             return plat;
         }

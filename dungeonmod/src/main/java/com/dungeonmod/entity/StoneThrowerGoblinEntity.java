@@ -149,8 +149,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                                 bestLadder = pos;
                                 bestTop = top;
                             }
-                        }
-                    }
+                        }                    }
                 }
             }
         }
@@ -159,6 +158,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
             climbingLadder = true;
             ladderBlockPos = bestLadder;
             ladderTopPos = bestTop;
+            System.out.println("[Lanceur] echelle trouvee a " + bestLadder + " (haut=" + bestTop + ")");
             // Calculer la position pile devant la face grimpable
             BlockState ladderState = this.getWorld().getBlockState(bestLadder);
             Direction facing = ladderState.contains(Properties.HORIZONTAL_FACING)
@@ -185,6 +185,8 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
             this.getNavigation().startMovingTo(standPos.getX(), standPos.getY(), standPos.getZ(), 1.0);
         } else {
             // Pas d'échelle → retour à pied vers la plateforme (à Y du gobelin)
+            System.out.println("[Lanceur] AUCUNE echelle trouvee (pos=" + this.getBlockPos()
+                + " platformY=" + platformPos.getY() + ")");
             this.getNavigation().startMovingTo(platformPos.getX(), this.getY(), platformPos.getZ(), 1.0);
         }
     }
@@ -211,7 +213,12 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
 
         @Override
         public boolean canStart() {
-            return goblin.platformPos != null && !goblin.isOnPlatform() && goblin.isOnGround();
+            boolean start = goblin.platformPos != null && !goblin.isOnPlatform() && goblin.isOnGround();
+            if (start && goblin.age % 40 == 0) {
+                System.out.println("[Lanceur] ReturnToPlatform canStart: pos=" + goblin.getBlockPos()
+                    + " platform=" + goblin.platformPos + " onPlatform=" + goblin.isOnPlatform());
+            }
+            return start;
         }
 
         @Override
@@ -238,7 +245,11 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                         double d = goblin.squaredDistanceTo(Vec3d.ofCenter(goblin.ladderTarget));
                         if (d < 1.5 || touchingLadder) {
                             goblin.climbPhase = 1;
+                            System.out.println("[Lanceur] Phase 1 (montee): pres de l'echelle d=" + d);
                         }
+                    } else if (goblin.age % 40 == 0) {
+                        System.out.println("[Lanceur] Phase 0 mais ladderTarget null, re-scan...");
+                        goblin.findAndGoToLadder();
                     }
                     break;
 
@@ -256,6 +267,8 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                     }
                     if (goblin.getY() >= goblin.platformPos.getY() - 0.5) {
                         goblin.climbPhase = 2;
+                        System.out.println("[Lanceur] Phase 2 (sortie): y=" + goblin.getY()
+                            + " platformY=" + goblin.platformPos.getY());
                     }
                     break;
 
