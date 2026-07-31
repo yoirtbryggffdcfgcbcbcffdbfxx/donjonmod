@@ -1587,8 +1587,9 @@ public class DungeonMod implements ModInitializer {
     }
 
     private static final java.util.Map<java.util.UUID, Long> flechePause = new java.util.HashMap<>();
-    /** Timers eau bénite (uuid → expireAt ms). Public pour DungeonConsumableMixin. */
-    public static final java.util.Map<java.util.UUID, Long> holyWaterTimers = new java.util.HashMap<>();
+    /** Timers eau bénite (uuid → liste d'expirations ms, une par fiole bue).
+     *  Chaque fiole est independante : elle s'arrete a sa propre expiration. */
+    public static final java.util.Map<java.util.UUID, java.util.List<Long>> holyWaterTimers = new java.util.HashMap<>();
     private static final java.util.Map<java.util.UUID, Long> holyWaterLastHeal = new java.util.HashMap<>();
 
     private static void checkFlecheTimers(ServerPlayerEntity player, long now) {
@@ -1630,14 +1631,17 @@ public class DungeonMod implements ModInitializer {
         while (it2.hasNext()) {
             var entry = it2.next();
             UUID uuid = entry.getKey();
-            long expireAt = entry.getValue();
-            if (now >= expireAt) { it2.remove(); holyWaterLastHeal.remove(uuid); continue; }
+            java.util.List<Long> expirations = entry.getValue();
+            // Retirer les fioles expirees
+            expirations.removeIf(exp -> now >= exp);
+            if (expirations.isEmpty()) { it2.remove(); holyWaterLastHeal.remove(uuid); continue; }
             Long lastHeal = holyWaterLastHeal.get(uuid);
             if (lastHeal != null && now - lastHeal < 1000) continue;
             for (ServerWorld world : server.getWorlds()) {
                 net.minecraft.entity.player.PlayerEntity player = world.getPlayerByUuid(uuid);
                 if (player == null || !player.isAlive()) { it2.remove(); holyWaterLastHeal.remove(uuid); break; }
-                player.heal(1.0f);
+                // Chaque fiole active soigne 0.5 coeur (1 HP) par seconde
+                player.heal(expirations.size() * 1.0f);
                 holyWaterLastHeal.put(uuid, now);
                 break;
             }

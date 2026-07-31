@@ -35,12 +35,8 @@ public class BeerStrengthData {
         List<BeerBoost> boosts = DATA.computeIfAbsent(player.getUuid(), k -> new ArrayList<>());
         long now = System.currentTimeMillis();
         boosts.removeIf(b -> now >= b.endTime);
-        for (BeerBoost b : boosts) {
-            if (b.typeId.equals(typeId)) {
-                // Same type: extend time, keep best multiplier
-                return;
-            }
-        }
+        // Chaque biere est une instance independante : elle a son propre timer et
+        // ne fusionne pas avec une biere du meme type deja active.
         boosts.add(new BeerBoost(typeId, multiplier, now + durationTicks * 50L));
     }
 

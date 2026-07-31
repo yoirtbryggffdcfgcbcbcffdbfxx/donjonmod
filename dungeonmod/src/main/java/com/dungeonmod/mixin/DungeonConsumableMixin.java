@@ -126,9 +126,11 @@ public class DungeonConsumableMixin {
             return;
         }
         if (DungeonMod.isFlask(stack) && DungeonMod.isBlessedFlask(stack)) {
-            // 8 s → 16 s avec glouton
+            // 8 s → 16 s avec glouton. Chaque fiole est une instance independante :
+            // elle ajoute sa propre expiration a la liste du joueur.
             long durationMs = 8000L * durationMult;
-            DungeonMod.holyWaterTimers.put(player.getUuid(), System.currentTimeMillis() + durationMs);
+            DungeonMod.holyWaterTimers.computeIfAbsent(player.getUuid(), k -> new java.util.ArrayList<>())
+                .add(System.currentTimeMillis() + durationMs);
             // Remplace par fiole vide
             ItemStack empty = DungeonMod.createFlask();
             if (!player.isCreative()) {
