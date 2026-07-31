@@ -256,7 +256,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
             LivingEntity target = getTarget();
             if (target == null || !target.isAlive()) { damageApplied = true; return; }
             if (attackType == 0) {
-                if (squaredDistanceTo(target) > 4.0) {
+                if (squaredDistanceTo(target) > 2.25) {
                     getNavigation().startMovingTo(target, 1.0);
                 } else if (attackCooldown > 0) {
                     getNavigation().stop();
