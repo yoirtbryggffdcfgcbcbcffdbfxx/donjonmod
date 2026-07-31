@@ -76,8 +76,9 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     @Override
     protected void initGoals() {
         goalSelector.add(1, new MinibossAttackGoal());
-        goalSelector.add(2, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
-        goalSelector.add(3, new LookAroundGoal(this));
+        goalSelector.add(2, new RoomWanderGoal());
+        goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
+        goalSelector.add(4, new LookAroundGoal(this));
         targetSelector.add(1, new ActiveTargetGoal<>(this, PlayerEntity.class, true));
     }
 
@@ -158,6 +159,40 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         }
     }
 
+    private class RoomWanderGoal extends Goal {
+        private int cooldown = 0;
+
+        @Override
+        public boolean canStart() {
+            if (getTarget() != null) return false;
+            if (roomAnchor == null) return false;
+            if (cooldown-- > 0) return false;
+            return true;
+        }
+
+        @Override
+        public void start() {
+            if (roomAnchor == null) return;
+            double ax = roomAnchor.getX() + 0.5;
+            double ay = roomAnchor.getY();
+            double az = roomAnchor.getZ() + 0.5;
+            double angle = random.nextDouble() * Math.PI * 2;
+            double radius = random.nextDouble() * (ROOM_RETURN_DIST - 1.0);
+            getNavigation().startMovingTo(ax + Math.cos(angle) * radius, ay, az + Math.sin(angle) * radius, 0.6);
+            cooldown = 40 + random.nextInt(60);
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            return getTarget() == null && !getNavigation().isIdle();
+        }
+
+        @Override
+        public void stop() {
+            getNavigation().stop();
+        }
+    }
+
     private class MinibossAttackGoal extends Goal {
         private int attackType = 0;
         private int startAge = 0;
@@ -165,29 +200,36 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
 
         @Override
         public boolean canStart() {
-            if (attackCooldown > 0) return false;
             LivingEntity target = getTarget();
-            return target != null && target.isAlive() && squaredDistanceTo(target) <= 9.0;
+            return target != null && target.isAlive();
         }
 
         @Override
         public void start() {
-            LivingEntity target = getTarget();
-            if (target == null) return;
-            attackType = random.nextBoolean() ? ATTACK_PIED : ATTACK_MAIN;
-            dataTracker.set(ATTACK_TYPE, attackType);
-            attackStartAge = age;
-            swingHand(Hand.MAIN_HAND);
-            startAge = age;
+            attackType = 0;
             damageApplied = false;
-            getNavigation().stop();
         }
 
         @Override
         public void tick() {
-            if (damageApplied) return;
             LivingEntity target = getTarget();
             if (target == null || !target.isAlive()) { damageApplied = true; return; }
+            if (attackType == 0) {
+                if (squaredDistanceTo(target) > 9.0) {
+                    getNavigation().startMovingTo(target, 1.0);
+                } else if (attackCooldown > 0) {
+                    getNavigation().stop();
+                } else {
+                    attackType = random.nextBoolean() ? ATTACK_PIED : ATTACK_MAIN;
+                    dataTracker.set(ATTACK_TYPE, attackType);
+                    attackStartAge = age;
+                    swingHand(Hand.MAIN_HAND);
+                    startAge = age;
+                    getNavigation().stop();
+                }
+                return;
+            }
+            if (damageApplied) return;
             int delay = attackType == ATTACK_PIED ? ATTACK_PIED_DAMAGE_TICK : ATTACK_MAIN_DAMAGE_TICK;
             if (age - startAge >= delay) {
                 float dmg = attackType == ATTACK_PIED ? 4.0f : 3.0f;
@@ -198,7 +240,11 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         }
 
         @Override
-        public boolean shouldContinue() { return !damageApplied; }
+        public boolean shouldContinue() {
+            if (damageApplied) return false;
+            LivingEntity target = getTarget();
+            return target != null && target.isAlive();
+        }
     }
 
     public static void registerAttributes() {
