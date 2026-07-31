@@ -141,6 +141,8 @@ final class DungeonPart4 {
                             prev = new DungeonCompositeRooms.LocalPoint(forward, side);
                         }
                         DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
+                        Point maxCell = k.move(dx * forward + (-dy) * side, dy * forward + dx * side);
+                        if (maxCell.isOutOfBounds() || adj.containsKey(maxCell) || globalOccupied.contains(maxCell)) continue;
                         DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
                         if (placement == null) continue;
                         boolean occupied = false; Point firstBlocked = null;
@@ -168,8 +170,13 @@ final class DungeonPart4 {
             RoomType vp = topLabels.get(pk);
             if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || vp != RoomType.CUL_DJ) continue;
             Point np = pt.get(pk).iterator().next(); int dx = pk.x() - np.x(), dy = pk.y() - np.y();
+            int sx = -dy, sy = dx;
             Point preC2 = pk.move(dx, dy);
-            if (preC2.isOutOfBounds() || adj.containsKey(preC2) || globalOccupied.contains(preC2)) continue;
+            Point preC4 = pk.move(sx, sy);
+            Point preC3 = preC2.move(sx, sy);
+            if (preC2.isOutOfBounds() || preC4.isOutOfBounds() || preC3.isOutOfBounds()
+                    || adj.containsKey(preC2) || adj.containsKey(preC4) || adj.containsKey(preC3)
+                    || globalOccupied.contains(preC2) || globalOccupied.contains(preC4) || globalOccupied.contains(preC3)) continue;
             DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(adj, pk, dx, dy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
             if (prison == null) continue;
             boolean occupied = false; for (Point cell : prison.occupiedCells()) { if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; } }

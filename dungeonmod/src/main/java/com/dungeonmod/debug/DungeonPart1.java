@@ -265,7 +265,17 @@ final class DungeonPart1 {
                 if (!okT) continue;
             }
 
-            DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
+            DungeonCompositeRooms.Placement tavern = null;
+            for (int[] ori : new int[][]{{dx, dy}}) {
+                int tdx = ori[0], tdy = ori[1];
+                int tsx = -tdy, tsy = tdx;
+                Point pT2 = t1.move(tdx, tdy);
+                Point pExit = t1.move(tsx * 2, tsy * 2);
+                if (pT2.isOutOfBounds() || pExit.isOutOfBounds()
+                        || adj.containsKey(pT2) || adj.containsKey(pExit)
+                        || tmpAdj.containsKey(pT2) || tmpAdj.containsKey(pExit)) continue;
+                tavern = DungeonCompositeRooms.plan(adj, t1, tdx, tdy, DungeonCompositeRooms.TAVERN);
+            }
             if (tavern == null) {
                 int[] rdx = {-dy, -dx, dy};
                 int[] rdy = {dx, -dy, -dx};
@@ -273,6 +283,12 @@ final class DungeonPart1 {
                     Point rt = new Point(cx + rdx[rot], cy + rdy[rot]);
                     if (rt.isOutOfBounds() || adj.containsKey(rt) || tmpAdj.containsKey(rt)) continue;
                     if (DungeonConstraints.colinearRunAfterEdge(lastPath, rt, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
+                    int tsx = -rdy[rot], tsy = rdx[rot];
+                    Point pT2 = rt.move(rdx[rot], rdy[rot]);
+                    Point pExit = rt.move(tsx * 2, tsy * 2);
+                    if (pT2.isOutOfBounds() || pExit.isOutOfBounds()
+                            || adj.containsKey(pT2) || adj.containsKey(pExit)
+                            || tmpAdj.containsKey(pT2) || tmpAdj.containsKey(pExit)) continue;
                     tavern = DungeonCompositeRooms.plan(adj, rt, rdx[rot], rdy[rot], DungeonCompositeRooms.TAVERN);
                 }
             }
