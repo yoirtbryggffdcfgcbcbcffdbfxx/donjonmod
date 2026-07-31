@@ -338,7 +338,7 @@ public class TestGenerator {
         DungeonMod.lastDepartPos = new BlockPos(lastDepartX, oy + 1, lastDepartZ);
         DungeonMod.addDungeon("TestGen_" + System.currentTimeMillis(), origin, result.adj.size(), result.adj.size(), world.getRegistryKey().getValue(), 0, null);
 
-        spawnGoblins(world, cells, ox, oy, oz);
+        spawnGoblins(world, cells, ox, oy, oz, result.p2Monster5Cells, result.startX, result.startY);
         saveToDisk(world.getServer());
         return true;
     }
@@ -528,7 +528,9 @@ public class TestGenerator {
 
     // ===================== Entités & Spawns =====================
 
-    private static void spawnGoblins(ServerWorld world, List<RoomCell> cells, int ox, int oy, int oz) {
+    private static void spawnGoblins(ServerWorld world, List<RoomCell> cells, int ox, int oy, int oz,
+                                     Set<com.dungeonmod.debug.DungeonAlgo.Point> p2M5Cells,
+                                     int startX, int startY) {
         int[][] normalOffsets = {{2, 2}, {7, 2}, {4, 7}};
 
         for (RoomCell rc : cells) {
@@ -553,6 +555,16 @@ public class TestGenerator {
                 boss.setCustomNameVisible(false);
                 boss.setRoomAnchor(wx + CELL / 2.0, oy, wz + CELL / 2.0);
                 world.spawnEntity(boss);
+
+                boolean isP2 = p2M5Cells.contains(new com.dungeonmod.debug.DungeonAlgo.Point(
+                    rc.cx + startX, rc.cz + startY));
+                if (isP2) {
+                    for (int[] off : normalOffsets) {
+                        int grx = rotateX(off[0], off[1], rc.rot);
+                        int grz = rotateZ(off[0], off[1], rc.rot);
+                        spawnNormalGoblin(world, wx + grx + 0.5, oy + 1.0, wz + grz + 0.5);
+                    }
+                }
             } else if ("Ogre".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
                 int rz = rotateZ(4, 4, rc.rot);
@@ -766,7 +778,7 @@ public class TestGenerator {
      * régression rendait toute génération impossible.
      */
     private static DungeonAlgo.DungeonResult generateValidDungeon() {
-        final int maxPlayerBatches = 50;
+        final int maxPlayerBatches = 100;
         for (int attempt = 1; attempt <= maxPlayerBatches; attempt++) {
             DungeonAlgo.DungeonResult result = generateWithSeed(0);
             if (result != null) {

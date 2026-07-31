@@ -51,7 +51,7 @@ public class SeedHarness {
     };
 
     /** Même garde que /teste : relance des batches complets si generateDungeon(0) revient null. */
-    private static final int MAX_PLAYER_BATCHES = 50;
+    private static final int MAX_PLAYER_BATCHES = 100;
 
     private record PlayerGeneration(DungeonResult result, int batches) {}
 

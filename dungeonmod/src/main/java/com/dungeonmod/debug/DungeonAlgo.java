@@ -72,6 +72,7 @@ public class DungeonAlgo {
         public int startX, startY;
         public String missingLootType;
         public long seed;
+        public Set<Point> p2Monster5Cells = new HashSet<>();
     }
 
     static class TreeResult {
@@ -317,6 +318,9 @@ public class DungeonAlgo {
             labels = analyzePart2(sp1.adj, tavern.exitPoint, labels, tavern.pathSet, rng);
             if (labels == null) continue;
 
+            Set<Point> p2M5Cells = new HashSet<>();
+            for (var e : labels.entrySet()) if (e.getValue() == RoomType.MONSTER_5) p2M5Cells.add(e.getKey());
+
             if (findPointByValue(labels, RoomType.DOOR_2) == null) continue;
 
             CampResult camp = placeCampAndPath(sp1.adj, porte2Key, rng);
@@ -373,6 +377,7 @@ public class DungeonAlgo {
                 dr.p4Adj = p4Adj.isEmpty() ? null : p4Adj;
                 dr.missingLootType = missingLoot;
                 dr.seed = actualSeed;
+                dr.p2Monster5Cells = p2M5Cells;
 
                 lastSeed = actualSeed;
                 DungeonAlgo.lastTopLabels = currentTopLabels;
