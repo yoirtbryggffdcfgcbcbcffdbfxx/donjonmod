@@ -100,7 +100,8 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
                 wasMoving[0] = false;
                 return PlayState.STOP;
             }
-            return PlayState.CONTINUE;
+            if (animMoving) return PlayState.CONTINUE;
+            return PlayState.STOP;
         }));
     }
 
