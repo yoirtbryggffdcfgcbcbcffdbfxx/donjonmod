@@ -40,11 +40,6 @@ public class SabreComboData {
         return true;
     }
 
-    public static void applyComboOnHit(PlayerEntity player, Entity target) {
-        // Combo is only consumed on right-click unleash, not on hit
-        // This allows players to build combo via air swings while still hitting enemies
-    }
-
     private static Entity findTarget(PlayerEntity player) {
         double range = 4.0;
         var eye = player.getEyePos();

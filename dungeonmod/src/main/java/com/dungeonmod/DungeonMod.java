@@ -494,7 +494,6 @@ public class DungeonMod implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (ServerWorld world : server.getWorlds()) {
                 for (ServerPlayerEntity player : world.getPlayers()) {
-                    handleHeavyHelmet(player);
                     handleMinerHelmet(player);
                     handleTorchLight(player);
                     preventAzaleaGrowth(player);
@@ -1104,17 +1103,6 @@ public class DungeonMod implements ModInitializer {
         return helmet.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Crâne de squelette");
     }
 
-    private static boolean hasHeavyHelmet(ServerPlayerEntity player) {
-        ItemStack helmet = player.getInventory().getArmorStack(3);
-        if (helmet.isEmpty() || !helmet.isOf(Items.IRON_HELMET)) return false;
-        if (!helmet.contains(DataComponentTypes.CUSTOM_NAME)) return false;
-        return helmet.get(DataComponentTypes.CUSTOM_NAME).getString().contains("Casque lourd");
-    }
-
-    private static void handleHeavyHelmet(ServerPlayerEntity player) {
-        // Effect replaced by camera overlay (EQUIPPABLE component)
-    }
-
     private static boolean hasMinerHelmet(ServerPlayerEntity player) {
         ItemStack helmet = player.getInventory().getArmorStack(3);
         if (helmet.isEmpty() || !helmet.isOf(Items.LEATHER_HELMET)) return false;
@@ -1194,14 +1182,6 @@ public class DungeonMod implements ModInitializer {
         if (!stack.isOf(baseItem)) return false;
         if (!stack.contains(DataComponentTypes.CUSTOM_NAME)) return false;
         return stack.get(DataComponentTypes.CUSTOM_NAME).getString().contains(name);
-    }
-
-    private static float getHeavyAbsorption(ServerPlayerEntity player) {
-        float total = 0.0f;
-        if (isHeavyPiece(player.getInventory().getArmorStack(3), Items.IRON_HELMET, "Casque lourd")) total += 2.0f;
-        if (isHeavyPiece(player.getInventory().getArmorStack(2), Items.IRON_CHESTPLATE, "Plastron lourd")) total += 10.0f;
-        if (isHeavyPiece(player.getInventory().getArmorStack(1), Items.IRON_LEGGINGS, "Jambière lourde")) total += 6.0f;
-        return total;
     }
 
     private static final Map<UUID, Set<String>> heavyPieceGiven = new HashMap<>();

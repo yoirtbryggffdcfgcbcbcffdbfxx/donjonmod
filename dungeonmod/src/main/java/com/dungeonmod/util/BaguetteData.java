@@ -28,29 +28,6 @@ public class BaguetteData {
     public static final Map<UUID, Long> darkDotLastDamage = new HashMap<>();
     public static final Map<UUID, java.util.AbstractMap.SimpleEntry<UUID, Long>> darkLink = new HashMap<>(); // joueur → (ennemi, expireAt)
 
-    public static boolean tryWandAttack(PlayerEntity player, Entity target) {
-        if (player.getWorld().isClient()) return false;
-        ItemStack stack = player.getMainHandStack();
-        if (!isBaguette(stack)) return false;
-
-        UUID uid = player.getUuid();
-        long now = System.currentTimeMillis();
-        Long last = cooldowns.get(uid);
-        if (last != null && now - last < 1000) return true; // cooldown 1s
-
-        String type = getWandType(stack);
-        if (!(player.getWorld() instanceof ServerWorld sw)) return false;
-
-        var snowball = new SnowballEntity(sw, player, createProjectileStack(type));
-        snowball.setVelocity(player, player.getPitch(), player.getYaw(), 0.0f, 2.0f, 0.0f);
-        if (type.equals("feu")) {
-            snowball.setOnFireFor(100); // visuel de feu, n'enflamme pas les blocs
-        }
-        sw.spawnEntity(snowball);
-        cooldowns.put(uid, now);
-        return true;
-    }
-
     public static void resetCooldown(PlayerEntity player) {
         cooldowns.put(player.getUuid(), System.currentTimeMillis());
     }
@@ -154,15 +131,17 @@ public class BaguetteData {
 
     // Appelé depuis le CLIENT (doAttack) pour tirer même dans le vide
     public static void tryWandAttackClient(PlayerEntity player) {
+        // Verifier d'abord que c'est bien une baguette : le cooldown ne doit se
+        // poser que pour une baguette, pas pour un clic quelconque.
+        ItemStack stack = player.getMainHandStack();
+        if (!isBaguette(stack)) return;
+        String type = getWandType(stack);
+
         long now = System.currentTimeMillis();
         UUID uid = player.getUuid();
         Long last = cooldowns.get(uid);
         if (last != null && now - last < 1000) return; // cooldown 1s
         cooldowns.put(uid, now);
-
-        ItemStack stack = player.getMainHandStack();
-        if (!isBaguette(stack)) return;
-        String type = getWandType(stack);
 
         // En solo, le serveur intégré est accessible
         var mc = net.minecraft.client.MinecraftClient.getInstance();

@@ -48,6 +48,10 @@ public class GlaiveAttackMixin {
             double dist = toEntity.length();
             if (dist > range) continue;
 
+            // L'entite doit etre DEVANT le joueur (cone frontal) : un glave clic
+            // gauche frappe vers l'avant, pas derriere.
+            if (toEntity.normalize().dotProduct(look.normalize()) < 0.1) continue;
+
             // Vérifier si l'entité est assez proche de la ligne de visée (perçage)
             Vec3d projection = look.multiply(toEntity.dotProduct(look));
             Vec3d perpendicular = toEntity.subtract(projection);
