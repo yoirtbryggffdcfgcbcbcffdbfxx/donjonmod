@@ -76,7 +76,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     @Override
     protected void initGoals() {
         goalSelector.add(1, new MinibossAttackGoal());
-        goalSelector.add(2, new RoomWanderGoal());
+        goalSelector.add(2, new WanderAroundGoal(this, 0.6));
         goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
         goalSelector.add(4, new LookAroundGoal(this));
         targetSelector.add(1, new ActiveTargetGoal<>(this, PlayerEntity.class, true));
@@ -116,7 +116,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
 
         if (!getWorld().isClient() && roomAnchor != null) {
             double anchorX = roomAnchor.getX() + 0.5;
-            double anchorY = roomAnchor.getY();
+            double anchorY = roomAnchor.getY() + 1.0;
             double anchorZ = roomAnchor.getZ() + 0.5;
             LivingEntity target = getTarget();
             if (target != null
@@ -156,40 +156,6 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         super.readCustomDataFromNbt(nbt);
         if (nbt.contains("RoomAnchorX")) {
             roomAnchor = new BlockPos(nbt.getInt("RoomAnchorX"), nbt.getInt("RoomAnchorY"), nbt.getInt("RoomAnchorZ"));
-        }
-    }
-
-    private class RoomWanderGoal extends Goal {
-        private int cooldown = 0;
-
-        @Override
-        public boolean canStart() {
-            if (getTarget() != null) return false;
-            if (roomAnchor == null) return false;
-            if (cooldown-- > 0) return false;
-            return true;
-        }
-
-        @Override
-        public void start() {
-            if (roomAnchor == null) return;
-            double ax = roomAnchor.getX() + 0.5;
-            double ay = roomAnchor.getY();
-            double az = roomAnchor.getZ() + 0.5;
-            double angle = random.nextDouble() * Math.PI * 2;
-            double radius = random.nextDouble() * (ROOM_RETURN_DIST - 1.0);
-            getNavigation().startMovingTo(ax + Math.cos(angle) * radius, ay, az + Math.sin(angle) * radius, 0.6);
-            cooldown = 40 + random.nextInt(60);
-        }
-
-        @Override
-        public boolean shouldContinue() {
-            return getTarget() == null && !getNavigation().isIdle();
-        }
-
-        @Override
-        public void stop() {
-            getNavigation().stop();
         }
     }
 
