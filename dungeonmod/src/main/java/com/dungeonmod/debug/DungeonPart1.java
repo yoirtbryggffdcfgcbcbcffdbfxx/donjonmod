@@ -201,9 +201,6 @@ final class DungeonPart1 {
         Point parent = adj.get(porte).iterator().next();
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
 
-        // Solution "Maline" : Décalages à essayer
-        int[][] offsets = {{0,0}, {1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {-1,-1}, {1,-1}, {-1,1}};
-
         for (int maxLen = 2; maxLen <= 7; maxLen++) {
             int dx = baseDx, dy = baseDy;
             int cx = porte.x(), cy = porte.y();
@@ -268,44 +265,17 @@ final class DungeonPart1 {
                 if (!okT) continue;
             }
 
-            // Solution "Chirurgicale" : Pré-vérification de l'espace avant plan()
-            // Solution "Maline" : Essayer plusieurs décalages et rotations
-            DungeonCompositeRooms.Placement tavern = null;
-            int[] rdx = {-dy, -dx, dy};
-            int[] rdy = {dx, -dy, -dx};
-            
-            for (int[] offset : offsets) {
+            DungeonCompositeRooms.Placement tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
+            if (tavern == null) {
+                int[] rdx = {-dy, -dx, dy};
+                int[] rdy = {dx, -dy, -dx};
                 for (int rot = 0; rot < 3 && tavern == null; rot++) {
-                    Point rt = new Point(cx + rdx[rot] + offset[0], cy + rdy[rot] + offset[1]);
+                    Point rt = new Point(cx + rdx[rot], cy + rdy[rot]);
                     if (rt.isOutOfBounds() || adj.containsKey(rt) || tmpAdj.containsKey(rt)) continue;
                     if (DungeonConstraints.colinearRunAfterEdge(lastPath, rt, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                    
-                    // Pré-vérification de l'espace (Solution Chirurgicale)
-                    if (!DungeonCompositeRooms.isSpaceFree(adj, rt, rdx[rot], rdy[rot], DungeonCompositeRooms.TAVERN)) {
-                        continue;
-                    }
-                    
                     tavern = DungeonCompositeRooms.plan(adj, rt, rdx[rot], rdy[rot], DungeonCompositeRooms.TAVERN);
                 }
-                if (tavern != null) break;
             }
-            
-            // Si pas trouvé avec décalages, essayer sans décalage (ancienne méthode)
-            if (tavern == null) {
-                if (DungeonCompositeRooms.isSpaceFree(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN)) {
-                    tavern = DungeonCompositeRooms.plan(adj, t1, dx, dy, DungeonCompositeRooms.TAVERN);
-                }
-                if (tavern == null) {
-                    for (int rot = 0; rot < 3 && tavern == null; rot++) {
-                        Point rt = new Point(cx + rdx[rot], cy + rdy[rot]);
-                        if (rt.isOutOfBounds() || adj.containsKey(rt) || tmpAdj.containsKey(rt)) continue;
-                        if (DungeonConstraints.colinearRunAfterEdge(lastPath, rt, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) continue;
-                        if (!DungeonCompositeRooms.isSpaceFree(adj, rt, rdx[rot], rdy[rot], DungeonCompositeRooms.TAVERN)) continue;
-                        tavern = DungeonCompositeRooms.plan(adj, rt, rdx[rot], rdy[rot], DungeonCompositeRooms.TAVERN);
-                    }
-                }
-            }
-            
             if (tavern == null) continue;
 
             Set<Point> pathSet = new HashSet<>();

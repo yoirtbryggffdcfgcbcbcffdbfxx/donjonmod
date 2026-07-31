@@ -240,40 +240,15 @@ final class DungeonPart2 {
             }
             if (!okC) return null;
         }
-        
-        // Solution "Maline" : Décalages à essayer pour le camp
-        int[][] offsets = {{0,0}, {1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {-1,-1}, {1,-1}, {-1,1}};
         DungeonCompositeRooms.Placement camp = null;
         int[] crdx = {dx, -dy, -dx, dy};
         int[] crdy = {dy, dx, -dy, -dx};
-        
-        for (int[] offset : offsets) {
-            for (int rot = 0; rot < 4 && camp == null; rot++) {
-                int rdx = crdx[rot], rdy = crdy[rot];
-                Point ct = new Point(cx + rdx + offset[0], cy + rdy + offset[1]);
-                if (ct.isOutOfBounds() || adj.containsKey(ct) || tmpAdj.containsKey(ct)) continue;
-                
-                // Solution "Chirurgicale" : Pré-vérification de l'espace
-                if (!DungeonCompositeRooms.isSpaceFree(adj, ct, rdx, rdy, DungeonCompositeRooms.CAMP)) {
-                    continue;
-                }
-                
-                camp = DungeonCompositeRooms.plan(adj, ct, rdx, rdy, DungeonCompositeRooms.CAMP);
-            }
-            if (camp != null) break;
+        for (int rot = 0; rot < 4 && camp == null; rot++) {
+            int rdx = crdx[rot], rdy = crdy[rot];
+            Point ct = new Point(cx + rdx, cy + rdy);
+            if (ct.isOutOfBounds() || adj.containsKey(ct) || tmpAdj.containsKey(ct)) continue;
+            camp = DungeonCompositeRooms.plan(adj, ct, rdx, rdy, DungeonCompositeRooms.CAMP);
         }
-        
-        // Si pas trouvé avec décalages, essayer sans décalage (ancienne méthode)
-        if (camp == null) {
-            for (int rot = 0; rot < 4 && camp == null; rot++) {
-                int rdx = crdx[rot], rdy = crdy[rot];
-                Point ct = new Point(cx + rdx, cy + rdy);
-                if (ct.isOutOfBounds() || adj.containsKey(ct) || tmpAdj.containsKey(ct)) continue;
-                if (!DungeonCompositeRooms.isSpaceFree(adj, ct, rdx, rdy, DungeonCompositeRooms.CAMP)) continue;
-                camp = DungeonCompositeRooms.plan(adj, ct, rdx, rdy, DungeonCompositeRooms.CAMP);
-            }
-        }
-        
         if (camp == null) return null;
 
         Set<Point> campPathSet = new HashSet<>();

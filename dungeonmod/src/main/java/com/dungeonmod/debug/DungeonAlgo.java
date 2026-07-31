@@ -28,12 +28,6 @@ public class DungeonAlgo {
     static final int PART3_MAX_IJ3 = 3;
     static final int PART3_MAX_IJ4 = 1;
 
-    // Seeds problématiques identifiées
-    private static final Set<Long> PROBLEMATIC_SEEDS = Set.of(
-        224237267600147L,
-        227471353010315L
-    );
-
     // ===================== Point Record & Helpers =====================
 
     public record Point(int x, int y) {
@@ -273,18 +267,8 @@ public class DungeonAlgo {
 
     public static Map<Point, RoomType> getLastTopLabels() { return lastTopLabels; }
 
-    /**
-     * Détermine le nombre de tentatives max pour un seed donné.
-     * Pour les seeds problématiques, on augmente le nombre de tentatives.
-     */
-    private static int getMaxAttemptsForSeed(long seed) {
-        if (seed == 0) return 100; // Mode aléatoire
-        if (PROBLEMATIC_SEEDS.contains(seed)) return 100; // Seeds problématiques
-        return 20; // Default
-    }
-
     public static DungeonResult generateDungeon(long seed) {
-        int maxAttempts = getMaxAttemptsForSeed(seed);
+        int maxAttempts = seed != 0 ? 20 : 100;
         lastTopLabels = null;
 
         for (int outer = 0; outer < maxAttempts; outer++) {
