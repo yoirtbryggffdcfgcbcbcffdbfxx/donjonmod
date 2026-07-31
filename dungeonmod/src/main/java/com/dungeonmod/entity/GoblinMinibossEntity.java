@@ -46,6 +46,10 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     private static final int ATTACK_PIED_ANIM_TICKS = 30;   // animation 1.5s
     private static final double CHASE_MAX_FROM_ROOM = 15.0; // suit le joueur jusqu'à 15 blocs de la salle
     private static final double ROOM_RETURN_DIST = 4.0;     // rayon de retour dans la salle
+    private static final double BOSS_BAR_SHOW_DIST = 8.0;   // bossbar visible si ≤ 8 blocs (64.0²)
+    private static final double BOSS_BAR_HIDE_DIST = 10.0;  // bossbar cachée si ≥ 10 blocs (100.0²)
+    private static final double IDLE_FOLLOW_RANGE = 5.0;    // détection joueur en idle (comme gobelins)
+    private static final double CHASE_FOLLOW_RANGE = 15.0;  // détection joueur en chasse (comme gobelins)
 
     private static final TrackedData<Integer> ATTACK_TYPE =
         DataTracker.registerData(GoblinMinibossEntity.class, TrackedDataHandlerRegistry.INTEGER);
@@ -99,6 +103,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     }
 
     private boolean bossBarTriggered = false;
+    private boolean bossBarVisible = false;
 
     private void updateBossBar() {
         if (bossBar == null) return;
@@ -114,16 +119,20 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
                 }
             }
         }
-        boolean playerVisible = false;
         if (bossBarTriggered) {
+            double closest = Double.MAX_VALUE;
             for (var p : getWorld().getPlayers()) {
-                if (p instanceof ServerPlayerEntity sp && sp.squaredDistanceTo(this) <= 36.0) {
-                    playerVisible = true;
-                    break;
+                if (p instanceof ServerPlayerEntity sp) {
+                    closest = Math.min(closest, sp.squaredDistanceTo(this));
                 }
             }
+            if (closest <= BOSS_BAR_SHOW_DIST * BOSS_BAR_SHOW_DIST) {
+                bossBarVisible = true;
+            } else if (closest >= BOSS_BAR_HIDE_DIST * BOSS_BAR_HIDE_DIST) {
+                bossBarVisible = false;
+            }
         }
-        bossBar.setVisible(playerVisible);
+        bossBar.setVisible(bossBarVisible);
     }
 
     @Override
@@ -184,9 +193,14 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
                     && target.squaredDistanceTo(anchorX, anchorY, anchorZ) > CHASE_MAX_FROM_ROOM * CHASE_MAX_FROM_ROOM) {
                 setTarget(null);
             }
-            if (getTarget() == null
-                    && squaredDistanceTo(anchorX, anchorY, anchorZ) > ROOM_RETURN_DIST * ROOM_RETURN_DIST) {
-                getNavigation().startMovingTo(anchorX, anchorY, anchorZ, 1.0);
+            var followAttr = getAttributeInstance(EntityAttributes.FOLLOW_RANGE);
+            if (getTarget() != null) {
+                if (followAttr != null) followAttr.setBaseValue(CHASE_FOLLOW_RANGE);
+            } else {
+                if (followAttr != null) followAttr.setBaseValue(IDLE_FOLLOW_RANGE);
+                if (squaredDistanceTo(anchorX, anchorY, anchorZ) > ROOM_RETURN_DIST * ROOM_RETURN_DIST) {
+                    getNavigation().startMovingTo(anchorX, anchorY, anchorZ, 1.0);
+                }
             }
         }
 
