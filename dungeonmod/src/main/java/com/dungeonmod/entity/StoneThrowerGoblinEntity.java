@@ -131,7 +131,6 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
         BlockPos bestLadder = null;
         double bestDist = Double.MAX_VALUE;
         BlockPos bestTop = null;
-
         for (int dx = -LADDER_SEARCH_RADIUS; dx <= LADDER_SEARCH_RADIUS; dx++) {
             for (int dy = -5; dy <= 5; dy++) {
                 for (int dz = -LADDER_SEARCH_RADIUS; dz <= LADDER_SEARCH_RADIUS; dz++) {
@@ -143,13 +142,19 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                             top = top.up();
                         }
                         if (top.getY() >= platformPos.getY() - 2) {
+                            // L'echelle doit etre proche de LA plateforme du gobelin
+                            // (sinon on trouve l'echelle d'une salle voisine et le chemin est impossible)
+                            double hd = Math.pow(pos.getX() - platformPos.getX(), 2)
+                                + Math.pow(pos.getZ() - platformPos.getZ(), 2);
+                            if (hd > 36.0) continue;
                             double dist = this.squaredDistanceTo(Vec3d.ofCenter(pos));
                             if (dist < bestDist) {
                                 bestDist = dist;
                                 bestLadder = pos;
                                 bestTop = top;
                             }
-                        }                    }
+                        }
+                    }
                 }
             }
         }
