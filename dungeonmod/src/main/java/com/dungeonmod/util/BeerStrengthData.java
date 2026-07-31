@@ -56,6 +56,26 @@ public class BeerStrengthData {
             Float bonus = matchBonus(stack);
             if (bonus != null) total += bonus;
         }
+        // Bonus conditionnel "sante basse" (<= 20% de la sante max) :
+        // Jambiere du voyageur et Dent de loup donnent +50% supplementaires.
+        boolean lowHealth = player.getHealth() <= player.getMaxHealth() * 0.2f;
+        if (lowHealth) {
+            var legs = player.getEquippedStack(net.minecraft.entity.EquipmentSlot.LEGS);
+            if (!legs.isEmpty() && legs.isOf(net.minecraft.item.Items.LEATHER_LEGGINGS)
+                    && legs.contains(net.minecraft.component.DataComponentTypes.CUSTOM_NAME)
+                    && legs.get(net.minecraft.component.DataComponentTypes.CUSTOM_NAME).getString().contains("Jambière du voyageur")) {
+                total += 0.5f;
+            }
+            var main = player.getMainHandStack();
+            var off = player.getOffHandStack();
+            boolean hasDent = (!main.isEmpty() && main.isOf(net.minecraft.item.Items.STICK)
+                    && main.contains(net.minecraft.component.DataComponentTypes.CUSTOM_NAME)
+                    && main.get(net.minecraft.component.DataComponentTypes.CUSTOM_NAME).getString().contains("Dent de loup"))
+                || (!off.isEmpty() && off.isOf(net.minecraft.item.Items.STICK)
+                    && off.contains(net.minecraft.component.DataComponentTypes.CUSTOM_NAME)
+                    && off.get(net.minecraft.component.DataComponentTypes.CUSTOM_NAME).getString().contains("Dent de loup"));
+            if (hasDent) total += 0.5f;
+        }
         return total;
     }
 

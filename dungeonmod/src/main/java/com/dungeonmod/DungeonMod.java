@@ -1475,7 +1475,8 @@ public class DungeonMod implements ModInitializer {
 
     private static void handleVoyageurLeggings(ServerPlayerEntity player) {
         UUID uuid = player.getUuid();
-        boolean lowHealth = player.getHealth() <= 4.0f;
+        // Seuil : 20% de la sante max (ex. 20 PV → 4, 30 PV → 6)
+        boolean lowHealth = player.getHealth() <= player.getMaxHealth() * 0.2f;
         boolean hasLegs = hasVoyageurLeggings(player);
         var attr = player.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED);
 
