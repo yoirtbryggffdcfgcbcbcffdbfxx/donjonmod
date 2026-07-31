@@ -1,5 +1,6 @@
 package com.dungeonmod.entity;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnGroup;
@@ -9,6 +10,8 @@ import net.minecraft.entity.ai.goal.LookAtEntityGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.WanderAroundGoal;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.boss.BossBar;
+import net.minecraft.entity.boss.ServerBossBar;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
@@ -18,7 +21,9 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -53,6 +58,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     );
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+    private ServerBossBar bossBar;
     private int attackCooldown = 0;
     private int attackStartAge = -1;
     private boolean animMoving = false;
@@ -66,6 +72,43 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
 
     public void setRoomAnchor(double x, double y, double z) {
         roomAnchor = new BlockPos((int)x, (int)y, (int)z);
+    }
+
+    @Override
+    public void onStartedTrackingBy(ServerPlayerEntity player) {
+        super.onStartedTrackingBy(player);
+        if (bossBar == null) {
+            bossBar = new ServerBossBar(Text.literal("§cMiniboss Gobelin"), BossBar.Color.RED, BossBar.Style.PROGRESS);
+            bossBar.setDarkenSky(false);
+            bossBar.setThickenFog(false);
+            bossBar.setVisible(false);
+        }
+        bossBar.addPlayer(player);
+    }
+
+    @Override
+    public void onStoppedTrackingBy(ServerPlayerEntity player) {
+        super.onStoppedTrackingBy(player);
+        if (bossBar != null) bossBar.removePlayer(player);
+    }
+
+    @Override
+    public void remove(Entity.RemovalReason reason) {
+        if (bossBar != null) bossBar.clearPlayers();
+        super.remove(reason);
+    }
+
+    private void updateBossBar() {
+        if (bossBar == null) return;
+        bossBar.setPercent(getMaxHealth() > 0 ? getHealth() / getMaxHealth() : 0f);
+        boolean playerVisible = false;
+        for (var p : getWorld().getPlayers()) {
+            if (p instanceof ServerPlayerEntity sp && sp.squaredDistanceTo(this) <= 256.0) {
+                playerVisible = true;
+                break;
+            }
+        }
+        bossBar.setVisible(playerVisible);
     }
 
     @Override
@@ -117,6 +160,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         lastZ = getZ();
 
         if (!getWorld().isClient() && roomAnchor != null) {
+            updateBossBar();
             double anchorX = roomAnchor.getX() + 0.5;
             double anchorY = roomAnchor.getY() + 1.0;
             double anchorZ = roomAnchor.getZ() + 0.5;
@@ -183,7 +227,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
             LivingEntity target = getTarget();
             if (target == null || !target.isAlive()) { damageApplied = true; return; }
             if (attackType == 0) {
-                if (squaredDistanceTo(target) > 9.0) {
+                if (squaredDistanceTo(target) > 4.0) {
                     getNavigation().startMovingTo(target, 1.0);
                 } else if (attackCooldown > 0) {
                     getNavigation().stop();
