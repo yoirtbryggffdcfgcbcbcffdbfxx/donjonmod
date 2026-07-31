@@ -54,10 +54,11 @@ final class DungeonFailureLog {
         if (detail == null) return null;
         int localIdx = detail.indexOf("local=");
         if (localIdx < 0) return null;
-        int end = detail.indexOf(' ', localIdx);
-        if (end < 0) end = detail.length();
-        String local = detail.substring(localIdx + 6, end);
-        return local.replace("]", "").replace("[", "").replace(",", ";");
+        int open = detail.indexOf('[', localIdx);
+        int close = detail.indexOf(']', localIdx);
+        if (open < 0 || close < 0 || close <= open) return null;
+        String local = detail.substring(open + 1, close);
+        return local.replace(" ", "").replace(",", ";");
     }
 
     static void printSummary(String title) {

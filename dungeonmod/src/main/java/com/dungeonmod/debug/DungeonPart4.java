@@ -116,6 +116,8 @@ final class DungeonPart4 {
             if (ct.get(k).size() != 1 || k.equals(cs) || vl == null || vl != RoomType.CUL_DJ) continue;
             Point mb = ct.get(k).iterator().next(); int dx = k.x() - mb.x(), dy = k.y() - mb.y();
             if (k.move(dx, dy).isOutOfBounds() || globalOccupied.contains(k.move(dx, dy))) continue;
+            Point preF2 = k.move(dx * 2, dy * 2);
+            if (preF2.isOutOfBounds() || adj.containsKey(preF2) || globalOccupied.contains(preF2)) continue;
             boolean placed = false;
             boolean logged = false;
             for (int pathLen = 3; pathLen <= 5 && !placed; pathLen++) {
@@ -166,6 +168,8 @@ final class DungeonPart4 {
             RoomType vp = topLabels.get(pk);
             if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || vp != RoomType.CUL_DJ) continue;
             Point np = pt.get(pk).iterator().next(); int dx = pk.x() - np.x(), dy = pk.y() - np.y();
+            Point preC2 = pk.move(dx, dy);
+            if (preC2.isOutOfBounds() || adj.containsKey(preC2) || globalOccupied.contains(preC2)) continue;
             DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(adj, pk, dx, dy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
             if (prison == null) continue;
             boolean occupied = false; for (Point cell : prison.occupiedCells()) { if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; } }
