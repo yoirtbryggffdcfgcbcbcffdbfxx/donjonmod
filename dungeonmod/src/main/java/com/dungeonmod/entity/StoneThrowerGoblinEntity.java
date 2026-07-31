@@ -242,7 +242,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
             boolean touchingLadder = goblin.getWorld().getBlockState(goblin.getBlockPos()).isIn(BlockTags.CLIMBABLE);
 
             switch (goblin.climbPhase) {
-                case 0: // Phase sol : marcher jusqu'à la base de l'échelle
+                case 0: // Phase sol : marcher jusqu'à la base de l'échelle (standPos au sol)
                     if (goblin.ladderTarget != null) {
                         if (!goblin.getNavigation().isFollowingPath()) {
                             goblin.getNavigation().startMovingTo(
@@ -259,19 +259,16 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                     }
                     break;
 
-                case 1: // Phase montée : viser au-dessus du haut de l'échelle, le pathfinding grimpe
+                case 1: // Phase montée : naviguer au-dessus du haut de l'échelle (la dalle) — le pathfinding grimpe
                     if (goblin.ladderTopPos != null) {
-                        goblin.getNavigation().startMovingTo(
-                            goblin.ladderTopPos.getX(), goblin.ladderTopPos.getY() + 1, goblin.ladderTopPos.getZ(), 1.0);
+                        if (!goblin.getNavigation().isFollowingPath()) {
+                            goblin.getNavigation().startMovingTo(
+                                goblin.ladderTopPos.getX(), goblin.ladderTopPos.getY() + 1, goblin.ladderTopPos.getZ(), 1.0);
+                        }
                         goblin.getLookControl().lookAt(
                             goblin.ladderTopPos.getX() + 0.5, goblin.ladderTopPos.getY() + 2,
                             goblin.ladderTopPos.getZ() + 0.5, 30, 30);
                     }
-                    if (touchingLadder && goblin.getY() < goblin.platformPos.getY() - 0.5) {
-                        goblin.setVelocity(goblin.getVelocity().x, 0.2, goblin.getVelocity().z);
-                        goblin.velocityModified = true;
-                    }
-                    // Sortie : a la bonne hauteur (dans l'echelle OU juste au-dessus apres etre sorti par le haut)
                     if (goblin.getY() >= goblin.platformPos.getY() - 0.5) {
                         goblin.climbPhase = 2;
                         System.out.println("[Lanceur] Phase 2 (sortie): y=" + goblin.getY()
@@ -279,36 +276,10 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                     }
                     break;
 
-                case 2: // Phase sortie : UNE impulsion vers la dalle solide la plus proche
-                    Vec3d bestDir = null;
-                    double bestDist = Double.MAX_VALUE;
-                    BlockPos bp = goblin.getBlockPos();
-                    for (int dx = -2; dx <= 2; dx++) {
-                        for (int dz = -2; dz <= 2; dz++) {
-                            if (dx == 0 && dz == 0) continue;
-                            BlockPos pos = new BlockPos(bp.getX() + dx, goblin.platformPos.getY() - 1, bp.getZ() + dz);
-                            BlockState st = goblin.getWorld().getBlockState(pos);
-                            if (st.isAir()) continue;
-                            if (st.getBlock() instanceof net.minecraft.block.TrapdoorBlock) continue;
-                            if (!goblin.getWorld().getBlockState(pos.up()).isAir()) continue;
-                            double d = goblin.squaredDistanceTo(Vec3d.ofCenter(pos));
-                            if (d < bestDist) {
-                                bestDist = d;
-                                bestDir = new Vec3d(pos.getX() + 0.5 - goblin.getX(), 0, pos.getZ() + 0.5 - goblin.getZ()).normalize();
-                            }
-                        }
-                    }
-                    if (bestDir != null) {
-                        goblin.setVelocity(bestDir.x * 0.35, 0.12, bestDir.z * 0.35);
-                        goblin.velocityModified = true;
-                    }
-                    goblin.climbPhase = 3;
-                    break;
-
-                case 3: // Phase atterrissage : navigation douce vers le centre
+                case 2: // Phase sortie : naviguer vers le centre de la plateforme, le pathfinding termine
                     goblin.getNavigation().startMovingTo(
                         goblin.platformPos.getX() + 0.5, goblin.platformPos.getY(),
-                        goblin.platformPos.getZ() + 0.5, 0.6);
+                        goblin.platformPos.getZ() + 0.5, 0.8);
                     break;
             }
         }
