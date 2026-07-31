@@ -38,10 +38,16 @@ public class DungeonLoot {
 
     private static final List<LootEntry> BARREL_LOOT = new ArrayList<>();
     private static final List<LootEntry> CHEST_LOOT = new ArrayList<>();
+    private static final List<LootEntry> MOB_LOOT = new ArrayList<>();
     private static final Map<String, List<LootEntry>> ROOM_CHEST_LOOT = new HashMap<>();
 
     public static void registerRoomChest(String roomType, LootEntry entry) {
         ROOM_CHEST_LOOT.computeIfAbsent(roomType, k -> new ArrayList<>()).add(entry);
+    }
+
+    /** Loot des gobelins (normaux + lanceurs) quand ils meurent. */
+    public static List<ItemStack> rollMobLoot(Random rand) {
+        return rollLoot(MOB_LOOT, rand);
     }
 
     static {
@@ -233,6 +239,30 @@ public class DungeonLoot {
         if (fiole != null) {
             registerRoomChest("fontaine", new LootEntry(fiole.createStack(), 100,
                 List.of(new QuantityDist(1, 80), new QuantityDist(2, 20))));
+        }
+
+        // ==========================================
+        // MOB LOOT : gobelins (normaux + lanceurs)
+        // ==========================================
+        var osGob = com.dungeonmod.ModItems.get("os");
+        if (osGob != null) {
+            MOB_LOOT.add(new LootEntry(osGob.createStack(), 20,
+                List.of(new QuantityDist(1, 70), new QuantityDist(2, 30))));
+        }
+        var chairCrue = com.dungeonmod.ModItems.get("chair_gobelin_crue");
+        if (chairCrue != null) {
+            MOB_LOOT.add(new LootEntry(chairCrue.createStack(), 20,
+                List.of(new QuantityDist(1, 50), new QuantityDist(2, 30), new QuantityDist(3, 20))));
+        }
+        var cuirG = com.dungeonmod.ModItems.get("leather");
+        if (cuirG != null) {
+            MOB_LOOT.add(new LootEntry(cuirG.createStack(), 55,
+                List.of(new QuantityDist(1, 60), new QuantityDist(2, 25), new QuantityDist(3, 15))));
+        }
+        var coeurGob = com.dungeonmod.ModItems.get("coeur");
+        if (coeurGob != null) {
+            MOB_LOOT.add(new LootEntry(coeurGob.createStack(), 20,
+                List.of(new QuantityDist(1, 100))));
         }
     }
 
