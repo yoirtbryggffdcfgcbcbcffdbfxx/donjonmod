@@ -327,6 +327,7 @@ public class DungeonMod implements ModInitializer {
                             sp.sendMessage(Text.literal("§6Point de réapparition défini sur l'eau du puits !"), true);
                             LOGGER.info("[Ancre] Spawn set at {} (water at {})", spawnPos, waterPos);
                             buffGoblinsOnAnchor(sw);
+                            resetHeavyAbsorption(sp);
                             return ActionResult.SUCCESS;
                         } else {
                             LOGGER.info("[Ancre] Not in puit area");
@@ -1221,6 +1222,51 @@ public class DungeonMod implements ModInitializer {
 
     public static Map<String, Float> getOrCreateHeavyStored(UUID uuid) {
         return heavyPieceStored.computeIfAbsent(uuid, k -> new HashMap<>());
+    }
+
+    /**
+     * Reset des coeurs d'absorption de l'armure lourde, comme si le joueur etait
+     * mort : les stocks sont remis a neuf pour les pieces equipees (appele a la
+     * pose du point de reapparition avec l'ancre).
+     */
+    public static void resetHeavyAbsorption(ServerPlayerEntity player) {
+        UUID uuid = player.getUuid();
+        heavyPieceGiven.remove(uuid);
+        heavyPieceStored.remove(uuid);
+        pendingDamage.remove(uuid);
+
+        Set<String> given = new HashSet<>();
+        Map<String, Float> stored = new HashMap<>();
+        float total = 0f;
+
+        ItemStack head = player.getInventory().getArmorStack(3);
+        ItemStack chest = player.getInventory().getArmorStack(2);
+        ItemStack legs = player.getInventory().getArmorStack(1);
+        ItemStack feet = player.getInventory().getArmorStack(0);
+
+        if (isHeavyPiece(head, Items.IRON_HELMET, "Casque lourd")) {
+            given.add("helmet"); given.add("prev_helmet");
+            stored.put("helmet", 2.0f); total += 2.0f;
+        }
+        if (isHeavyPiece(chest, Items.IRON_CHESTPLATE, "Plastron lourd")) {
+            given.add("chestplate"); given.add("prev_chestplate");
+            stored.put("chestplate", 10.0f); total += 10.0f;
+        }
+        if (isHeavyPiece(legs, Items.IRON_LEGGINGS, "Jambière lourde")) {
+            given.add("leggings"); given.add("prev_leggings");
+            stored.put("leggings", 6.0f); total += 6.0f;
+        }
+        if (isHeavyPiece(feet, Items.IRON_BOOTS, "Bottes lourdes")) {
+            given.add("boots"); given.add("prev_boots");
+            stored.put("boots", 2.0f); total += 2.0f;
+        }
+
+        if (!given.isEmpty()) {
+            heavyPieceGiven.put(uuid, given);
+            heavyPieceStored.put(uuid, stored);
+            stored.put("_last_abs", total);
+            player.setAbsorptionAmount(total);
+        }
     }
 
     private static void handleHeavyChestplate(ServerPlayerEntity player) {
