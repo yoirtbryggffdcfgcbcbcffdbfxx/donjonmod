@@ -27,6 +27,15 @@ public class ZombieGoblinLootMixin {
         boolean isCustom = DungeonMod.customZombies.contains(zombie.getUuid());
         System.out.println("[GoblinLoot] onDeath uuid=" + zombie.getUuid() + " isCustom=" + isCustom);
         if (!zombie.getWorld().isClient() && isCustom) {
+            // Compteur global de kills (5 requis pour le buff d'ancre)
+            DungeonMod.goblinKillCount++;
+            // Track la position de mort pour le respawn (true = lanceur)
+            net.minecraft.util.math.BlockPos spawnPos = DungeonMod.zombieSpawns.get(zombie.getUuid());
+            if (spawnPos != null) {
+                boolean isThrower = zombie instanceof com.dungeonmod.entity.StoneThrowerGoblinEntity;
+                DungeonMod.deadGoblins.put(spawnPos, isThrower);
+            }
+
             var items = DungeonLoot.rollMobLoot(new java.util.Random());
             System.out.println("[GoblinLoot] drops " + items.size() + " item(s)");
             if (items.isEmpty()) return;

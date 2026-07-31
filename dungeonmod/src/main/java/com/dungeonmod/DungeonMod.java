@@ -67,6 +67,12 @@ public class DungeonMod implements ModInitializer {
     public static final Set<UUID> customZombies = new HashSet<>();
     public static final Map<UUID, Identifier> zombieTextures = new HashMap<>();
     public static final Map<UUID, BlockPos> zombieSpawns = new HashMap<>();
+    /** Nombre de buffs d'ancre cumules (+30% attaque/sante des gobelins par ancre). */
+    public static int goblinBuffStacks = 0;
+    /** Kills globaux de gobelins depuis la derniere ancre (5 requis pour le buff). */
+    public static int goblinKillCount = 0;
+    /** Positions des gobelins morts a respawn (true = lanceur). */
+    public static final Map<BlockPos, Boolean> deadGoblins = new HashMap<>();
     public static com.dungeonmod.entity.BoutTissuItem BOUT_TISSU;
     private static final Set<UUID> alertedGoblins = new HashSet<>(); // permanently hostile
     public static final Identifier TEXTURE_GOBELIN_1 = Identifier.of("dungeonmod", "textures/entity/gobelin_1.png");
@@ -309,6 +315,7 @@ public class DungeonMod implements ModInitializer {
                             lastAnchorSpawn.put(sp.getUuid(), waterPos);
                             sp.sendMessage(Text.literal("§6Point de réapparition défini sur l'eau du puits !"), true);
                             LOGGER.info("[Ancre] Spawn set at {} (water at {})", spawnPos, waterPos);
+                            buffGoblinsOnAnchor(sw);
                             return ActionResult.SUCCESS;
                         } else {
                             LOGGER.info("[Ancre] Not in puit area");
@@ -517,6 +524,76 @@ public class DungeonMod implements ModInitializer {
             net.minecraft.sound.SoundEvent.of(Identifier.of("dungeonmod", "entity.cyclops.grognement_cyclops_2")));
 
         LOGGER.info("Dungeon Mod loaded!");
+    }
+
+    /**
+     * A chaque ancre posee : si 5 gobelins ont ete tues depuis la derniere ancre,
+     * applique +30% attaque/sante sur les gobelins vivants et respawn les gobelins
+     * morts (normaux + lanceurs). Sinon, rien de plus que le spawn point.
+     */
+    public static void buffGoblinsOnAnchor(ServerWorld world) {
+        if (goblinKillCount < 5) {
+            LOGGER.info("[Ancre] Pas assez de kills ({}/5) : pas de buff", goblinKillCount);
+            return;
+        }
+        goblinKillCount = 0;
+        goblinBuffStacks++;
+        LOGGER.info("[Ancre] Buff gobelins cumule: stacks={}", goblinBuffStacks);
+        for (var ent : world.iterateEntities()) {
+            if (!(ent instanceof net.minecraft.entity.mob.ZombieEntity zombie)
+                    || !customZombies.contains(zombie.getUuid())) continue;
+            var hp = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+            if (hp != null) {
+                hp.setBaseValue(hp.getBaseValue() * 1.2);
+                zombie.setHealth(Math.min(zombie.getHealth() * 1.2f, (float)hp.getValue()));
+            }
+            var dmg = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
+            if (dmg != null) dmg.setBaseValue(dmg.getBaseValue() * 1.2);
+        }
+        // Respawn des gobelins morts (normaux + lanceurs) dans leur salle d'origine
+        int respawned = 0;
+        for (var e : deadGoblins.entrySet()) {
+            net.minecraft.util.math.BlockPos sp = e.getKey();
+            boolean isThrower = e.getValue();
+            double x = sp.getX() + 0.5, y = sp.getY() + 0.5, zc = sp.getZ() + 0.5;
+            if (isThrower) {
+                var g = new com.dungeonmod.entity.StoneThrowerGoblinEntity(
+                    com.dungeonmod.entity.StoneThrowerGoblinEntity.THROWER_TYPE, world);
+                g.setPosition(x, y, zc);
+                g.setPersistent();
+                g.setCustomName(net.minecraft.text.Text.literal("§aGobelin"));
+                g.setCustomNameVisible(false);
+                var hpA = g.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+                if (hpA != null) { hpA.setBaseValue(14.0 * goblinBuffMultiplier()); g.setHealth((float)(14.0 * goblinBuffMultiplier())); }
+                g.setPlatformPos(sp);
+                customZombies.add(g.getUuid());
+                zombieTextures.put(g.getUuid(), TEXTURE_GOBELIN_2);
+                zombieSpawns.put(g.getUuid(), sp);
+                world.spawnEntity(g);
+            } else {
+                var zmb = new net.minecraft.entity.mob.ZombieEntity(net.minecraft.entity.EntityType.ZOMBIE, world);
+                zmb.setPosition(x, y, zc);
+                zmb.setPersistent();
+                zmb.setCustomName(net.minecraft.text.Text.literal("§aGobelin"));
+                zmb.setCustomNameVisible(false);
+                var hpA = zmb.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
+                if (hpA != null) { hpA.setBaseValue(10.0 * goblinBuffMultiplier()); zmb.setHealth((float)(10.0 * goblinBuffMultiplier())); }
+                var dmgA = zmb.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
+                if (dmgA != null) dmgA.setBaseValue(2.0 * goblinBuffMultiplier());
+                customZombies.add(zmb.getUuid());
+                zombieTextures.put(zmb.getUuid(), TEXTURE_GOBELIN_1);
+                zombieSpawns.put(zmb.getUuid(), sp);
+                world.spawnEntity(zmb);
+            }
+            respawned++;
+        }
+        deadGoblins.clear();
+        LOGGER.info("[Ancre] {} gobelin(s) respawne(s)", respawned);
+    }
+
+    /** Multiplicateur de buff cumule pour les nouveaux gobelins (1.2^stacks). */
+    public static double goblinBuffMultiplier() {
+        return Math.pow(1.2, goblinBuffStacks);
     }
 
     public static boolean canThrow(ServerPlayerEntity player) {

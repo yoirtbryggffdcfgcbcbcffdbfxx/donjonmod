@@ -40,15 +40,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
 
     private BlockPos platformPos;
     private int throwCooldown = 0;
-    private int ladderScanCooldown = 0;
     private static final int PLATFORM_RADIUS = 4;
-    private static final int LADDER_SEARCH_RADIUS = 10;
-    boolean climbingLadder = false;
-    BlockPos ladderTarget;
-    private BlockPos ladderBlockPos;
-    private BlockPos ladderTopPos;
-    /** Phase de retour : 0=sol, 1=montee echelle, 2=sortie (impulsion), 3=atterrissage */
-    private int climbPhase = 0;
 
     /** Detection unifiee : le gobelin est-il sur sa plateforme ? */
     public boolean isOnPlatform() {
@@ -63,13 +55,46 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
 
     @Override
     protected void initGoals() {
-        this.goalSelector.add(1, new ReturnToPlatformGoal(this)); // Priorité max : retour plateforme
-        this.goalSelector.add(2, new ThrowStoneGoal(this));
+        // Lancer de pierre : actif partout (sol comme plateforme), priorite max.
+        // Jamais de melee : le lanceur n'attaque qu'a distance.
+        this.goalSelector.add(1, new ThrowStoneGoal(this));
+        // Comportement de deplacement "gobelin normal" au sol : errer,
+        // uniquement quand le gobelin n'est pas sur sa plateforme.
+        this.goalSelector.add(4, new GroundOnlyGoal(new net.minecraft.entity.ai.goal.WanderAroundGoal(this, 0.8)));
         this.goalSelector.add(3, new PlatformWanderGoal(this, () -> this.platformPos, 0.6, PLATFORM_RADIUS));
         this.goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
         this.goalSelector.add(7, new LookAroundGoal(this));
         this.targetSelector.add(1, new ActiveTargetGoal<>(this, PlayerEntity.class, true));
         this.targetSelector.add(2, new RevengeGoal(this));
+    }
+
+    /** Active le goal interne uniquement quand le gobelin est au sol (hors plateforme). */
+    private class GroundOnlyGoal extends Goal {
+        private final Goal delegate;
+
+        GroundOnlyGoal(Goal delegate) {
+            this.delegate = delegate;
+            this.setControls(delegate.getControls());
+        }
+
+        @Override
+        public boolean canStart() {
+            return !StoneThrowerGoblinEntity.this.isOnPlatform() && delegate.canStart();
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            return !StoneThrowerGoblinEntity.this.isOnPlatform() && delegate.shouldContinue();
+        }
+
+        @Override
+        public void start() { delegate.start(); }
+
+        @Override
+        public void stop() { delegate.stop(); }
+
+        @Override
+        public void tick() { delegate.tick(); }
     }
 
     public void setPlatformPos(BlockPos pos) {
@@ -110,6 +135,17 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
         double hDistSq = Math.pow(this.getX() - platformPos.getX(), 2) + Math.pow(this.getZ() - platformPos.getZ(), 2);
         boolean onPlatform = this.isOnPlatform();
 
+        // Effet de lourdeur : tant que le gobelin est sur sa plateforme, il est
+        // ralenti (difficile a pousser). S'il est au sol, il bouge normalement.
+        if (onPlatform) {
+            if (!this.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.SLOWNESS)) {
+                this.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                    net.minecraft.entity.effect.StatusEffects.SLOWNESS, 60, 2, false, false));
+            }
+        } else if (this.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.SLOWNESS)) {
+            this.removeStatusEffect(net.minecraft.entity.effect.StatusEffects.SLOWNESS);
+        }
+
         // Détection de bord de plateforme : demi-tour (cooldown 20 ticks)
         if (onPlatform && this.age % 20 == 0 && this.getNavigation().isFollowingPath() && PlatformWanderGoal.isNearEdge(this)) {
             Vec3d back = new Vec3d(platformPos.getX() - this.getX(), 0, platformPos.getZ() - this.getZ()).normalize();
@@ -118,89 +154,6 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
         }
     }
 
-    void findAndGoToLadder() {
-        if (ladderScanCooldown > 0 && climbingLadder && ladderTarget != null) {
-            ladderScanCooldown--;
-            if (!this.getNavigation().isFollowingPath()) {
-                this.getNavigation().startMovingTo(ladderTarget.getX(), ladderTarget.getY(), ladderTarget.getZ(), 1.0);
-            }
-            return;
-        }
-        ladderScanCooldown = 20;
-
-        BlockPos bestLadder = null;
-        double bestDist = Double.MAX_VALUE;
-        BlockPos bestTop = null;
-        for (int dx = -LADDER_SEARCH_RADIUS; dx <= LADDER_SEARCH_RADIUS; dx++) {
-            for (int dy = -5; dy <= 5; dy++) {
-                for (int dz = -LADDER_SEARCH_RADIUS; dz <= LADDER_SEARCH_RADIUS; dz++) {
-                    BlockPos pos = new BlockPos((int)this.getX() + dx, (int)this.getY() + dy, (int)this.getZ() + dz);
-                    BlockState state = this.getWorld().getBlockState(pos);
-                    if (state.isIn(BlockTags.CLIMBABLE)) {
-                        BlockPos top = pos;
-                        while (this.getWorld().getBlockState(top.up()).isIn(BlockTags.CLIMBABLE)) {
-                            top = top.up();
-                        }
-                        if (top.getY() >= platformPos.getY() - 2) {
-                            // L'echelle doit etre proche de LA plateforme du gobelin
-                            // (sinon on trouve l'echelle d'une salle voisine et le chemin est impossible)
-                            double hd = Math.pow(pos.getX() - platformPos.getX(), 2)
-                                + Math.pow(pos.getZ() - platformPos.getZ(), 2);
-                            if (hd > 36.0) continue;
-                            double dist = this.squaredDistanceTo(Vec3d.ofCenter(pos));
-                            if (dist < bestDist) {
-                                bestDist = dist;
-                                bestLadder = pos;
-                                bestTop = top;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (bestLadder != null) {
-            climbingLadder = true;
-            ladderBlockPos = bestLadder;
-            ladderTopPos = bestTop;
-            // Descendre a la BASE de l'echelle (le standPos doit etre au sol)
-            BlockPos base = bestLadder;
-            while (this.getWorld().getBlockState(base.down()).isIn(BlockTags.CLIMBABLE)) {
-                base = base.down();
-            }
-            System.out.println("[Lanceur] echelle trouvee a " + bestLadder + " (base=" + base
-                + " haut=" + bestTop + ")");
-            // Calculer la position pile devant la face grimpable (a la base, au sol)
-            BlockState ladderState = this.getWorld().getBlockState(base);
-            Direction facing = ladderState.contains(Properties.HORIZONTAL_FACING)
-                ? ladderState.get(Properties.HORIZONTAL_FACING) : Direction.NORTH;
-            Direction standDir = facing.getOpposite();
-            BlockPos standPos = new BlockPos(
-                base.getX() + standDir.getOffsetX(),
-                base.getY(),
-                base.getZ() + standDir.getOffsetZ()
-            );
-            // Si le standPos est occupé, essayer l'autre côté
-            if (!this.getWorld().getBlockState(standPos).isAir() || !this.getWorld().getBlockState(standPos.up()).isAir()) {
-                BlockPos otherSide = new BlockPos(
-                    base.getX() + facing.getOffsetX(),
-                    base.getY(),
-                    base.getZ() + facing.getOffsetZ()
-                );
-                if (this.getWorld().getBlockState(otherSide).isAir()) {
-                    standPos = otherSide;
-                }
-            }
-            ladderTarget = standPos;
-            // Naviguer vers la position devant l'échelle
-            this.getNavigation().startMovingTo(standPos.getX(), standPos.getY(), standPos.getZ(), 1.0);
-        } else {
-            // Pas d'échelle → retour à pied vers la plateforme (à Y du gobelin)
-            System.out.println("[Lanceur] AUCUNE echelle trouvee (pos=" + this.getBlockPos()
-                + " platformY=" + platformPos.getY() + ")");
-            this.getNavigation().startMovingTo(platformPos.getX(), this.getY(), platformPos.getZ(), 1.0);
-        }
-    }
 
     public boolean canThrow() {
         LivingEntity target = this.getTarget();
@@ -211,101 +164,6 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
 
     public void resetThrowCooldown() {
         this.throwCooldown = 40;
-    }
-
-    // Goal prioritaire : retour à la plateforme par l'échelle (3 phases déterministes)
-    static class ReturnToPlatformGoal extends Goal {
-        private final StoneThrowerGoblinEntity goblin;
-
-        ReturnToPlatformGoal(StoneThrowerGoblinEntity goblin) {
-            this.goblin = goblin;
-            this.setControls(EnumSet.of(Control.MOVE, Control.LOOK));
-        }
-
-        @Override
-        public boolean canStart() {
-            boolean start = goblin.platformPos != null && !goblin.isOnPlatform() && goblin.isOnGround();
-            if (start && goblin.age % 40 == 0) {
-                System.out.println("[Lanceur] ReturnToPlatform canStart: pos=" + goblin.getBlockPos()
-                    + " platform=" + goblin.platformPos + " onPlatform=" + goblin.isOnPlatform());
-            }
-            return start;
-        }
-
-        @Override
-        public void start() {
-            goblin.setTarget(null);
-            goblin.climbPhase = 0;
-            goblin.findAndGoToLadder();
-        }
-
-        @Override
-        public void tick() {
-            if (goblin.platformPos == null) return;
-            if (goblin.isOnPlatform()) { finish(); return; }
-
-            boolean touchingLadder = goblin.getWorld().getBlockState(goblin.getBlockPos()).isIn(BlockTags.CLIMBABLE);
-
-            switch (goblin.climbPhase) {
-                case 0: // Phase sol : marcher jusqu'à la base de l'échelle (standPos au sol)
-                    if (goblin.ladderTarget != null) {
-                        if (!goblin.getNavigation().isFollowingPath()) {
-                            goblin.getNavigation().startMovingTo(
-                                goblin.ladderTarget.getX(), goblin.ladderTarget.getY(), goblin.ladderTarget.getZ(), 1.0);
-                        }
-                        double d = goblin.squaredDistanceTo(Vec3d.ofCenter(goblin.ladderTarget));
-                        if (d < 1.5 || touchingLadder) {
-                            goblin.climbPhase = 1;
-                            System.out.println("[Lanceur] Phase 1 (montee): pres de l'echelle d=" + d);
-                        }
-                    } else if (goblin.age % 40 == 0) {
-                        System.out.println("[Lanceur] Phase 0 mais ladderTarget null, re-scan...");
-                        goblin.findAndGoToLadder();
-                    }
-                    break;
-
-                case 1: // Phase montée : naviguer au-dessus du haut de l'échelle (la dalle) — le pathfinding grimpe
-                    if (goblin.ladderTopPos != null) {
-                        if (!goblin.getNavigation().isFollowingPath()) {
-                            goblin.getNavigation().startMovingTo(
-                                goblin.ladderTopPos.getX(), goblin.ladderTopPos.getY() + 1, goblin.ladderTopPos.getZ(), 1.0);
-                        }
-                        goblin.getLookControl().lookAt(
-                            goblin.ladderTopPos.getX() + 0.5, goblin.ladderTopPos.getY() + 2,
-                            goblin.ladderTopPos.getZ() + 0.5, 30, 30);
-                    }
-                    if (goblin.getY() >= goblin.platformPos.getY() - 0.5) {
-                        goblin.climbPhase = 2;
-                        System.out.println("[Lanceur] Phase 2 (sortie): y=" + goblin.getY()
-                            + " platformY=" + goblin.platformPos.getY());
-                    }
-                    break;
-
-                case 2: // Phase sortie : naviguer vers le centre de la plateforme, le pathfinding termine
-                    goblin.getNavigation().startMovingTo(
-                        goblin.platformPos.getX() + 0.5, goblin.platformPos.getY(),
-                        goblin.platformPos.getZ() + 0.5, 0.8);
-                    break;
-            }
-        }
-
-        private void finish() {
-            goblin.climbingLadder = false;
-            goblin.ladderTarget = null;
-            goblin.ladderBlockPos = null;
-            goblin.ladderTopPos = null;
-            goblin.climbPhase = 0;
-        }
-
-        @Override
-        public boolean shouldContinue() {
-            return goblin.platformPos != null && !goblin.isOnPlatform();
-        }
-
-        @Override
-        public void stop() {
-            finish();
-        }
     }
 
     static class ThrowStoneGoal extends Goal {

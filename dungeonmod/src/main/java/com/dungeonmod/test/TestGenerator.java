@@ -690,10 +690,11 @@ public class TestGenerator {
 
         var attr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE);
         if (attr != null) attr.setBaseValue(5.0);
+        double buff = com.dungeonmod.DungeonMod.goblinBuffMultiplier();
         var hpAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
-        if (hpAttr != null) { hpAttr.setBaseValue(10.0); zombie.setHealth(10.0f); }
+        if (hpAttr != null) { hpAttr.setBaseValue(10.0 * buff); zombie.setHealth((float)(10.0 * buff)); }
         var dmgAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
-        if (dmgAttr != null) dmgAttr.setBaseValue(2.0);
+        if (dmgAttr != null) dmgAttr.setBaseValue(2.0 * buff);
         var speedAttr = zombie.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED);
         if (speedAttr != null) speedAttr.setBaseValue(speedAttr.getBaseValue() * 1.4);
 
@@ -715,8 +716,11 @@ public class TestGenerator {
 
         var attr = goblin.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.FOLLOW_RANGE);
         if (attr != null) attr.setBaseValue(8.0);
+        double buff = com.dungeonmod.DungeonMod.goblinBuffMultiplier();
         var hpAttr = goblin.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH);
-        if (hpAttr != null) { hpAttr.setBaseValue(14.0); goblin.setHealth(14.0f); }
+        if (hpAttr != null) { hpAttr.setBaseValue(14.0 * buff); goblin.setHealth((float)(14.0 * buff)); }
+        var dmgAttr = goblin.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.ATTACK_DAMAGE);
+        if (dmgAttr != null) dmgAttr.setBaseValue(dmgAttr.getBaseValue() * buff);
 
         goblin.setPlatformPos(new BlockPos((int)x, (int)y, (int)z));
 
@@ -803,6 +807,22 @@ public class TestGenerator {
             }
             root.put("puits", puits);
 
+            // Buff d'ancre cumule des gobelins (+30% par ancre posee)
+            root.putInt("goblinBuffStacks", com.dungeonmod.DungeonMod.goblinBuffStacks);
+            root.putInt("goblinKillCount", com.dungeonmod.DungeonMod.goblinKillCount);
+
+            // Gobelins morts a respawn (positions)
+            NbtList deadG = new NbtList();
+            for (var e : com.dungeonmod.DungeonMod.deadGoblins.entrySet()) {
+                NbtCompound t = new NbtCompound();
+                t.putInt("x", e.getKey().getX());
+                t.putInt("y", e.getKey().getY());
+                t.putInt("z", e.getKey().getZ());
+                t.putBoolean("thrower", e.getValue());
+                deadG.add(t);
+            }
+            root.put("deadGoblins", deadG);
+
             // Salles deja recompensees (coffre de salle M) — persiste pour ne pas respawn
             root.put("roomRewards", com.dungeonmod.util.RoomRewardManager.writeToNbt());
 
@@ -853,6 +873,24 @@ public class TestGenerator {
 
             if (root.contains("roomRewards")) {
                 com.dungeonmod.util.RoomRewardManager.readFromNbt(root.getList("roomRewards", 10));
+            }
+
+            if (root.contains("goblinBuffStacks")) {
+                com.dungeonmod.DungeonMod.goblinBuffStacks = root.getInt("goblinBuffStacks");
+            }
+            if (root.contains("goblinKillCount")) {
+                com.dungeonmod.DungeonMod.goblinKillCount = root.getInt("goblinKillCount");
+            }
+
+            com.dungeonmod.DungeonMod.deadGoblins.clear();
+            if (root.contains("deadGoblins")) {
+                NbtList deadG = root.getList("deadGoblins", 10);
+                for (int i = 0; i < deadG.size(); i++) {
+                    NbtCompound t = deadG.getCompound(i);
+                    com.dungeonmod.DungeonMod.deadGoblins.put(
+                        new BlockPos(t.getInt("x"), t.getInt("y"), t.getInt("z")),
+                        t.getBoolean("thrower"));
+                }
             }
 
             return true;

@@ -32,15 +32,14 @@ public class PlatformWanderGoal extends Goal {
     public boolean canStart() {
         BlockPos center = platformSupplier.get();
         if (center == null) {
-
             return false;
         }
 
-        // Ne pas démarrer si le gobelin n'est pas sur la plateforme (tombé)
+        // Ne demarrer que si le gobelin est reellement sur sa plateforme (rayon 3,
+        // hauteur >= center-1, au sol). S'il est tombe, il ne cherche plus a remonter.
         double hDist = Math.sqrt(Math.pow(mob.getX() - center.getX(), 2)
             + Math.pow(mob.getZ() - center.getZ(), 2));
-        if (hDist > radius + 2 || mob.getY() < center.getY() - 1.5) {
-
+        if (hDist > 3.0 || mob.getY() < center.getY() - 1.0 || !mob.isOnGround()) {
             return false;
         }
 
@@ -87,8 +86,9 @@ public class PlatformWanderGoal extends Goal {
             + Math.pow(mob.getZ() - center.getZ(), 2));
         return this.targetPos != null
             && mob.squaredDistanceTo(Vec3d.ofCenter(this.targetPos)) > 1.0
-            && hDist <= radius + 2
-            && mob.getY() >= center.getY() - 1.5;
+            && hDist <= 3.0
+            && mob.getY() >= center.getY() - 1.0
+            && mob.isOnGround();
     }
 
     @Override
