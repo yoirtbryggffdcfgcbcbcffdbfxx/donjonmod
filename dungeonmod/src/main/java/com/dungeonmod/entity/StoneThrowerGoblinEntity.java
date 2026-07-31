@@ -265,10 +265,27 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                         goblin.setVelocity(goblin.getVelocity().x, 0.2, goblin.getVelocity().z);
                         goblin.velocityModified = true;
                     }
-                    if (goblin.getY() >= goblin.platformPos.getY() - 0.5) {
+                    // Si a la bonne hauteur mais PAS dans l'echelle : micro-poussee vers l'echelle
+                    if (!touchingLadder && goblin.getY() >= goblin.platformPos.getY() - 1.0
+                            && goblin.ladderTopPos != null) {
+                        Vec3d toward = new Vec3d(
+                            goblin.ladderTopPos.getX() + 0.5 - goblin.getX(), 0,
+                            goblin.ladderTopPos.getZ() + 0.5 - goblin.getZ()).normalize();
+                        goblin.setVelocity(toward.x * 0.2, goblin.getVelocity().y, toward.z * 0.2);
+                        goblin.velocityModified = true;
+                        if (goblin.age % 40 == 0) {
+                            System.out.println("[Lanceur] Phase 1: pousse vers l'echelle (pos="
+                                + goblin.getBlockPos() + " ladder=" + goblin.ladderTopPos + ")");
+                        }
+                    }
+                    if (touchingLadder && goblin.getY() >= goblin.platformPos.getY() - 0.5) {
                         goblin.climbPhase = 2;
                         System.out.println("[Lanceur] Phase 2 (sortie): y=" + goblin.getY()
                             + " platformY=" + goblin.platformPos.getY());
+                    } else if (!touchingLadder && goblin.getY() >= goblin.platformPos.getY() - 0.5
+                            && goblin.age % 40 == 0) {
+                        System.out.println("[Lanceur] Phase 1 a la bonne hauteur mais PAS dans l'echelle (pos="
+                            + goblin.getBlockPos() + ")");
                     }
                     break;
 
