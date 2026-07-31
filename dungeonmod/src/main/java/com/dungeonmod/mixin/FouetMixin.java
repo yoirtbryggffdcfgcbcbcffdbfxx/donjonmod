@@ -27,12 +27,12 @@ public class FouetMixin {
             return;
         }
 
-        if (player.squaredDistanceTo(living) > 49.0) return;
-
-        living.damage((ServerWorld) player.getWorld(), player.getDamageSources().playerAttack(player), 1.0f);
+        if (player.squaredDistanceTo(living) > 144.0) return;
 
         Vec3d pull = player.getPos().subtract(living.getPos()).normalize();
-        living.addVelocity(pull.x * 1.5, 0, pull.z * 1.5);
+        double dist = living.squaredDistanceTo(player.getPos());
+        double pullStrength = Math.sqrt(dist) * 0.6 + 0.5;
+        living.addVelocity(pull.x * pullStrength, 0, pull.z * pullStrength);
         living.velocityModified = true;
 
         if (!player.getWorld().isClient() && player.getWorld() instanceof ServerWorld sw) {

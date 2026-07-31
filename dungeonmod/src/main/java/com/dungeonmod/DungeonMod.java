@@ -73,6 +73,17 @@ public class DungeonMod implements ModInitializer {
     public static int goblinKillCount = 0;
     /** Positions des gobelins morts a respawn (true = lanceur). */
     public static final Map<BlockPos, Boolean> deadGoblins = new HashMap<>();
+    /** Types d'entites sans invulnerabilite post-hit (ajout facile de nouveaux mobs). */
+    public static final Set<net.minecraft.entity.EntityType<?>> NO_INVULNERABILITY_TYPES = new HashSet<>();
+
+    /** True si l'entite n'a pas d'invulnerabilite post-hit (gobelins DJ + types listes). */
+    public static boolean hasNoHitInvulnerability(net.minecraft.entity.Entity entity) {
+        if (entity == null) return false;
+        if (entity instanceof net.minecraft.entity.mob.ZombieEntity && customZombies.contains(entity.getUuid())) {
+            return true;
+        }
+        return NO_INVULNERABILITY_TYPES.contains(entity.getType());
+    }
     public static com.dungeonmod.entity.BoutTissuItem BOUT_TISSU;
     private static final Set<UUID> alertedGoblins = new HashSet<>(); // permanently hostile
     public static final Identifier TEXTURE_GOBELIN_1 = Identifier.of("dungeonmod", "textures/entity/gobelin_1.png");
@@ -1401,13 +1412,11 @@ public class DungeonMod implements ModInitializer {
             player.setVelocity(vx, CAPE_DIVE_SPEED, vz);
             player.velocityModified = true;
         } else if (capeJumpHeld.contains(player.getUuid())) {
-            // ESPACE maintenu : descente ultra lente + léger mal de mer
+            // ESPACE maintenu : descente ultra lente
             if (vy < CAPE_HOVER_SPEED) {
                 player.setVelocity(vx, CAPE_HOVER_SPEED, vz);
                 player.velocityModified = true;
             }
-            player.addStatusEffect(new StatusEffectInstance(
-                StatusEffects.NAUSEA, 100, 0, true, false, false));
         }
     }
 
