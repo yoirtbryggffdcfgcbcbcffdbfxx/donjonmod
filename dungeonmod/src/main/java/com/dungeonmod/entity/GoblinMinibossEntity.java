@@ -51,6 +51,8 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private int attackCooldown = 0;
     private int attackStartAge = -1;
+    private double lastMoveX = 0;
+    private double lastMoveZ = 0;
 
     public GoblinMinibossEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
@@ -80,7 +82,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
                 String anim = atk == ATTACK_MAIN ? "Attaque_main_1" : "attaque_pied";
                 return state.setAndContinue(RawAnimation.begin().thenPlay(anim));
             }
-            boolean moving = getVelocity().horizontalLengthSquared() > 0.0001 || state.isMoving();
+            boolean moving = Math.abs(getX() - lastMoveX) > 0.001 || Math.abs(getZ() - lastMoveZ) > 0.001;
             if (moving && !wasMoving[0]) {
                 wasMoving[0] = true;
                 return state.setAndContinue(RawAnimation.begin().thenLoop("Marche"));
@@ -100,6 +102,8 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
+        lastMoveX = getX();
+        lastMoveZ = getZ();
         if (attackCooldown > 0) attackCooldown--;
         int atk = dataTracker.get(ATTACK_TYPE);
         if (atk != 0 && attackStartAge >= 0) {
