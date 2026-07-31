@@ -651,21 +651,18 @@ public class TestGenerator {
     }
 
     /**
-     * Cherche un bloc de plateforme dans la salle : bloc solide en hauteur
-     * (oy+2 .. oy+4) avec air au-dessus ET air en dessous (plateforme flottante,
-     * pas un mur). Retourne la position au-dessus de la plateforme.
+     * Cherche la plateforme de la salle M : dalle (SlabBlock) a la hauteur
+     * oy+3 avec de l'air au-dessus (position de marche valide). Les trapdoors
+     * du bord ne sont pas des dalles, donc ils sont exclus naturellement.
      */
     private static net.minecraft.util.math.BlockPos findPlatformSpot(ServerWorld world, int wx, int wz, int oy) {
         for (int attempt = 0; attempt < 60; attempt++) {
             int rx = wx + world.random.nextInt(CELL);
             int rz = wz + world.random.nextInt(CELL);
-            for (int dy = 2; dy <= 4; dy++) {
-                net.minecraft.util.math.BlockPos plat = new net.minecraft.util.math.BlockPos(rx, oy + dy, rz);
-                if (world.getBlockState(plat).isAir()) continue;
-                if (!world.getBlockState(plat.up()).isAir()) continue;
-                if (world.getBlockState(plat.down()).isAir()) continue;
-                return plat;
-            }
+            net.minecraft.util.math.BlockPos plat = new net.minecraft.util.math.BlockPos(rx, oy + 3, rz);
+            if (!(world.getBlockState(plat).getBlock() instanceof net.minecraft.block.SlabBlock)) continue;
+            if (!world.getBlockState(plat.up()).isAir()) continue;
+            return plat;
         }
         return null;
     }
