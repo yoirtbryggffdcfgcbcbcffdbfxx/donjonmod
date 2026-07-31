@@ -73,6 +73,9 @@ public class DungeonAlgo {
         public String missingLootType;
         public long seed;
         public Set<Point> p2Monster5Cells = new HashSet<>();
+        public Set<Point> p1MonsterCells = new HashSet<>();
+        public Set<Point> p2MonsterCells = new HashSet<>();
+        public Point p1PrisonAdjacent = null;
     }
 
     static class TreeResult {
@@ -291,6 +294,25 @@ public class DungeonAlgo {
             }
             if (sp1 == null) continue;
 
+            Set<Point> p1MonsterCells = new HashSet<>();
+            Point p1PrisonAdjacent = null;
+            for (var e : labels.entrySet()) {
+                RoomType v = e.getValue();
+                if (v == RoomType.MONSTER_1 || v == RoomType.MONSTER_2
+                        || v == RoomType.MONSTER_3 || v == RoomType.MONSTER_4
+                        || v == RoomType.MONSTER_5) {
+                    p1MonsterCells.add(e.getKey());
+                }
+                if (v == RoomType.PRISON) {
+                    for (Point nb : sp1.adj.getOrDefault(e.getKey(), Set.of())) {
+                        RoomType nl = labels.get(nb);
+                        if (nl == RoomType.MONSTER_2 || nl == RoomType.MONSTER_4) {
+                            p1PrisonAdjacent = nb;
+                        }
+                    }
+                }
+            }
+
             Point porteKey = findPointByValue(labels, RoomType.DOOR_1);
             if (porteKey == null) continue;
 
@@ -319,7 +341,18 @@ public class DungeonAlgo {
             if (labels == null) continue;
 
             Set<Point> p2M5Cells = new HashSet<>();
-            for (var e : labels.entrySet()) if (e.getValue() == RoomType.MONSTER_5) p2M5Cells.add(e.getKey());
+            Set<Point> p2MonsterCells = new HashSet<>();
+            for (var e : labels.entrySet()) {
+                RoomType v = e.getValue();
+                if (v == null) continue;
+                if (!p1MonsterCells.contains(e.getKey())
+                        && (v == RoomType.MONSTER_1 || v == RoomType.MONSTER_2
+                        || v == RoomType.MONSTER_3 || v == RoomType.MONSTER_4
+                        || v == RoomType.MONSTER_5)) {
+                    p2MonsterCells.add(e.getKey());
+                }
+                if (v == RoomType.MONSTER_5) p2M5Cells.add(e.getKey());
+            }
 
             if (findPointByValue(labels, RoomType.DOOR_2) == null) continue;
 
@@ -378,6 +411,9 @@ public class DungeonAlgo {
                 dr.missingLootType = missingLoot;
                 dr.seed = actualSeed;
                 dr.p2Monster5Cells = p2M5Cells;
+                dr.p1MonsterCells = p1MonsterCells;
+                dr.p2MonsterCells = p2MonsterCells;
+                dr.p1PrisonAdjacent = p1PrisonAdjacent;
 
                 lastSeed = actualSeed;
                 DungeonAlgo.lastTopLabels = currentTopLabels;

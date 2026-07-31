@@ -498,6 +498,9 @@ public class DungeonMod implements ModInitializer {
             processHolyWater(server);
             processIceDot(server);
             com.dungeonmod.entity.BoomerangEntity.processPending();
+            for (net.minecraft.server.world.ServerWorld sw : server.getWorlds()) {
+                com.dungeonmod.util.RoomRewardManager.checkRooms(sw);
+            }
             if (!dungeons.isEmpty()) {
 
 

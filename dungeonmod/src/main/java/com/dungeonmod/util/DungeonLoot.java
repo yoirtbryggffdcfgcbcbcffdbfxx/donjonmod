@@ -204,6 +204,31 @@ public class DungeonLoot {
             registerRoomChest("Loot1_top", new LootEntry(cle.createStack(), 100,
                 List.of(new QuantityDist(1, 100))));
         }
+
+        // Clés de salle monstre (coffre de récompense RoomRewardManager)
+        if (cle != null) {
+            // P1 : salle adjacente à la prison (M2 ou M4) — clé obligatoire
+            registerRoomChest("M2_PRISON", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            // P1 : salle M5 — clé obligatoire
+            registerRoomChest("M5_P1", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            // P2 : 2 salles tirées au sort, clé garantie chacune
+            registerRoomChest("M_P2_Key1", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            registerRoomChest("M_P2_Key2", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            // P3 : tables prêtes (les mobs DJ n'existent pas encore)
+            registerRoomChest("M_P3_Key1", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            registerRoomChest("M_P3_Key2", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            // P4 : tables prêtes
+            registerRoomChest("M_P4_Key1", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+            registerRoomChest("M_P4_Key2", new LootEntry(cle.createStack(), 100,
+                List.of(new QuantityDist(1, 100))));
+        }
         var fiole = com.dungeonmod.ModItems.get("fiole");
         if (fiole != null) {
             registerRoomChest("fontaine", new LootEntry(fiole.createStack(), 100,

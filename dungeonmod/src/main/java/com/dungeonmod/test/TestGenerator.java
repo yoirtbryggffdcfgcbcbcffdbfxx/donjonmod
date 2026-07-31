@@ -305,6 +305,7 @@ public class TestGenerator {
         lastBib2Positions.clear();
         lastPuitPositions.clear();
         DungeonMod.lastAnchorSpawn.clear();
+        com.dungeonmod.util.RoomRewardManager.clear();
 
         lastOriginX = ox; lastOriginZ = oz; lastDepartX = 0; lastDepartZ = 0; lastOriginY = oy;
 
@@ -338,7 +339,8 @@ public class TestGenerator {
         DungeonMod.lastDepartPos = new BlockPos(lastDepartX, oy + 1, lastDepartZ);
         DungeonMod.addDungeon("TestGen_" + System.currentTimeMillis(), origin, result.adj.size(), result.adj.size(), world.getRegistryKey().getValue(), 0, null);
 
-        spawnGoblins(world, cells, ox, oy, oz, result.p2Monster5Cells, result.startX, result.startY);
+        spawnGoblins(world, cells, ox, oy, oz, result.p2Monster5Cells, result.startX, result.startY,
+            result.p1MonsterCells, result.p2MonsterCells, result.p1PrisonAdjacent);
         saveToDisk(world.getServer());
         return true;
     }
@@ -530,31 +532,78 @@ public class TestGenerator {
 
     private static void spawnGoblins(ServerWorld world, List<RoomCell> cells, int ox, int oy, int oz,
                                      Set<com.dungeonmod.debug.DungeonAlgo.Point> p2M5Cells,
-                                     int startX, int startY) {
+                                     int startX, int startY,
+                                     Set<com.dungeonmod.debug.DungeonAlgo.Point> p1MonsterCells,
+                                     Set<com.dungeonmod.debug.DungeonAlgo.Point> p2MonsterCells,
+                                     com.dungeonmod.debug.DungeonAlgo.Point p1PrisonAdjacent) {
         int[][] normalOffsets = {{2, 2}, {7, 2}, {4, 7}};
+
+        // Tirage P2 : 2 salles M différentes reçoivent une clé chacune
+        List<RoomCell> p2MCandidates = new java.util.ArrayList<>();
+        for (RoomCell rc : cells) {
+            if (rc.topLevel) continue;
+            if (!("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey) || "M3".equals(rc.typeKey)
+                    || "M4".equals(rc.typeKey) || "M5".equals(rc.typeKey))) continue;
+            com.dungeonmod.debug.DungeonAlgo.Point gp = new com.dungeonmod.debug.DungeonAlgo.Point(
+                rc.cx + startX, rc.cz + startY);
+            if (p2MonsterCells.contains(gp)) p2MCandidates.add(rc);
+        }
+        Collections.shuffle(p2MCandidates, new Random());
+        java.util.Map<net.minecraft.util.math.BlockPos, String> p2KeyRooms = new java.util.HashMap<>();
+        if (p2MCandidates.size() >= 1) {
+            RoomCell k1 = p2MCandidates.get(0);
+            p2KeyRooms.put(new net.minecraft.util.math.BlockPos(ox + k1.cx * CELL, oy, oz + k1.cz * CELL), "M_P2_Key1");
+        }
+        if (p2MCandidates.size() >= 2) {
+            RoomCell k2 = p2MCandidates.get(1);
+            p2KeyRooms.put(new net.minecraft.util.math.BlockPos(ox + k2.cx * CELL, oy, oz + k2.cz * CELL), "M_P2_Key2");
+        }
 
         for (RoomCell rc : cells) {
             if (rc.topLevel) continue;
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
+            net.minecraft.util.math.BlockPos roomCorner = new net.minecraft.util.math.BlockPos(wx, oy, wz);
+
+            // Loot du coffre de récompense selon la salle
+            if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey) || "M3".equals(rc.typeKey)
+                    || "M4".equals(rc.typeKey) || "M5".equals(rc.typeKey)) {
+                String lootKey = "M";
+                com.dungeonmod.debug.DungeonAlgo.Point gp = new com.dungeonmod.debug.DungeonAlgo.Point(
+                    rc.cx + startX, rc.cz + startY);
+                if (p1PrisonAdjacent != null && gp.equals(p1PrisonAdjacent)) {
+                    lootKey = "M2_PRISON";
+                } else if ("M5".equals(rc.typeKey) && !p2M5Cells.contains(gp)) {
+                    lootKey = "M5_P1";
+                } else if (p2MonsterCells.contains(gp) && p2KeyRooms.containsKey(roomCorner)) {
+                    lootKey = p2KeyRooms.get(roomCorner);
+                }
+                com.dungeonmod.util.RoomRewardManager.registerRoom(roomCorner, lootKey);
+            }
 
             if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey)) {
                 for (int[] off : normalOffsets) {
                     int rx = rotateX(off[0], off[1], rc.rot);
                     int rz = rotateZ(off[0], off[1], rc.rot);
-                    spawnNormalGoblin(world, wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
+                    double mx = wx + rx + 0.5, mz = wz + rz + 0.5;
+                    com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
+                        spawnNormalGoblin(world, mx, oy + 1.0, mz),
+                        new net.minecraft.util.math.BlockPos((int)mx, oy + 1, (int)mz));
                 }
             } else if ("M5".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
                 int rz = rotateZ(4, 4, rc.rot);
+                double bx = wx + rx + 0.5, bz = wz + rz + 0.5;
                 var boss = new com.dungeonmod.entity.GoblinMinibossEntity(
                     com.dungeonmod.entity.GoblinMinibossEntity.TYPE, world);
-                boss.setPosition(wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
+                boss.setPosition(bx, oy + 1.0, bz);
                 boss.setPersistent();
                 boss.setCustomName(net.minecraft.text.Text.literal("§cMiniboss Gobelin"));
                 boss.setCustomNameVisible(false);
                 boss.setRoomAnchor(wx + CELL / 2.0, oy, wz + CELL / 2.0);
                 world.spawnEntity(boss);
+                com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner, boss.getUuid(),
+                    new net.minecraft.util.math.BlockPos((int)bx, oy + 1, (int)bz));
 
                 boolean isP2 = p2M5Cells.contains(new com.dungeonmod.debug.DungeonAlgo.Point(
                     rc.cx + startX, rc.cz + startY));
@@ -562,7 +611,10 @@ public class TestGenerator {
                     for (int[] off : normalOffsets) {
                         int grx = rotateX(off[0], off[1], rc.rot);
                         int grz = rotateZ(off[0], off[1], rc.rot);
-                        spawnNormalGoblin(world, wx + grx + 0.5, oy + 1.0, wz + grz + 0.5);
+                        double gx = wx + grx + 0.5, gz = wz + grz + 0.5;
+                        com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
+                            spawnNormalGoblin(world, gx, oy + 1.0, gz),
+                            new net.minecraft.util.math.BlockPos((int)gx, oy + 1, (int)gz));
                     }
                 }
             } else if ("Ogre".equals(rc.typeKey)) {
@@ -582,19 +634,25 @@ public class TestGenerator {
                 for (int[] off : m34BottomOffsets) {
                     int rx = rotateX(off[0], off[1], rc.rot);
                     int rz = rotateZ(off[0], off[1], rc.rot);
-                    spawnNormalGoblin(world, wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
+                    double mx = wx + rx + 0.5, mz = wz + rz + 0.5;
+                    com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
+                        spawnNormalGoblin(world, mx, oy + 1.0, mz),
+                        new net.minecraft.util.math.BlockPos((int)mx, oy + 1, (int)mz));
                 }
                 int[][] platformOffsets = {{3, 2}, {6, 2}};
                 for (int[] off : platformOffsets) {
                     int rx = rotateX(off[0], off[1], rc.rot);
                     int rz = rotateZ(off[0], off[1], rc.rot);
-                    spawnStoneThrower(world, wx + rx + 0.5, oy + 4.0, wz + rz + 0.5);
+                    double px = wx + rx + 0.5, pz = wz + rz + 0.5;
+                    com.dungeonmod.util.RoomRewardManager.registerMob(roomCorner,
+                        spawnStoneThrower(world, px, oy + 4.0, pz),
+                        new net.minecraft.util.math.BlockPos((int)px, oy + 4, (int)pz));
                 }
             }
         }
     }
 
-    private static void spawnNormalGoblin(ServerWorld world, double x, double y, double z) {
+    private static java.util.UUID spawnNormalGoblin(ServerWorld world, double x, double y, double z) {
         var zombie = new net.minecraft.entity.mob.ZombieEntity(net.minecraft.entity.EntityType.ZOMBIE, world);
         zombie.setPosition(x, y, z);
         zombie.setPersistent();
@@ -616,9 +674,10 @@ public class TestGenerator {
 
         zombie.addCommandTag("dg_" + (int)x + "_" + (int)y + "_" + (int)z);
         world.spawnEntity(zombie);
+        return zombie.getUuid();
     }
 
-    private static void spawnStoneThrower(ServerWorld world, double x, double y, double z) {
+    private static java.util.UUID spawnStoneThrower(ServerWorld world, double x, double y, double z) {
         var goblin = new com.dungeonmod.entity.StoneThrowerGoblinEntity(com.dungeonmod.entity.StoneThrowerGoblinEntity.THROWER_TYPE, world);
         goblin.setPosition(x, y, z);
         goblin.setPersistent();
@@ -638,6 +697,7 @@ public class TestGenerator {
 
         goblin.addCommandTag("dg_" + (int)x + "_" + (int)y + "_" + (int)z);
         world.spawnEntity(goblin);
+        return goblin.getUuid();
     }
 
     // ===================== Interactivité & Passage Secret =====================
@@ -714,6 +774,9 @@ public class TestGenerator {
             }
             root.put("puits", puits);
 
+            // Salles deja recompensees (coffre de salle M) — persiste pour ne pas respawn
+            root.put("roomRewards", com.dungeonmod.util.RoomRewardManager.writeToNbt());
+
             NbtIo.write(root, getSaveFile().toPath());
         } catch (Exception e) {
             System.out.println("[TestGenerator] Échec sauvegarde disque: " + e.getMessage());
@@ -757,6 +820,10 @@ public class TestGenerator {
                     NbtCompound t = puits.getCompound(i);
                     lastPuitPositions.add(new BlockPos(t.getInt("x"), t.getInt("y"), t.getInt("z")));
                 }
+            }
+
+            if (root.contains("roomRewards")) {
+                com.dungeonmod.util.RoomRewardManager.readFromNbt(root.getList("roomRewards", 10));
             }
 
             return true;
