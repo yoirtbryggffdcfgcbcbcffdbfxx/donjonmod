@@ -118,7 +118,7 @@ final class DungeonPart4 {
             if (k.move(dx, dy).isOutOfBounds() || globalOccupied.contains(k.move(dx, dy))) continue;
             boolean placed = false;
             boolean logged = false;
-            for (int pathLen = 2; pathLen <= 5 && !placed; pathLen++) {
+            for (int pathLen = 3; pathLen <= 5 && !placed; pathLen++) {
                 for (int turnAt = 1; turnAt < pathLen && !placed; turnAt++) {
                     for (int turnDir : new int[]{1, -1}) {
                         DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder().name("CHAPEL_CRYPT")
