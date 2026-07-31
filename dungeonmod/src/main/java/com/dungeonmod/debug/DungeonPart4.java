@@ -116,40 +116,44 @@ final class DungeonPart4 {
             if (ct.get(k).size() != 1 || k.equals(cs) || vl == null || vl != RoomType.CUL_DJ) continue;
             Point mb = ct.get(k).iterator().next(); int dx = k.x() - mb.x(), dy = k.y() - mb.y();
             if (k.move(dx, dy).isOutOfBounds() || globalOccupied.contains(k.move(dx, dy))) continue;
-            int pathLen = 3 + rng.nextInt(3); int turnAt = 1 + rng.nextInt(pathLen - 1);
-            int[] turnDirs = rng.nextBoolean() ? new int[]{1, -1} : new int[]{-1, 1};
-            for (int turnDir : turnDirs) {
-                DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder().name("CHAPEL_CRYPT")
-                        .entry(0, 0).label(0, 0, RoomType.CHAPEL_1).label(1, 0, RoomType.CHAPEL_2).edge(0, 0, 1, 0);
-                List<DungeonCompositeRooms.LocalPoint> pathLocals = new ArrayList<>();
-                DungeonCompositeRooms.LocalPoint prev = new DungeonCompositeRooms.LocalPoint(1, 0);
-                int forward = 1, side = 0, dForward = 1, dSide = 0;
-                for (int step = 0; step < pathLen; step++) {
-                    if (step == turnAt) { dForward = 0; dSide = turnDir; }
-                    forward += dForward; side += dSide;
-                    DungeonCompositeRooms.LocalPoint next = new DungeonCompositeRooms.LocalPoint(forward, side);
-                    builder.node(forward, side).edge(prev.forward(), prev.side(), forward, side); pathLocals.add(next); prev = next;
+            boolean placed = false;
+            for (int pathLen = 3; pathLen <= 5 && !placed; pathLen++) {
+                for (int turnAt = 1; turnAt < pathLen && !placed; turnAt++) {
+                    for (int turnDir : new int[]{1, -1}) {
+                        DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder().name("CHAPEL_CRYPT")
+                                .entry(0, 0).label(0, 0, RoomType.CHAPEL_1).label(1, 0, RoomType.CHAPEL_2).edge(0, 0, 1, 0);
+                        List<DungeonCompositeRooms.LocalPoint> pathLocals = new ArrayList<>();
+                        DungeonCompositeRooms.LocalPoint prev = new DungeonCompositeRooms.LocalPoint(1, 0);
+                        int forward = 1, side = 0, dForward = 1, dSide = 0;
+                        for (int step = 0; step < pathLen; step++) {
+                            if (step == turnAt) { dForward = 0; dSide = turnDir; }
+                            forward += dForward; side += dSide;
+                            DungeonCompositeRooms.LocalPoint next = new DungeonCompositeRooms.LocalPoint(forward, side);
+                            builder.node(forward, side).edge(prev.forward(), prev.side(), forward, side); pathLocals.add(next); prev = next;
+                        }
+                        for (int step = 0; step < 2; step++) {
+                            forward += dForward; side += dSide;
+                            RoomType label = step == 0 ? RoomType.CRYPT_1 : RoomType.CRYPT_2;
+                            builder.label(forward, side, label).edge(prev.forward(), prev.side(), forward, side);
+                            prev = new DungeonCompositeRooms.LocalPoint(forward, side);
+                        }
+                        DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
+                        DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
+                        if (placement == null) continue;
+                        boolean occupied = false; for (Point cell : placement.occupiedCells()) { if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; } }
+                        if (occupied) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt); continue; }
+                        DungeonCompositeRooms.place(adj, null, placement); globalOccupied.addAll(placement.occupiedCells());
+                        for (var e : placement.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
+                        for (int step = 0; step < pathLocals.size(); step++) {
+                            Point pathPoint = placement.point(pathLocals.get(step));
+                            putGenericWorking(labelState, topLabels, pathPoint, Theme.P12, step == turnAt - 1 ? RoomType.I2 : RoomType.pickC(rng));
+                        }
+                        placed = true;
+                        return;
+                    }
                 }
-                for (int step = 0; step < 2; step++) {
-                    forward += dForward; side += dSide;
-                    RoomType label = step == 0 ? RoomType.CRYPT_1 : RoomType.CRYPT_2;
-                    builder.label(forward, side, label).edge(prev.forward(), prev.side(), forward, side);
-                    prev = new DungeonCompositeRooms.LocalPoint(forward, side);
-                }
-                DungeonCompositeRooms.Spec chapelCrypt = builder.exit(forward, side).build();
-                DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
-                if (placement == null) continue;
-                boolean occupied = false; for (Point cell : placement.occupiedCells()) { if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; } }
-                if (occupied) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt); continue; }
-                DungeonCompositeRooms.place(adj, null, placement); globalOccupied.addAll(placement.occupiedCells());
-                for (var e : placement.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
-                for (int step = 0; step < pathLocals.size(); step++) {
-                    Point pathPoint = placement.point(pathLocals.get(step));
-                    putGenericWorking(labelState, topLabels, pathPoint, Theme.P12, step == turnAt - 1 ? RoomType.I2 : RoomType.pickC(rng));
-                }
-                return;
             }
-            DungeonFailureLog.compositeReject("CHAPEL_CRYPT", "NO_TURN_VARIANT", k, "pathLen=" + pathLen + " turnAt=" + turnAt);
+            if (!placed) DungeonFailureLog.compositeReject("CHAPEL_CRYPT", "NO_TURN_VARIANT", k, "all pathLen/turnAt variants");
         }
     }
 
@@ -160,13 +164,16 @@ final class DungeonPart4 {
             RoomType vp = topLabels.get(pk);
             if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || vp != RoomType.CUL_DJ) continue;
             Point np = pt.get(pk).iterator().next(); int dx = pk.x() - np.x(), dy = pk.y() - np.y();
-            DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(adj, pk, dx, dy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
-            if (prison == null) continue;
-            boolean occupied = false; for (Point cell : prison.occupiedCells()) { if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; } }
-            if (occupied) continue;
-            DungeonCompositeRooms.place(adj, null, prison); globalOccupied.addAll(prison.occupiedCells());
-            for (var e : prison.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
-            break;
+            int[][] rots = {{dx, dy}, {-dy, dx}, {-dx, -dy}, {dy, -dx}};
+            for (int[] rot : rots) {
+                DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(adj, pk, rot[0], rot[1], DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
+                if (prison == null) continue;
+                boolean occupied = false; for (Point cell : prison.occupiedCells()) { if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; } }
+                if (occupied) continue;
+                DungeonCompositeRooms.place(adj, null, prison); globalOccupied.addAll(prison.occupiedCells());
+                for (var e : prison.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
+                return;
+            }
         }
     }
 
@@ -210,7 +217,7 @@ final class DungeonPart4 {
         for (int ti = 0; ti < 5 && ti < cjKeys.size(); ti++) {
             Point startPoint = cjKeys.get(ti); int adx = cjDirs.get(ti)[0], ady = cjDirs.get(ti)[1];
             Map<Point, Set<Point>> tr = new HashMap<>(); tr.put(startPoint, new HashSet<>()); globalOccupied.add(startPoint);
-            int ci3 = 0, ci4 = 0, target = 9 + rng.nextInt(5);
+            int ci3 = 0, ci4 = 0, target = 11 + rng.nextInt(5);
             List<Point> chain = reservedChains.getOrDefault(startPoint, List.of()); Point prev = startPoint;
             for (Point f : chain) { tr.put(f, new HashSet<>()); tr.get(prev).add(f); tr.get(f).add(prev); prev = f; }
             while (tr.size() < target) {
