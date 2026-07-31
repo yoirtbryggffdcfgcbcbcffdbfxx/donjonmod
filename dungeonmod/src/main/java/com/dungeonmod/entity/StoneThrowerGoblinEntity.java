@@ -46,6 +46,16 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
     boolean climbingLadder = false;
     BlockPos ladderTarget;
     private BlockPos ladderBlockPos;
+    private BlockPos ladderTopPos;
+    /** Phase de retour : 0=sol, 1=montee echelle, 2=sortie (impulsion), 3=atterrissage */
+    private int climbPhase = 0;
+
+    /** Detection unifiee : le gobelin est-il sur sa plateforme ? */
+    public boolean isOnPlatform() {
+        if (platformPos == null) return false;
+        double hDistSq = Math.pow(this.getX() - platformPos.getX(), 2) + Math.pow(this.getZ() - platformPos.getZ(), 2);
+        return hDistSq <= 9.0 && this.getY() >= platformPos.getY() - 1.0 && this.isOnGround();
+    }
 
     public StoneThrowerGoblinEntity(EntityType<? extends StoneThrowerGoblinEntity> entityType, World world) {
         super(entityType, world);
@@ -98,7 +108,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
         }
 
         double hDistSq = Math.pow(this.getX() - platformPos.getX(), 2) + Math.pow(this.getZ() - platformPos.getZ(), 2);
-        boolean onPlatform = hDistSq <= 9.0 && this.getY() >= platformPos.getY() - 1.0;
+        boolean onPlatform = this.isOnPlatform();
 
         // Détection de bord de plateforme : demi-tour (cooldown 20 ticks)
         if (onPlatform && this.age % 20 == 0 && this.getNavigation().isFollowingPath() && PlatformWanderGoal.isNearEdge(this)) {
@@ -148,6 +158,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
         if (bestLadder != null) {
             climbingLadder = true;
             ladderBlockPos = bestLadder;
+            ladderTopPos = bestTop;
             // Calculer la position pile devant la face grimpable
             BlockState ladderState = this.getWorld().getBlockState(bestLadder);
             Direction facing = ladderState.contains(Properties.HORIZONTAL_FACING)
@@ -189,7 +200,7 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
         this.throwCooldown = 40;
     }
 
-    // Goal prioritaire : retour à la plateforme par l'échelle
+    // Goal prioritaire : retour à la plateforme par l'échelle (3 phases déterministes)
     static class ReturnToPlatformGoal extends Goal {
         private final StoneThrowerGoblinEntity goblin;
 
@@ -200,131 +211,87 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
 
         @Override
         public boolean canStart() {
-            if (goblin.platformPos == null) {
-                return false;
-            }
-            double hDistSq = Math.pow(goblin.getX() - goblin.platformPos.getX(), 2) + Math.pow(goblin.getZ() - goblin.platformPos.getZ(), 2);
-            boolean onPlatform = hDistSq <= 9.0 && goblin.getY() >= goblin.platformPos.getY() - 1.0;
-            boolean result = !onPlatform && goblin.isOnGround();
-            return result;
+            return goblin.platformPos != null && !goblin.isOnPlatform() && goblin.isOnGround();
         }
 
         @Override
         public void start() {
             goblin.setTarget(null);
-            if (!goblin.climbingLadder) {
-                goblin.findAndGoToLadder();
-            }
+            goblin.climbPhase = 0;
+            goblin.findAndGoToLadder();
         }
 
         @Override
         public void tick() {
-            if (goblin.climbingLadder && goblin.ladderTarget != null) {
-                // Regarder vers le haut de l'échelle (le bloc ladder, pas le standPos)
-                if (goblin.ladderBlockPos != null) {
-                    goblin.getLookControl().lookAt(
-                        goblin.ladderBlockPos.getX() + 0.5,
-                        goblin.ladderBlockPos.getY() + 2,
-                        goblin.ladderBlockPos.getZ() + 0.5, 30, 30);
-                }
+            if (goblin.platformPos == null) return;
+            if (goblin.isOnPlatform()) { finish(); return; }
 
-                double hDistSq = Math.pow(goblin.getX() - goblin.platformPos.getX(), 2) + Math.pow(goblin.getZ() - goblin.platformPos.getZ(), 2);
-                boolean onPlat = hDistSq <= 9.0 && goblin.getY() >= goblin.platformPos.getY() - 0.5 && goblin.isOnGround();
-                if (onPlat) {
-                    goblin.climbingLadder = false;
-                    goblin.ladderTarget = null;
-                    goblin.ladderBlockPos = null;
-                    return;
-                }
+            boolean touchingLadder = goblin.getWorld().getBlockState(goblin.getBlockPos()).isIn(BlockTags.CLIMBABLE);
 
-                // Vérifier si le gobelin est DANS un bloc grimpable (échelle)
-                boolean touchingLadder = goblin.getWorld().getBlockState(goblin.getBlockPos()).isIn(BlockTags.CLIMBABLE);
-                double hdSq = Math.pow(goblin.getX() - goblin.ladderTarget.getX() - 0.5, 2)
-                    + Math.pow(goblin.getZ() - goblin.ladderTarget.getZ() - 0.5, 2);
-                boolean nearLadder = touchingLadder || hdSq < 4.0;
-
-                // Pousser vers le haut si près de l'échelle (continue jusqu'en haut)
-                if (nearLadder && goblin.getY() < goblin.platformPos.getY() - 0.5) {
-                    goblin.setVelocity(goblin.getVelocity().x, 0.2, goblin.getVelocity().z);
-                    goblin.velocityModified = true;
-                }
-
-                // Pousser horizontalement vers la dalle solide la plus proche (pas les trappes)
-                if (nearLadder && goblin.getY() >= goblin.platformPos.getY() - 2.0 && goblin.getY() < goblin.platformPos.getY() + 0.5) {
-                    BlockPos bp = goblin.getBlockPos();
-                    Vec3d bestDir = null;
-                    double bestDist = Double.MAX_VALUE;
-                    for (int dx = -1; dx <= 1; dx++) {
-                        for (int dz = -1; dz <= 1; dz++) {
-                            if (dx == 0 && dz == 0) continue;
-                            BlockPos pos = new BlockPos(bp.getX() + dx, goblin.platformPos.getY() - 1, bp.getZ() + dz);
-                            BlockState st = goblin.getWorld().getBlockState(pos);
-                            if (!st.isAir() && !(st.getBlock() instanceof net.minecraft.block.TrapdoorBlock)) {
-                                double d = goblin.squaredDistanceTo(Vec3d.ofCenter(pos));
-                                if (d < bestDist) {
-                                    bestDist = d;
-                                    bestDir = new Vec3d(pos.getX() + 0.5 - goblin.getX(), 0, pos.getZ() + 0.5 - goblin.getZ()).normalize();
-                                }
-                            }
+            switch (goblin.climbPhase) {
+                case 0: // Phase sol : marcher jusqu'à la base de l'échelle
+                    if (goblin.ladderTarget != null) {
+                        if (!goblin.getNavigation().isFollowingPath()) {
+                            goblin.getNavigation().startMovingTo(
+                                goblin.ladderTarget.getX(), goblin.ladderTarget.getY(), goblin.ladderTarget.getZ(), 1.0);
+                        }
+                        double d = goblin.squaredDistanceTo(Vec3d.ofCenter(goblin.ladderTarget));
+                        if (d < 1.5 || touchingLadder) {
+                            goblin.climbPhase = 1;
                         }
                     }
-                    if (bestDir != null) {
-                        goblin.addVelocity(bestDir.x * 0.15, 0, bestDir.z * 0.15);
-                    } else {
-                        // Fallback vers le centre de la plateforme
-                        Vec3d toward = new Vec3d(
-                            goblin.platformPos.getX() - goblin.getX(), 0,
-                            goblin.platformPos.getZ() - goblin.getZ()).normalize();
-                        goblin.addVelocity(toward.x * 0.1, 0, toward.z * 0.1);
-                    }
-                }
+                    break;
 
-                // Re-lancer la navigation vers le standPos si perdue
-                if (!goblin.getNavigation().isFollowingPath()) {
-                    int targetY = touchingLadder ? goblin.platformPos.getY()
-                        : Math.max(goblin.ladderTarget.getY(), goblin.getBlockY());
-                    goblin.getNavigation().startMovingTo(
-                        goblin.ladderTarget.getX(), targetY, goblin.ladderTarget.getZ(), 1.0);
-                }
-                // Une fois arrivé au standPos et à l'arrêt → pas vers l'échelle
-                if (!touchingLadder && goblin.ladderBlockPos != null
-                    && !goblin.getNavigation().isFollowingPath()
-                    && goblin.squaredDistanceTo(Vec3d.ofCenter(goblin.ladderTarget)) < 1.5
-                    && goblin.getY() < goblin.platformPos.getY() - 2.0) {
-                    Vec3d towardLadder = new Vec3d(
-                        goblin.ladderBlockPos.getX() + 0.5 - goblin.getX(), 0,
-                        goblin.ladderBlockPos.getZ() + 0.5 - goblin.getZ()).normalize();
-                    goblin.setVelocity(towardLadder.x * 0.15, 0, towardLadder.z * 0.15);
-                    goblin.velocityModified = true;
-                }
-                // Micro-poussée vers le standPos (pour arriver exactement au centre)
-                if (!touchingLadder && goblin.getY() < goblin.platformPos.getY() - 2.0) {
-                    double d = goblin.squaredDistanceTo(Vec3d.ofCenter(
-                        new BlockPos(goblin.ladderTarget.getX(), goblin.getBlockY(), goblin.ladderTarget.getZ())));
-                    if (d > 0.5 && d < 4.0) {
-                        goblin.addVelocity(
-                            (goblin.ladderTarget.getX() + 0.5 - goblin.getX()) * 0.05,
-                            0,
-                            (goblin.ladderTarget.getZ() + 0.5 - goblin.getZ()) * 0.05);
+                case 1: // Phase montée : viser au-dessus du haut de l'échelle, le pathfinding grimpe
+                    if (goblin.ladderTopPos != null) {
+                        goblin.getNavigation().startMovingTo(
+                            goblin.ladderTopPos.getX(), goblin.ladderTopPos.getY() + 1, goblin.ladderTopPos.getZ(), 1.0);
+                        goblin.getLookControl().lookAt(
+                            goblin.ladderTopPos.getX() + 0.5, goblin.ladderTopPos.getY() + 2,
+                            goblin.ladderTopPos.getZ() + 0.5, 30, 30);
                     }
-                }
-            } else if (!goblin.getNavigation().isFollowingPath() && goblin.platformPos != null) {
-                goblin.findAndGoToLadder();
+                    if (touchingLadder && goblin.getY() < goblin.platformPos.getY() - 0.5) {
+                        goblin.setVelocity(goblin.getVelocity().x, 0.2, goblin.getVelocity().z);
+                        goblin.velocityModified = true;
+                    }
+                    if (goblin.getY() >= goblin.platformPos.getY() - 0.5) {
+                        goblin.climbPhase = 2;
+                    }
+                    break;
+
+                case 2: // Phase sortie : UNE impulsion vers le centre de la plateforme
+                    Vec3d toward = new Vec3d(
+                        goblin.platformPos.getX() + 0.5 - goblin.getX(), 0,
+                        goblin.platformPos.getZ() + 0.5 - goblin.getZ()).normalize();
+                    goblin.setVelocity(toward.x * 0.3, 0.15, toward.z * 0.3);
+                    goblin.velocityModified = true;
+                    goblin.climbPhase = 3;
+                    break;
+
+                case 3: // Phase atterrissage : navigation douce vers le centre
+                    goblin.getNavigation().startMovingTo(
+                        goblin.platformPos.getX() + 0.5, goblin.platformPos.getY(),
+                        goblin.platformPos.getZ() + 0.5, 0.6);
+                    break;
             }
+        }
+
+        private void finish() {
+            goblin.climbingLadder = false;
+            goblin.ladderTarget = null;
+            goblin.ladderBlockPos = null;
+            goblin.ladderTopPos = null;
+            goblin.climbPhase = 0;
         }
 
         @Override
         public boolean shouldContinue() {
-            if (goblin.platformPos == null) return false;
-            double hDistSq = Math.pow(goblin.getX() - goblin.platformPos.getX(), 2) + Math.pow(goblin.getZ() - goblin.platformPos.getZ(), 2);
-            boolean onPlatform = hDistSq <= 9.0 && goblin.getY() >= goblin.platformPos.getY() - 1.0 && goblin.isOnGround();
-            return !onPlatform;
+            return goblin.platformPos != null && !goblin.isOnPlatform();
         }
 
         @Override
         public void stop() {
-            goblin.climbingLadder = false;
-            goblin.ladderTarget = null;
+            finish();
         }
     }
 
