@@ -98,14 +98,29 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         super.remove(reason);
     }
 
+    private boolean bossBarTriggered = false;
+
     private void updateBossBar() {
         if (bossBar == null) return;
         bossBar.setPercent(getMaxHealth() > 0 ? getHealth() / getMaxHealth() : 0f);
+        if (roomAnchor != null) {
+            double ax = roomAnchor.getX() + 0.5;
+            double az = roomAnchor.getZ() + 0.5;
+            for (var p : getWorld().getPlayers()) {
+                if (p instanceof ServerPlayerEntity sp
+                        && Math.abs(sp.getX() - ax) <= 5.0 && Math.abs(sp.getZ() - az) <= 5.0) {
+                    bossBarTriggered = true;
+                    break;
+                }
+            }
+        }
         boolean playerVisible = false;
-        for (var p : getWorld().getPlayers()) {
-            if (p instanceof ServerPlayerEntity sp && sp.squaredDistanceTo(this) <= 256.0) {
-                playerVisible = true;
-                break;
+        if (bossBarTriggered) {
+            for (var p : getWorld().getPlayers()) {
+                if (p instanceof ServerPlayerEntity sp && sp.squaredDistanceTo(this) <= 256.0) {
+                    playerVisible = true;
+                    break;
+                }
             }
         }
         bossBar.setVisible(playerVisible);
