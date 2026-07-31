@@ -158,23 +158,29 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
             climbingLadder = true;
             ladderBlockPos = bestLadder;
             ladderTopPos = bestTop;
-            System.out.println("[Lanceur] echelle trouvee a " + bestLadder + " (haut=" + bestTop + ")");
-            // Calculer la position pile devant la face grimpable
-            BlockState ladderState = this.getWorld().getBlockState(bestLadder);
+            // Descendre a la BASE de l'echelle (le standPos doit etre au sol)
+            BlockPos base = bestLadder;
+            while (this.getWorld().getBlockState(base.down()).isIn(BlockTags.CLIMBABLE)) {
+                base = base.down();
+            }
+            System.out.println("[Lanceur] echelle trouvee a " + bestLadder + " (base=" + base
+                + " haut=" + bestTop + ")");
+            // Calculer la position pile devant la face grimpable (a la base, au sol)
+            BlockState ladderState = this.getWorld().getBlockState(base);
             Direction facing = ladderState.contains(Properties.HORIZONTAL_FACING)
                 ? ladderState.get(Properties.HORIZONTAL_FACING) : Direction.NORTH;
             Direction standDir = facing.getOpposite();
             BlockPos standPos = new BlockPos(
-                bestLadder.getX() + standDir.getOffsetX(),
-                bestLadder.getY(),
-                bestLadder.getZ() + standDir.getOffsetZ()
+                base.getX() + standDir.getOffsetX(),
+                base.getY(),
+                base.getZ() + standDir.getOffsetZ()
             );
             // Si le standPos est occupé, essayer l'autre côté
             if (!this.getWorld().getBlockState(standPos).isAir() || !this.getWorld().getBlockState(standPos.up()).isAir()) {
                 BlockPos otherSide = new BlockPos(
-                    bestLadder.getX() + facing.getOffsetX(),
-                    bestLadder.getY(),
-                    bestLadder.getZ() + facing.getOffsetZ()
+                    base.getX() + facing.getOffsetX(),
+                    base.getY(),
+                    base.getZ() + facing.getOffsetZ()
                 );
                 if (this.getWorld().getBlockState(otherSide).isAir()) {
                     standPos = otherSide;
@@ -265,36 +271,37 @@ public class StoneThrowerGoblinEntity extends ZombieEntity {
                         goblin.setVelocity(goblin.getVelocity().x, 0.2, goblin.getVelocity().z);
                         goblin.velocityModified = true;
                     }
-                    // Si a la bonne hauteur mais PAS dans l'echelle : micro-poussee vers l'echelle
-                    if (!touchingLadder && goblin.getY() >= goblin.platformPos.getY() - 1.0
-                            && goblin.ladderTopPos != null) {
-                        Vec3d toward = new Vec3d(
-                            goblin.ladderTopPos.getX() + 0.5 - goblin.getX(), 0,
-                            goblin.ladderTopPos.getZ() + 0.5 - goblin.getZ()).normalize();
-                        goblin.setVelocity(toward.x * 0.2, goblin.getVelocity().y, toward.z * 0.2);
-                        goblin.velocityModified = true;
-                        if (goblin.age % 40 == 0) {
-                            System.out.println("[Lanceur] Phase 1: pousse vers l'echelle (pos="
-                                + goblin.getBlockPos() + " ladder=" + goblin.ladderTopPos + ")");
-                        }
-                    }
-                    if (touchingLadder && goblin.getY() >= goblin.platformPos.getY() - 0.5) {
+                    // Sortie : a la bonne hauteur (dans l'echelle OU juste au-dessus apres etre sorti par le haut)
+                    if (goblin.getY() >= goblin.platformPos.getY() - 0.5) {
                         goblin.climbPhase = 2;
                         System.out.println("[Lanceur] Phase 2 (sortie): y=" + goblin.getY()
                             + " platformY=" + goblin.platformPos.getY());
-                    } else if (!touchingLadder && goblin.getY() >= goblin.platformPos.getY() - 0.5
-                            && goblin.age % 40 == 0) {
-                        System.out.println("[Lanceur] Phase 1 a la bonne hauteur mais PAS dans l'echelle (pos="
-                            + goblin.getBlockPos() + ")");
                     }
                     break;
 
-                case 2: // Phase sortie : UNE impulsion vers le centre de la plateforme
-                    Vec3d toward = new Vec3d(
-                        goblin.platformPos.getX() + 0.5 - goblin.getX(), 0,
-                        goblin.platformPos.getZ() + 0.5 - goblin.getZ()).normalize();
-                    goblin.setVelocity(toward.x * 0.3, 0.15, toward.z * 0.3);
-                    goblin.velocityModified = true;
+                case 2: // Phase sortie : UNE impulsion vers la dalle solide la plus proche
+                    Vec3d bestDir = null;
+                    double bestDist = Double.MAX_VALUE;
+                    BlockPos bp = goblin.getBlockPos();
+                    for (int dx = -2; dx <= 2; dx++) {
+                        for (int dz = -2; dz <= 2; dz++) {
+                            if (dx == 0 && dz == 0) continue;
+                            BlockPos pos = new BlockPos(bp.getX() + dx, goblin.platformPos.getY() - 1, bp.getZ() + dz);
+                            BlockState st = goblin.getWorld().getBlockState(pos);
+                            if (st.isAir()) continue;
+                            if (st.getBlock() instanceof net.minecraft.block.TrapdoorBlock) continue;
+                            if (!goblin.getWorld().getBlockState(pos.up()).isAir()) continue;
+                            double d = goblin.squaredDistanceTo(Vec3d.ofCenter(pos));
+                            if (d < bestDist) {
+                                bestDist = d;
+                                bestDir = new Vec3d(pos.getX() + 0.5 - goblin.getX(), 0, pos.getZ() + 0.5 - goblin.getZ()).normalize();
+                            }
+                        }
+                    }
+                    if (bestDir != null) {
+                        goblin.setVelocity(bestDir.x * 0.35, 0.12, bestDir.z * 0.35);
+                        goblin.velocityModified = true;
+                    }
                     goblin.climbPhase = 3;
                     break;
 
