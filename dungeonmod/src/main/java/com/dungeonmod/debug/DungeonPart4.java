@@ -244,19 +244,25 @@ final class DungeonPart4 {
         int mjT = 5 + rng.nextInt(6); Map<Point, Integer> treeForNode = new HashMap<>(); for (int ti = 0; ti < allTrees.size(); ti++) for (Point k : allTrees.get(ti).keySet()) treeForNode.put(k, ti);
         Set<Point> mjPlacedKeys = new HashSet<>(); Map<Integer, Set<RoomType>> mjTypesOnTree = new HashMap<>(); for (int ti = 0; ti < allTrees.size(); ti++) mjTypesOnTree.put(ti, new HashSet<>());
         for (int attempt = 0; attempt < 50 && mjPlacedKeys.size() < mjT; attempt++) {
-            Point best = null; RoomType bestType = null;
-            for (Point k : topLabels.keySet()) { if (mjPlacedKeys.contains(k) || goblinCells.contains(k) || isHubExit.test(k)) continue; if (mjPlacedKeys.size() >= mjT) break;
+            List<Object[]> cands = new ArrayList<>();
+            for (Point k : topLabels.keySet()) { if (mjPlacedKeys.contains(k) || goblinCells.contains(k) || isHubExit.test(k)) continue;
                 RoomType v = topLabels.get(k); if (v == null) continue;
                 boolean isLeaf = v == RoomType.CUL_DJ; boolean isCorr = v.isDjCorridor() || v.isGoblinCorridor();
                 if (!isLeaf && !isCorr) continue;
                 if (!DungeonConstraints.isFarFromAll(adj, k, mjPlacedKeys, DungeonAlgo.MONSTER_MIN_DIST)) continue;
                 int ti = treeForNode.getOrDefault(k, -1); Set<RoomType> usedOnTree = mjTypesOnTree.getOrDefault(ti, new HashSet<>());
                 List<RoomType> pool = isLeaf ? RoomType.LEAF_MONSTERS_P3_P4 : RoomType.CORRIDOR_MONSTERS_P3_P4;
-                RoomType availType = null; for (RoomType t : pool) if (!usedOnTree.contains(t)) { availType = t; break; }
-                if (availType == null) continue; best = k; bestType = availType; break;
+                for (RoomType t : pool) if (!usedOnTree.contains(t)) cands.add(new Object[]{k, t, ti});
             }
-            if (best != null) { putSpecial(labelState, topLabels, best, bestType); mjPlacedKeys.add(best); int ti = treeForNode.getOrDefault(best, -1); if (ti >= 0) mjTypesOnTree.get(ti).add(bestType); }
+            if (cands.isEmpty()) break;
+            Object[] ch = cands.get(rng.nextInt(cands.size()));
+            Point best = (Point) ch[0]; RoomType bestType = (RoomType) ch[1]; int ti = (int) ch[2];
+            putSpecial(labelState, topLabels, best, bestType); mjPlacedKeys.add(best);
+            if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
         }
+        if (!(topLabels.containsValue(RoomType.MONSTER_DJ_1) && topLabels.containsValue(RoomType.MONSTER_DJ_2)
+            && topLabels.containsValue(RoomType.MONSTER_DJ_3) && topLabels.containsValue(RoomType.MONSTER_DJ_4)
+            && topLabels.containsValue(RoomType.MONSTER_DJ_5))) return false;
         for (var e : new ArrayList<>(topLabels.entrySet())) { if (e.getValue() == RoomType.CUL_DJ && !isHubExit.test(e.getKey())) { putSpecial(labelState, topLabels, e.getKey(), RoomType.BLACK_MARKET); break; } }
         if (missingLootType != null) {
             RoomType missingLT = RoomType.byId(missingLootType);
@@ -278,8 +284,9 @@ final class DungeonPart4 {
         boolean hlt = topLabels.containsValue(RoomType.LOOT_DJ_1) || topLabels.containsValue(RoomType.LOOT_DJ_2) || topLabels.containsValue(RoomType.LOOT_DJ_3);
         boolean hPuitDJ = topLabels.containsValue(RoomType.WELL_DJ);
         int gbc = 0; for (RoomType v : topLabels.values()) if (v == RoomType.GOBLIN_WELL || v == RoomType.GOBLIN_MARCH || v == RoomType.GOBLIN_ARMORY || v == RoomType.GOBLIN_TREASURE) gbc++;
-        boolean hmg = false; for (RoomType v : topLabels.values()) if (v != null && v.isGoblinHouse()) { hmg = true; break; }
-        return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc >= 2 && mjPlacedKeys.size() >= 5;
+        boolean hmg = false; int hmgCount = 0; for (RoomType v : topLabels.values()) if (v != null && v.isGoblinHouse()) { hmgCount++; }
+        hmg = hmgCount >= 3;
+        return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc == 4 && mjPlacedKeys.size() >= 5;
     }
 
     private static boolean isStraight(Point p1, Point p2) { return p1.x() == p2.x() || p1.y() == p2.y(); }

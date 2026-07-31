@@ -103,7 +103,7 @@ final class DungeonPart2 {
             if (!hasAdj) { lootLeaf = n; break; }
         }
         if (lootLeaf == null) { for (Point n : remain) { if (!labelState.hasSpecial(n)) { lootLeaf = n; break; } } }
-        labelState.putSpecial(lootLeaf, RoomType.LOOT_1);
+        labelState.putSpecial(lootLeaf, RoomType.GARDE_MANGER);
 
         Point m4Corr = null;
         for (Point n : cList) {
@@ -137,27 +137,27 @@ final class DungeonPart2 {
 
         List<Point> remC = new ArrayList<>();
         for (Point n : cList) { if (!labelState.hasSpecial(n)) remC.add(n); }
-        if (!remC.isEmpty()) {
-            Point pn = null;
-            for (Point n : remC) {
-                if (!pathSet.contains(n)) {
-                    boolean adjSpecial = false;
-                    for (Point nb : adj.get(n)) {
-                        RoomType lbl = specials.get(nb);
-                        if (lbl != null && (lbl == RoomType.OGRE || lbl == RoomType.FOUNTAIN || lbl == RoomType.LOOT_1
-                            || lbl == RoomType.MONSTER_1 || lbl == RoomType.MONSTER_2 || lbl == RoomType.MONSTER_3
-                            || lbl == RoomType.MONSTER_4 || lbl == RoomType.MONSTER_5)) {
-                            adjSpecial = true; break;
-                        }
+        if (remC.isEmpty()) return null;
+        Point pn = null;
+        for (Point n : remC) {
+            if (!pathSet.contains(n)) {
+                boolean adjSpecial = false;
+                for (Point nb : adj.get(n)) {
+                    RoomType lbl = specials.get(nb);
+                    if (lbl != null && (lbl == RoomType.OGRE || lbl == RoomType.FOUNTAIN || lbl == RoomType.LOOT_1
+                        || lbl == RoomType.GARDE_MANGER
+                        || lbl == RoomType.MONSTER_1 || lbl == RoomType.MONSTER_2 || lbl == RoomType.MONSTER_3
+                        || lbl == RoomType.MONSTER_4 || lbl == RoomType.MONSTER_5)) {
+                        adjSpecial = true; break;
                     }
-                    if (!adjSpecial) { pn = n; break; }
                 }
+                if (!adjSpecial) { pn = n; break; }
             }
-            if (pn == null) { for (Point n : remC) { if (!pathSet.contains(n)) { pn = n; break; } } }
-            if (pn == null) pn = remC.get(0);
-            labelState.putSpecial(pn, RoomType.WELL);
-            remC.remove(pn);
         }
+        if (pn == null) { for (Point n : remC) { if (!pathSet.contains(n)) { pn = n; break; } } }
+        if (pn == null) pn = remC.get(0);
+        labelState.putSpecial(pn, RoomType.WELL);
+        remC.remove(pn);
 
         List<Point> genericOrder = new ArrayList<>();
         genericOrder.addAll(leaves);
@@ -272,7 +272,7 @@ final class DungeonPart2 {
             Shape shape = DungeonLabels.shapeOf(adj.getOrDefault(e.getKey(), Set.of()));
             if (label == RoomType.OGRE || label == RoomType.FOUNTAIN
                     || label == RoomType.MONSTER_1 || label == RoomType.MONSTER_3
-                    || label == RoomType.LOOT_1) {
+                    || label == RoomType.LOOT_1 || label == RoomType.GARDE_MANGER) {
                 if (shape != Shape.DEAD_END) return false;
             } else if (label == RoomType.MONSTER_2 || label == RoomType.MONSTER_4
                     || label == RoomType.MONSTER_5 || label == RoomType.WELL) {

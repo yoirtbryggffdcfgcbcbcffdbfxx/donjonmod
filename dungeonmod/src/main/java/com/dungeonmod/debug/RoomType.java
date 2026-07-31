@@ -51,6 +51,7 @@ public enum RoomType {
     TAVERN_3("T3"),
     TAVERN_4("T4"),
     LOOT_1("Loot1"),
+    GARDE_MANGER("GardeManger"),
     MONSTER_1("M1"),
     MONSTER_2("M2"),
     MONSTER_3("M3"),

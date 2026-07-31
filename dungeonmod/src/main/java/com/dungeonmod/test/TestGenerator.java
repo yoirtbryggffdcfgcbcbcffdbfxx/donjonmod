@@ -177,6 +177,7 @@ public class TestGenerator {
             registerRoom("D", "/test_structures/salle_depart.nbt");
             registerRoom("Prison", "/test_structures/salle_prison.nbt");
             registerRoom("Loot1", "/test_structures/salle_loot_1.nbt");
+            registerRoom("GardeManger", "/test_structures/salle_garde_manger.nbt");
             registerRoom("M1", "/test_structures/salle_monstre_1.nbt");
             registerRoom("M2", "/test_structures/salle_monstre_2.nbt");
             registerRoom("M5", "/test_structures/salle_monstre_5.nbt");
@@ -535,13 +536,23 @@ public class TestGenerator {
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
 
-            // M5 = couloir monstre structurel, PAS de spawn pour l'instant
             if ("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey)) {
                 for (int[] off : normalOffsets) {
                     int rx = rotateX(off[0], off[1], rc.rot);
                     int rz = rotateZ(off[0], off[1], rc.rot);
                     spawnNormalGoblin(world, wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
                 }
+            } else if ("M5".equals(rc.typeKey)) {
+                int rx = rotateX(4, 4, rc.rot);
+                int rz = rotateZ(4, 4, rc.rot);
+                var boss = new com.dungeonmod.entity.GoblinMinibossEntity(
+                    com.dungeonmod.entity.GoblinMinibossEntity.TYPE, world);
+                boss.setPosition(wx + rx + 0.5, oy + 1.0, wz + rz + 0.5);
+                boss.setPersistent();
+                boss.setCustomName(net.minecraft.text.Text.literal("§cMiniboss Gobelin"));
+                boss.setCustomNameVisible(false);
+                boss.setRoomAnchor(wx + CELL / 2.0, oy, wz + CELL / 2.0);
+                world.spawnEntity(boss);
             } else if ("Ogre".equals(rc.typeKey)) {
                 int rx = rotateX(4, 4, rc.rot);
                 int rz = rotateZ(4, 4, rc.rot);
@@ -550,10 +561,9 @@ public class TestGenerator {
                 ogre.setPersistent();
                 ogre.setCustomName(net.minecraft.text.Text.literal("§eCyclope"));
                 ogre.setCustomNameVisible(false);
-                ogre.roomMinX = wx; ogre.roomMaxX = wx + CELL;
-                ogre.roomMinZ = wz; ogre.roomMaxZ = wz + CELL;
                 int[] ports = getWorldPorts(rc.typeKey, rc.rot);
-                if (ports.length > 0) ogre.roomFacing = ports[0] * 90.0f;
+                float facing = (ports.length > 0) ? ports[0] * 90.0f : 0f;
+                ogre.setRoom(wx, wx + CELL, wz, wz + CELL, facing);
                 world.spawnEntity(ogre);
             } else if ("M3".equals(rc.typeKey) || "M4".equals(rc.typeKey)) {
                 int[][] m34BottomOffsets = {{3, 6}, {6, 6}};

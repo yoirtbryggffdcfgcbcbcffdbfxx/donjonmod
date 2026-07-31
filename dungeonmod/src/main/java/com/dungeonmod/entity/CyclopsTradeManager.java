@@ -16,7 +16,10 @@ public class CyclopsTradeManager {
     }
 
     public void startDialogue(PlayerEntity player) {
-        if (ogre.getPhase() != 4 || ogre.deathStage != 3) return;
+        // Phase DEAD = le boss est mort (peu importe le deathStage interne).
+        // On accepte le dialogue dès la bascule en DEAD, pas besoin d'attendre
+        // la fin de la cinétique.
+        if (ogre.getPhase() != 4) return;
         if (ogre.dialogueTicks > 0) return;
         if (player instanceof ServerPlayerEntity sp) {
             com.dungeonmod.DungeonMod.npcShopCache.put(sp.getUuid(), ogre.getUuid());
@@ -41,6 +44,7 @@ public class CyclopsTradeManager {
 
     public ActionResult openTradeShop(PlayerEntity player) {
         if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+        if (ogre.dialogueTicks > 0) return ActionResult.SUCCESS;
         if (ogre.usedTradeIndices.size() >= 4 || ogre.clothsGiven >= 4) {
             sendSubtitles(player, com.dungeonmod.client.dialogue.CyclopsDialogue.ALL_GIVEN);
             return ActionResult.SUCCESS;
@@ -112,8 +116,16 @@ public class CyclopsTradeManager {
 
     public void sendSubtitles(PlayerEntity player, List<String> lines) {
         if (player instanceof ServerPlayerEntity sp) {
-            int totalTicks = (lines.size() * 60) + 20;
-            if (totalTicks > ogre.dialogueTicks) ogre.dialogueTicks = totalTicks;
+            // Cooldown anti-spam côté serveur. Le compteur est lu par
+            // BossEntity.damage() via OgreEntity.getPostMortemCooldown() et
+            // décrémenté dans OgreEntity.tickDeath().
+            // On met 200 ticks (10 sec) pour largement couvrir la durée
+            // d'affichage côté client (TICKS_PER_LINE=90 par ligne dans
+            // SubtitleOverlay). Sans ça, un clic qui ferme le dialogue
+            // (ou qui skip le typing) peut arriver APRÈS l'expiration du
+            // cooldown serveur alors que le client affiche encore, et ça
+            // relance le même dialogue.
+            ogre.dialogueTicks = 100;
             net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp, new com.dungeonmod.network.SubtitlePayload("Cyclope", lines, true));
         }
     }

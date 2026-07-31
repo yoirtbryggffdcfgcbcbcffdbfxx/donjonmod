@@ -137,9 +137,16 @@ final class DungeonPart1 {
                 }
                 if (!validC.isEmpty()) {
                     Point m4Point = validC.get(rng.nextInt(validC.size()));
-                    labelState.putSpecial(m4Point, RoomType.MONSTER_4);
-                    monsters.add(m4Point);
-                    secondMonster = "M4";
+                    if (rng.nextBoolean()) {
+                        labelState.putSpecial(prisonParent, RoomType.MONSTER_4);
+                        labelState.putSpecial(m4Point, RoomType.MONSTER_2);
+                        monsters.add(m4Point);
+                        secondMonster = "M2";
+                    } else {
+                        labelState.putSpecial(m4Point, RoomType.MONSTER_4);
+                        monsters.add(m4Point);
+                        secondMonster = "M4";
+                    }
                 }
             } else {
                 Point m3 = DungeonConstraints.firstFar(adj, freeLeaves, monsters, DungeonAlgo.MONSTER_MIN_DIST);
@@ -153,9 +160,11 @@ final class DungeonPart1 {
         }
         if (secondMonster == null) return null;
 
+        boolean wellPlaced = false;
         for (Point n : cNodes) {
-            if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomType.WELL); break; }
+            if (!labelState.hasSpecial(n)) { labelState.putSpecial(n, RoomType.WELL); wellPlaced = true; break; }
         }
+        if (!wellPlaced) return null;
 
         List<Point> genericOrder = new ArrayList<>();
         genericOrder.addAll(freeLeaves);

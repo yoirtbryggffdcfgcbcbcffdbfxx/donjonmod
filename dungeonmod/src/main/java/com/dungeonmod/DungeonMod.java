@@ -94,7 +94,8 @@ public class DungeonMod implements ModInitializer {
             net.minecraft.entity.mob.ZombieEntity.createZombieAttributes()
                 .add(net.minecraft.entity.attribute.EntityAttributes.MAX_HEALTH, Float.MAX_VALUE)
                 .add(net.minecraft.entity.attribute.EntityAttributes.MOVEMENT_SPEED, 0.0));
-        com.dungeonmod.entity.OgreEntity.registerAttributes();
+        com.dungeonmod.entity.        OgreEntity.registerAttributes();
+        com.dungeonmod.entity.GoblinMinibossEntity.registerAttributes();
         BOUT_TISSU = net.minecraft.registry.Registry.register(
             net.minecraft.registry.Registries.ITEM,
             net.minecraft.util.Identifier.of("dungeonmod", "bout_tissu"),

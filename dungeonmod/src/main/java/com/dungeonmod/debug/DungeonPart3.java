@@ -206,6 +206,7 @@ final class DungeonPart3 {
             }
             if (shopNode != null) break;
         }
+        if (shopNode == null) return null;
 
         Set<Point> allNodes = new HashSet<>(adj.keySet());
         List<Point> leaves = new ArrayList<>(), internals = new ArrayList<>();
@@ -274,7 +275,7 @@ final class DungeonPart3 {
         if (p3LootA == RoomType.LOOT_DJ_2 || p3LootB == RoomType.LOOT_DJ_2) { leafLoot = 1; corrLoot = 1; }
         else { leafLoot = 2; corrLoot = 0; }
 
-        int targetM3 = 4 + rng.nextInt(3);
+        int targetM3 = 5 + rng.nextInt(2);
         int availLeafM = Math.max(0, leaves.size() - leafLoot - 2);
         if (availLeafM + cjList.size() < targetM3 || leaves.size() < leafLoot + 2) return null;
         int leafM3 = Math.min(targetM3, availLeafM);
@@ -289,28 +290,34 @@ final class DungeonPart3 {
 
         Set<Point> mjSet = DungeonConstraints.monsterPoints(specials);
         int placedLeafM3 = 0;
+        List<RoomType> leafPool = new ArrayList<>(RoomType.LEAF_MONSTERS_P3_P4);
+        Collections.shuffle(leafPool, rng);
         while (placedLeafM3 < leafM3 && li < leaves.size()) {
             Point cand = leaves.get(li++);
             if (!DungeonConstraints.isFarFromAll(adj, cand, mjSet, DungeonAlgo.MONSTER_MIN_DIST)) continue;
-            labelState.putSpecial(cand, RoomType.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3))); mjSet.add(cand); placedLeafM3++;
+            RoomType type = placedLeafM3 < 3 ? leafPool.get(placedLeafM3) : RoomType.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3));
+            labelState.putSpecial(cand, type); mjSet.add(cand); placedLeafM3++;
         }
         if (placedLeafM3 < leafM3) return null;
 
         List<Point> restLeaves = new ArrayList<>();
         for (int i = leafLoot; i < leaves.size(); i++) if (!labelState.hasSpecial(leaves.get(i))) restLeaves.add(leaves.get(i));
         restLeaves.sort(Comparator.comparingInt(lp -> -Math.abs(lp.x() - campExit.x()) - Math.abs(lp.y() - campExit.y())));
-        for (Point n : restLeaves) {
-            if (n.equals(restLeaves.get(0))) labelState.putSpecial(n, RoomType.GARDEN);
-            else if (restLeaves.size() > 1 && n.equals(restLeaves.get(1))) labelState.putSpecial(n, RoomType.STATUE);
-        }
+        if (restLeaves.size() < 2) return null;
+        labelState.putSpecial(restLeaves.get(0), RoomType.GARDEN);
+        labelState.putSpecial(restLeaves.get(1), RoomType.STATUE);
 
         if (cjList.size() < corrM3 + corrLoot + 1) return null;
         Collections.shuffle(cjList, rng);
         int mjPlaced = 0; List<Point> remCJ = new ArrayList<>();
+        List<RoomType> corrPool = new ArrayList<>(RoomType.CORRIDOR_MONSTERS_P3_P4);
+        Collections.shuffle(corrPool, rng);
         for (Point n : cjList) {
             if (mjPlaced < corrM3) {
-                if (DungeonConstraints.isFarFromAll(adj, n, mjSet, DungeonAlgo.MONSTER_MIN_DIST)) { labelState.putSpecial(n, RoomType.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2))); mjSet.add(n); mjPlaced++; }
-                else remCJ.add(n);
+                if (DungeonConstraints.isFarFromAll(adj, n, mjSet, DungeonAlgo.MONSTER_MIN_DIST)) {
+                    RoomType type = mjPlaced < 2 ? corrPool.get(mjPlaced) : RoomType.CORRIDOR_MONSTERS_P3_P4.get(rng.nextInt(2));
+                    labelState.putSpecial(n, type); mjSet.add(n); mjPlaced++;
+                } else remCJ.add(n);
             } else remCJ.add(n);
         }
         int lc = 0;

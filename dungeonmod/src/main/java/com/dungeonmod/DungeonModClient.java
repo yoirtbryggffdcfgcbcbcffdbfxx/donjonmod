@@ -35,6 +35,7 @@ public class DungeonModClient implements ClientModInitializer {
         EntityRendererRegistry.register(StoneEntity.CYCLOPS_STONE_TYPE, ctx -> new net.minecraft.client.render.entity.FlyingItemEntityRenderer<>(ctx, 6.0f, false));
         EntityRendererRegistry.register(StoneThrowerGoblinEntity.THROWER_TYPE, net.minecraft.client.render.entity.ZombieEntityRenderer::new);
         EntityRendererRegistry.register(com.dungeonmod.entity.OgreEntity.TYPE, com.dungeonmod.entity.OgreRenderer::new);
+        EntityRendererRegistry.register(com.dungeonmod.entity.GoblinMinibossEntity.TYPE, com.dungeonmod.entity.GoblinMinibossRenderer::new);
         EntityRendererRegistry.register(com.dungeonmod.entity.BarmanEntity.TYPE, com.dungeonmod.entity.BarmanRenderer::new);
         EntityRendererRegistry.register(com.dungeonmod.entity.GaspardEntity.TYPE, com.dungeonmod.entity.GaspardRenderer::new);
         EntityRendererRegistry.register(com.dungeonmod.entity.EliasEntity.TYPE, com.dungeonmod.entity.EliasRenderer::new);
