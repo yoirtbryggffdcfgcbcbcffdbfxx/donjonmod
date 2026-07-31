@@ -117,6 +117,7 @@ final class DungeonPart4 {
             Point mb = ct.get(k).iterator().next(); int dx = k.x() - mb.x(), dy = k.y() - mb.y();
             if (k.move(dx, dy).isOutOfBounds() || globalOccupied.contains(k.move(dx, dy))) continue;
             boolean placed = false;
+            boolean logged = false;
             for (int pathLen = 3; pathLen <= 5 && !placed; pathLen++) {
                 for (int turnAt = 1; turnAt < pathLen && !placed; turnAt++) {
                     for (int turnDir : new int[]{1, -1}) {
@@ -141,7 +142,7 @@ final class DungeonPart4 {
                         DungeonCompositeRooms.Placement placement = DungeonCompositeRooms.plan(adj, k, dx, dy, chapelCrypt, Set.of(k));
                         if (placement == null) continue;
                         boolean occupied = false; for (Point cell : placement.occupiedCells()) { if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; break; } }
-                        if (occupied) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt); continue; }
+                        if (occupied) { if (!logged) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt); logged = true; } continue; }
                         DungeonCompositeRooms.place(adj, null, placement); globalOccupied.addAll(placement.occupiedCells());
                         for (var e : placement.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
                         for (int step = 0; step < pathLocals.size(); step++) {
@@ -164,16 +165,13 @@ final class DungeonPart4 {
             RoomType vp = topLabels.get(pk);
             if (pt.get(pk).size() != 1 || pk.equals(ps) || vp == null || vp != RoomType.CUL_DJ) continue;
             Point np = pt.get(pk).iterator().next(); int dx = pk.x() - np.x(), dy = pk.y() - np.y();
-            int[][] rots = {{dx, dy}, {-dy, dx}, {-dx, -dy}, {dy, -dx}};
-            for (int[] rot : rots) {
-                DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(adj, pk, rot[0], rot[1], DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
-                if (prison == null) continue;
-                boolean occupied = false; for (Point cell : prison.occupiedCells()) { if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; } }
-                if (occupied) continue;
-                DungeonCompositeRooms.place(adj, null, prison); globalOccupied.addAll(prison.occupiedCells());
-                for (var e : prison.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
-                return;
-            }
+            DungeonCompositeRooms.Placement prison = DungeonCompositeRooms.plan(adj, pk, dx, dy, DungeonCompositeRooms.PRISON_CENTRAL, Set.of(pk));
+            if (prison == null) continue;
+            boolean occupied = false; for (Point cell : prison.occupiedCells()) { if (!cell.equals(pk) && globalOccupied.contains(cell)) { occupied = true; break; } }
+            if (occupied) continue;
+            DungeonCompositeRooms.place(adj, null, prison); globalOccupied.addAll(prison.occupiedCells());
+            for (var e : prison.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
+            return;
         }
     }
 
