@@ -183,9 +183,16 @@ final class DungeonCompositeRooms {
 
     static Placement plan(Map<Point, Set<Point>> adj, Point anchor, int dx, int dy, Spec spec,
                           Set<Point> allowedExisting) {
+        return plan(adj, anchor, dx, dy, spec, allowedExisting, null);
+    }
+
+    static Placement plan(Map<Point, Set<Point>> adj, Point anchor, int dx, int dy, Spec spec,
+                          Set<Point> allowedExisting, Set<LocalPoint> overlappableNodes) {
         Map<LocalPoint, Point> world = new LinkedHashMap<>();
         Set<Point> unique = new HashSet<>();
         Set<Point> allowed = allowedExisting == null ? Set.of() : allowedExisting;
+        Set<LocalPoint> overlappable = overlappableNodes == null ? Set.of() : overlappableNodes;
+        
         for (LocalPoint local : spec.nodes) {
             Point p = toWorld(anchor, dx, dy, local);
             if (p.isOutOfBounds()) {
@@ -193,7 +200,7 @@ final class DungeonCompositeRooms {
                         "local=" + local + " world=" + p.key());
                 return null;
             }
-            if (!allowed.contains(p) && adj.containsKey(p)) {
+            if (!allowed.contains(p) && adj.containsKey(p) && !overlappable.contains(local)) {
                 DungeonFailureLog.compositeReject(spec.name, "ADJ_OCCUPIED", anchor,
                         "local=" + local + " world=" + p.key());
                 return null;
@@ -206,6 +213,30 @@ final class DungeonCompositeRooms {
             world.put(local, p);
         }
         return new Placement(spec, anchor, dx, dy, world);
+    }
+
+    /**
+     * Vérifie si toutes les cellules d'une spec sont libres dans adj.
+     * Solution "Chirurgicale" : Pré-vérification avant l'appel à plan().
+     */
+    static boolean isSpaceFree(Map<Point, Set<Point>> adj, Point anchor, int dx, int dy, Spec spec) {
+        return isSpaceFree(adj, anchor, dx, dy, spec, Set.of());
+    }
+
+    /**
+     * Vérifie si toutes les cellules d'une spec sont libres dans adj, en autorisant certaines cellules existantes.
+     */
+    static boolean isSpaceFree(Map<Point, Set<Point>> adj, Point anchor, int dx, int dy, Spec spec,
+                               Set<Point> allowedExisting) {
+        Set<Point> allowed = allowedExisting == null ? Set.of() : allowedExisting;
+        for (LocalPoint local : spec.nodes) {
+            Point world = toWorld(anchor, dx, dy, local);
+            if (world.isOutOfBounds()) return false;
+            if (!allowed.contains(world) && adj.containsKey(world)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static void place(Map<Point, Set<Point>> adj, Point externalEntry, Placement placement) {
