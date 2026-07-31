@@ -17,6 +17,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.world.World;
@@ -32,6 +33,10 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
 
     private static final int ATTACK_MAIN = 1;
     private static final int ATTACK_PIED = 2;
+    private static final int ATTACK_MAIN_DAMAGE_TICK = 30;  // 1.5s → impact
+    private static final int ATTACK_PIED_DAMAGE_TICK = 20;  // 1.0s → impact
+    private static final int ATTACK_MAIN_ANIM_TICKS = 50;   // animation 2.5s
+    private static final int ATTACK_PIED_ANIM_TICKS = 30;   // animation 1.5s
 
     private static final TrackedData<Integer> ATTACK_TYPE =
         DataTracker.registerData(GoblinMinibossEntity.class, TrackedDataHandlerRegistry.INTEGER);
@@ -45,6 +50,7 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     private int attackCooldown = 0;
+    private int attackStartAge = -1;
 
     public GoblinMinibossEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
@@ -67,15 +73,23 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar registrar) {
+        final boolean[] wasMoving = {false};
         registrar.add(new AnimationController<>(this, "main", 5, state -> {
             int atk = dataTracker.get(ATTACK_TYPE);
             if (atk != 0) {
                 String anim = atk == ATTACK_MAIN ? "Attaque_main_1" : "attaque_pied";
                 return state.setAndContinue(RawAnimation.begin().thenPlay(anim));
             }
-            if (getVelocity().horizontalLengthSquared() > 0.0001) {
+            boolean moving = getVelocity().horizontalLengthSquared() > 0.0001 || state.isMoving();
+            if (moving && !wasMoving[0]) {
+                wasMoving[0] = true;
                 return state.setAndContinue(RawAnimation.begin().thenLoop("Marche"));
             }
+            if (!moving && wasMoving[0]) {
+                wasMoving[0] = false;
+                return PlayState.STOP;
+            }
+            if (moving) return PlayState.CONTINUE;
             return PlayState.CONTINUE;
         }));
     }
@@ -88,12 +102,20 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         super.tick();
         if (attackCooldown > 0) attackCooldown--;
         int atk = dataTracker.get(ATTACK_TYPE);
-        if (atk != 0 && handSwingTicks == 0) {
-            dataTracker.set(ATTACK_TYPE, 0);
+        if (atk != 0 && attackStartAge >= 0) {
+            int animTicks = atk == ATTACK_MAIN ? ATTACK_MAIN_ANIM_TICKS : ATTACK_PIED_ANIM_TICKS;
+            if (age - attackStartAge >= animTicks) {
+                dataTracker.set(ATTACK_TYPE, 0);
+                attackStartAge = -1;
+            }
         }
     }
 
     private class MinibossAttackGoal extends Goal {
+        private int attackType = 0;
+        private int startAge = 0;
+        private boolean damageApplied = false;
+
         @Override
         public boolean canStart() {
             if (attackCooldown > 0) return false;
@@ -105,17 +127,31 @@ public class GoblinMinibossEntity extends PathAwareEntity implements GeoEntity {
         public void start() {
             LivingEntity target = getTarget();
             if (target == null) return;
-            int atk = random.nextBoolean() ? ATTACK_PIED : ATTACK_MAIN;
-            dataTracker.set(ATTACK_TYPE, atk);
+            attackType = random.nextBoolean() ? ATTACK_PIED : ATTACK_MAIN;
+            dataTracker.set(ATTACK_TYPE, attackType);
+            attackStartAge = age;
             swingHand(Hand.MAIN_HAND);
-            float dmg = atk == ATTACK_PIED ? 4.0f : 3.0f;
-            target.damage((net.minecraft.server.world.ServerWorld)getWorld(), getDamageSources().mobAttack(GoblinMinibossEntity.this), dmg);
-            attackCooldown = atk == ATTACK_PIED ? 20 : 30;
+            startAge = age;
+            damageApplied = false;
             getNavigation().stop();
         }
 
         @Override
-        public boolean shouldContinue() { return false; }
+        public void tick() {
+            if (damageApplied) return;
+            LivingEntity target = getTarget();
+            if (target == null || !target.isAlive()) { damageApplied = true; return; }
+            int delay = attackType == ATTACK_PIED ? ATTACK_PIED_DAMAGE_TICK : ATTACK_MAIN_DAMAGE_TICK;
+            if (age - startAge >= delay) {
+                float dmg = attackType == ATTACK_PIED ? 4.0f : 3.0f;
+                target.damage((ServerWorld)getWorld(), getDamageSources().mobAttack(GoblinMinibossEntity.this), dmg);
+                damageApplied = true;
+                attackCooldown = attackType == ATTACK_PIED ? 20 : 30;
+            }
+        }
+
+        @Override
+        public boolean shouldContinue() { return !damageApplied; }
     }
 
     public static void registerAttributes() {
