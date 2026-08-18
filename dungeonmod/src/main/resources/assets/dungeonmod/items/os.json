@@ -4,11 +4,11 @@
     "property": "minecraft:using_item",
     "on_false": {
       "type": "minecraft:model",
-      "model": "dungeonmod:item/caillou"
+      "model": "dungeonmod:item/os"
     },
     "on_true": {
       "type": "minecraft:model",
-      "model": "dungeonmod:item/caillou_charging"
+      "model": "dungeonmod:item/os_charging"
     }
   }
 }

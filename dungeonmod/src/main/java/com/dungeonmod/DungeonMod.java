@@ -435,43 +435,23 @@ public class DungeonMod implements ModInitializer {
             }
 
             if (isBaton(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp && canThrow(sp) && !com.dungeonmod.util.CraftingHelper.wasJustCrafted(sp)) {
-                    var snowball = new net.minecraft.entity.projectile.thrown.SnowballEntity(world, sp, stack);
-                    snowball.setVelocity(sp, sp.getPitch(), sp.getYaw(), 0.0f, 1.5f, 0.0f);
-                    world.spawnEntity(snowball);
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
+                // Charge au clic droit puis relâcher (ThrownItemChargeMixin)
+                return ActionResult.PASS;
             }
 
             if (isCaillou(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp && canThrow(sp)) {
-                    var snowball = new net.minecraft.entity.projectile.thrown.SnowballEntity(world, sp, stack);
-                    snowball.setVelocity(sp, sp.getPitch(), sp.getYaw(), 0.0f, 1.5f, 0.0f);
-                    world.spawnEntity(snowball);
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
+                // Charge au clic droit puis relâcher (ThrownItemChargeMixin)
+                return ActionResult.PASS;
             }
 
             if (isOs(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp && canThrow(sp)) {
-                    var snowball = new net.minecraft.entity.projectile.thrown.SnowballEntity(world, sp, stack);
-                    snowball.setVelocity(sp, sp.getPitch(), sp.getYaw(), 0.0f, 1.5f, 0.0f);
-                    world.spawnEntity(snowball);
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
+                // Charge au clic droit puis relâcher (ThrownItemChargeMixin)
+                return ActionResult.PASS;
             }
 
             if (com.dungeonmod.util.TorcheHelper.isTorche(stack)) {
-                if (!world.isClient() && player instanceof ServerPlayerEntity sp && canThrow(sp)) {
-                    var snowball = new net.minecraft.entity.projectile.thrown.SnowballEntity(world, sp, stack);
-                    snowball.setVelocity(sp, sp.getPitch(), sp.getYaw(), 0.0f, 1.5f, 0.0f);
-                    world.spawnEntity(snowball);
-                    if (!sp.isCreative()) stack.decrement(1);
-                }
-                return ActionResult.SUCCESS;
+                // Charge au clic droit puis relâcher (ThrownItemChargeMixin)
+                return ActionResult.PASS;
             }
 
             if (com.dungeonmod.util.BoomerangHelper.isBoomerang(stack)) {

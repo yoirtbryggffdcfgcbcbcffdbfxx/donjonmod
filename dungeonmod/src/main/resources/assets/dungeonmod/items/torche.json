@@ -1,6 +1,14 @@
 {
   "model": {
-    "type": "minecraft:model",
-    "model": "dungeonmod:item/torche"
+    "type": "minecraft:condition",
+    "property": "minecraft:using_item",
+    "on_false": {
+      "type": "minecraft:model",
+      "model": "dungeonmod:item/torche"
+    },
+    "on_true": {
+      "type": "minecraft:model",
+      "model": "dungeonmod:item/torche_charging"
+    }
   }
 }

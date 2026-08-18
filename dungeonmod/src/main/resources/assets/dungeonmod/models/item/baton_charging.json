@@ -1,0 +1,16 @@
+{
+    "parent": "minecraft:item/handheld",
+    "textures": {
+        "layer0": "minecraft:item/stick"
+    },
+    "display": {
+        "firstperson_righthand": {
+            "rotation": [-30, 55, 45],
+            "translation": [5, 2, -3]
+        },
+        "firstperson_lefthand": {
+            "rotation": [-30, -55, -45],
+            "translation": [-5, 2, -3]
+        }
+    }
+}
