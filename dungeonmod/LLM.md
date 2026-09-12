@@ -2,57 +2,210 @@
 
 ## Architecture
 
-Mod Fabric 1.21.4. Tous les items sont des items vanilla renommés (pas de `Items.register()`). Les items utilisent `DataComponentTypes.CUSTOM_NAME`, `DataComponentTypes.LORE`, `DataComponentTypes.ATTRIBUTE_MODIFIERS`, `DataComponentTypes.ITEM_MODEL`, `DataComponentTypes.EQUIPPABLE`.
+Mod Fabric 1.21.4. **182 fichiers Java**, **85 mixins**, **75 items**. Les items sont des items vanilla renommés via `DataComponentTypes.CUSTOM_NAME`, `DataComponentTypes.LORE`, `DataComponentTypes.ATTRIBUTE_MODIFIERS`, `DataComponentTypes.ITEM_MODEL`, `DataComponentTypes.EQUIPPABLE` (pas de `Items.register()`), **sauf** `sac` (item custom réel `SacItem` enregistré via `Registry.register`).
 
 **Fichiers source** : `src/main/java/com/dungeonmod/`
 
-### Classes principales
+### Organisation du code (182 fichiers Java)
 
-| Fichier | Rôle |
-|---------|------|
-| `DungeonMod.java` | Initialisation, tick handlers, helpers |
-| `ModItems.java` | Enregistrement de tous les items |
-| `DungeonCommand.java` | Commandes `/teste`, `/lobby`, etc. |
-| `TestGenerator.java` | Génération du donjon, spawn gobelins |
+| Package | Fichiers | Rôle |
+|---------|----------|------|
+| `com.dungeonmod` | 4 | `DungeonMod` (init, ticks, helpers), `ModItems`, `DungeonCommand`, `DungeonModClient` |
+| `debug/` | 14 | **Logique pure, zéro Minecraft** : `DungeonAlgo`, `DungeonPart1..4`, `DungeonTreeBuilder`, `DungeonConstraints`, `DungeonLabels`, `DungeonLabelState`, `DungeonCompositeRooms`, `RoomType`, `DungeonViz`, `SeedHarness`, `DungeonFailureLog` |
+| `test/` | 1 | `TestGenerator` (placement des `.nbt`) |
+| `mixin/` | 85 | Cœur du gameplay custom (catalogue complet plus bas) |
+| `entity/` | 23 | Gobelins, `OgreEntity`, miniboss, PNJ (`BaseNpcEntity`, `Elias`, `Gaspard`, `Barman`, `NpcMerchant`), modèles/renderers |
+| `entity/boss/` | 4 | `BossEntity`, `BossPhase`, `BossAnimation`, `BossRoom` |
+| `entity/boss/capability/` | 7 | Capacités boss par composition (`BossHasCombos`, `BossEnrages`, `BossSummonsAdds`, `BossHasWeakPoint`, `BossBecomesNpc`, `BossHasDeathSequence`, `BossCapability`) |
+| `util/` | 18 | Helpers par arme (`EpeeHelper`, `LanceHelper`, `FouetHelper`…), `DungeonLoot`, `RoomRewardManager`, `CraftingHelper`, grappin |
+| `network/` | 7 | Payloads client/serveur (`Buy`, `Sell`, `Trade`, `Trades`, `OpenShop`, `Subtitle`, `JumpState`) |
+| `screen/` | 6 | Boutiques et sac : handlers + écrans |
+| `client/` | 5 | Rendu/overlays client |
+| `client/dialogue/` | 4 | Système de dialogue PNJ |
+| `village/` | 2 | `NpcMerchant`, `SellTradeRegistry` |
+| `accessor/` | 1 | `CustomSkinAccessor` |
+| `item/` | 1 | `SacItem` |
 
-### Mixins
+> ⚠️ **Le découpage en dossiers ne reflète pas l'architecture réelle.** Le graphe d'appels
+> (codebase-memory) fait apparaître ~12 *clusters* (communautés de code) qui recoupent les
+> dossiers différemment. Voir « Clusters (graphe) » ci-dessous.
 
-| Fichier | Cible | Effet |
-|---------|-------|-------|
-| `ZombieEntityMixin` | `ZombieEntity` | Silence sons zombie (ambient, hurt, death, step) |
-| `AbstractZombieModelMixin` | `AbstractZombieModel` | Bras en position neutre |
-| `ZombieEntityRenderStateMixin` | `ZombieEntityRenderState` | Skin custom gobelin |
-| `ZombieBaseEntityRendererMixin` | `ZombieBaseEntityRenderer` | Texture custom gobelin |
-| `InGameHudMixin` | `InGameHud` | Barre de vie centrée, armure cachée + texte "Protection = X%", barre food cachée |
-| `LivingEntityRendererMixin` (client) | `LivingEntityRenderer` | Affiche PV/dégâts des monstres ≤5 blocs avec Casque du chasseur |
-| `ItemStackMixin` | `ItemStack` | Cache le tooltip d'attributs pour tous les `ArmorItem` + crâne |
-| `DamageUtilMixin` | `DamageUtil` | Remplace formule dégâts : `dégâts × (1 - armure/100)` (1% = 1% réduction) |
-| `LivingEntityDamageMixin` | `ServerPlayerEntity` | Annule dégâts si `isHunterProne`, reflète dégâts avec Plastron du héros |
-| `PlayerAttackMixin` | `PlayerEntity` | Annule attaque si `isHunterProne` |
-| `LivingEntityPoseMixin` | `Entity.getPose()` | Force `SWIMMING` si sneak + Jambière du chasseur |
-| `SnowballDamageMixin` | `SnowballEntity` | Dégâts sur bâton/os lancés (STICK→4 dégâts+knockback, BONE→4 dégâts+slowness) |
-| `BackstabMixin` | `LivingEntity.damage` | Double les dégâts de la Dague si attaque de dos (dot < -0.3) |
-| `ComboMixin` | `LivingEntity.damage` | Système de combo pour Hache en fer (1→1.5→2→4 coeurs, réinitialisé si changement cible) |
+### Clusters (graphe codebase-memory)
+Communautés détectées sur le graphe d'appels/imports (Leiden) — utiles pour cibler un changement :
+
+| # | Taille | Cohésion | Nœuds représentatifs | Thème |
+|---|-------|----------|----------------------|-------|
+| 2 | 156 | 0.48 | `get`, `contains`, `isEmpty`, `onInitialize` | Init / shop / registres |
+| 5 | 117 | 0.58 | `put`, `remove`, `generatePart4Tree`, `analyzePart3`, `placeChapelAndCrypt` | Algo P3/P4 + viz |
+| 30 | 91 | 0.76 | `damage`, `getPhase`, `tickCombat`, `getAttackState`, `stop` | Boss / combat |
+| 3 | 86 | 0.57 | `generateRandomCave`, `spawnGoblins`, `register`, `convertGraphToCells` | Grotte / spawn / placement |
+| 20 | 77 | 0.51 | `size`, `mouseClicked`, `getStack`, `startDialogue`, `getName` | Screens / UI |
+| 4 | 67 | 0.58 | `get`, `isFleche`, `isBaguette`, `checkFlecheTimers` | Items / armes |
+| 17 | 63 | 0.68 | `register`, `registerArmures`, `onInitializeClient`, `isGlaive` | Enregistrement items |
+| 67 | 43 | 0.52 | `generateDungeon`, `validateResult`, `validateStructure` | Harnais / validation (+ `main` Python) |
+| 40 | 28 | 0.85 | `buildSvg`, `renderToHtml`, `append` | Viz Python |
+| 33 | 25 | 0.60 | `SubtitlePayload`, `openTradeShop`, `startDialogue` | PNJ / dialogues |
+| 147 | 22 | 0.47 | `checkSpacingRules`, `findM5WithGapBeforeDoor`, `placeMonster5OnDoorPaths` | Contraintes de placement |
+| 1 | 20 | 0.49 | `tryCraft`, `isAncreGrappling`, `onSwing`, `scanRoom` | Craft / grappin |
+
+### Mixins (catalogue complet — 85 fichiers)
+
+Cible réelle extraite de `@Mixin(...)` de chaque fichier. Un mixin peut modifier plusieurs
+méthodes ; l'effet est résumé à une phrase.
+
+#### Combat / dégâts (27)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `AncreImmunityMixin` | `PlayerEntity` | Annule les dégâts d'une entité dont le joueur est immunisé après l'avoir traversée avec l'ancre |
+| `ArcHerosHitMixin` | `PersistentProjectileEntity` | Les flèches marquées `SANG2_ARROWS` infligent Wither |
+| `ArmorAttributeCapMixin` | `ClampedEntityAttribute` | Relève le plafond de l'attribut armure de 30 à 100 |
+| `AttackCooldownMixin` | `PlayerEntity` | Annule l'attaque si la barre de recharge est incomplète (seuil 0,68 en double dague, sinon 1,0) |
+| `BackstabMixin` | `LivingEntity` | Double les dégâts de la dague dans le dos ; ajoute un knockback dague |
+| `BeerStrengthMixin` | `LivingEntity` | Multiplie les dégâts selon le bonus de force de la bière |
+| `ComboMixin` | `LivingEntity` | Combo à la hache en fer (dégâts croissants, son d'enclume) |
+| `DagueDamageMixin` | `LivingEntity` | Réduit de moitié les dégâts subis par un joueur en garde (parry) à la dague |
+| `DamageUtilMixin` | `DamageUtil` | `@Overwrite` : remplace la formule vanilla par `dégâts × (1 − armure/100)` |
+| `DarkBuffMixin` | `PlayerEntity` | Soigne 1 HP si un lien sombre actif sur la cible vient d'être frappé |
+| `EpeeDamageMixin` | `LivingEntity` | Bloque les dégâts avec l'épée en garde, gère le guard break, annule le recul pendant la garde |
+| `FauxDeFerMixin` | `PlayerEntity` | La faux de fer inflige une attaque de zone |
+| `FireballDamageMixin` | `SmallFireballEntity` | Petite boule de feu : 1 dégât + 2 s de feu, marque la cible |
+| `FlecheMeleeMixin` | `PlayerEntity` | Attaque mêlée à la flèche, combo de sang (dégâts, Wither, passage en sang 2) |
+| `FlecheMixin` | `PersistentProjectileEntity` | Flèches custom : dégâts ramenés à 1, Wither si niveau sang 2 |
+| `FouetMixin` | `PlayerEntity` | Le fouet tire l'ennemi vers le joueur (portée 12 blocs) |
+| `GlaiveAttackMixin` | `PlayerEntity` | Attaque perforante en cône avec combo |
+| `IdoleBonheurMixin` | `ServerPlayerEntity` | 25 % de chance d'annuler les dégâts (Idole du bonheur en main) |
+| `LivingEntityDamageMixin` | `ServerPlayerEntity` | Annule les dégâts si le chasseur est accroupi ; renvoie les dégâts avec le Plastron du héros |
+| `NoHitInvulnerabilityMixin` | `LivingEntity` | Remet `timeUntilRegen` à 0 pour les entités marquées sans invulnérabilité |
+| `OgreEyeMixin` | `LivingEntity` | Détecte une touche à la tête de l'Ogre (mêlée ou projectile) |
+| `PlayerAttackMixin` | `PlayerEntity` | Annule l'attaque si le chasseur est camouflé |
+| `RingOfBloodMixin` | `LivingEntity` | Anneau de sang : ×2 dégâts entrants, ×2,5 dégâts sortants |
+| `SnowballDamageMixin` | `SnowballEntity` | Dégâts/effets custom des projectiles renommés (bâton, os, torche, dague, flèche, caillou, boules) |
+| `TorcheMixin` | `PlayerEntity` | La torche met le feu 3 s + knockback (portée 3 blocs) |
+| `VoyageurMixin` | `LivingEntity` | Soigne 1 HP au tueur portant le Plastron du chasseur |
+| `WeaponKnockbackMixin` | `PlayerEntity` | Knockback propre à chaque arme custom (dague, bâton, os, épée, lance, sabre) |
+
+#### Items / armes (18)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `ArcHerosMixin` | `BowItem` | Tir custom de l'Arc du héros (dégâts 6/10/14, perçage et marquage selon le niveau de sang) |
+| `BaguetteAttackMixin` | `PlayerEntity` | Baguette : annule l'attaque vanilla et déclenche le tir |
+| `BaguetteMixin` | `Item` | Fait cycler le type de baguette (feu/sombre/glace) selon les runes appliquées |
+| `DagueDualMixin` | `Item` | Parry à la double dague (modèle blocking, Slowness, anti-toggle) |
+| `DungeonConsumableMixin` | `Item` | Animations/effets des consommables (nourriture, bière, fiole), bonus ×2 du Plastron du glouton |
+| `EpeeMixin` | `Item` | Permet de lever l'épée en garde (durée 72000, refus si cooldown du block) |
+| `FlecheUsingMixin` | `Item` | Change le modèle de la flèche pendant/après l'utilisation selon le niveau de sang |
+| `FouetChargeMixin` | `Item` | Charge le fouet puis déclenche l'attaque au relâcher |
+| `GlaiveMixin` | `Item` | Attaque tournoyante du glaive (cône, particules, sons) |
+| `ItemEntityMixin` | `ItemEntity` | Restaure à l'état normal une flèche de sang lâchée au sol |
+| `LanceBlockHitMixin` | `ProjectileEntity` | La lance fait apparaître son item au point d'impact |
+| `LanceTridentMixin` | `TridentEntity` | Force les dégâts de la lance à 6 |
+| `NoVanillaRecipeMixin` | `Ingredient` | Empêche tout item renommé d'être utilisé dans une recette vanilla |
+| `RuneApplyMixin` | `ScreenHandler` | Applique une rune sur une baguette lors d'un clic dans l'inventaire |
+| `SabreComboMixin` | `PlayerEntity` | Mixin vide (injection retirée, conservé pour la refmap) |
+| `SabreMixin` | `Item` | Combo du sabre, animation de slash et particules |
+| `SyrinxMixin` | `Item` | Rend le Syrinx oublié utilisable comme un arc |
+| `ThrownItemChargeMixin` | `Item` | Charge 1 s puis lance bâton, caillou, os ou torche |
+
+#### Grappin / ancre (5)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `AnchorSpawnMixin` | `PlayerEntity` | Persiste/restaure la position de spawn d'ancre |
+| `AncreGrapplingMixin` | `PlayerEntity` | Notifie `AncreGrappling.onAttackEntity` lors d'une attaque au grappin |
+| `BlockActionMixin` | `ServerPlayNetworkHandler` | Bloque la destruction de bloc pendant l'utilisation du grappin |
+| `NoRespawnBlockMessageMixin` | `ServerCommonNetworkHandler` | Supprime le message « no respawn block » pour les joueurs ayant une ancre |
+| `SwingAirMixin` | `ServerPlayNetworkHandler` | Déclenche le grappin ou l'attaque de zone de la faux au swing dans le vide |
+
+#### HUD / UI / Client (11)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `AdvancementMixin` | `AdvancementDisplay` | Les avancements ne sont plus annoncés dans le chat |
+| `ArmorHudMixin` | `InGameHud` | `@Redirect` `getArmor` : masque la barre d'armure |
+| `ClientAttackCooldownMixin` | `MinecraftClient` | Bloque l'attaque si cooldown incomplet, charge le combo sabre dans le vide, gère le tir de baguette |
+| `DialogueHudMixin` | `InGameHud` | Masque hotbar/status/crosshair/XP pendant un dialogue |
+| `DoubleJumpMixin` | `ClientPlayerEntity` | Double saut avec les bottes de Mercure/Apollon (son, particules, boost sprint) |
+| `InGameHudMixin` | `InGameHud` | Recentre la barre de vie selon le max ; annule l'affichage d'armure |
+| `InventoryScreenMixin` | `InventoryScreen` | Cache le bouton du livre de recettes ; vide le titre de craft |
+| `KeyboardInputMixin` | `KeyboardInput` | Annule les déplacements pendant un dialogue |
+| `MerchantScreenMixin` | `MerchantScreen` | Dessine des slots de trade supplémentaires pour le marchand « Cyclope » |
+| `NoCraftInventoryMixin` | `InventoryScreen` | Retire le livre de recettes et masque la zone de craft hors créatif |
+| `PauseMenuMixin` | `MinecraftClient` | Bloque l'ouverture du menu pause pendant un dialogue |
+
+#### Entités / skins (8)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `AbstractZombieModelMixin` | `AbstractZombieModel` | Remet à zéro pitch/roll des deux bras (bras neutres) |
+| `LanceTridentModelMixin` | `TridentEntityModel` | `@Overwrite` : modèle simplifié de la lance (pôle + base) |
+| `LivingEntityPoseMixin` | `Entity` | Force la pose SWIMMING du joueur accroupi portant la Jambière du chasseur |
+| `LivingEntityRendererMixin` | `LivingEntityRenderer` | Ajoute PV et dégâts au nom des monstres si le Casque du chasseur est porté |
+| `ZombieBaseEntityRendererMixin` | `ZombieBaseEntityRenderer` | Applique la texture custom des zombies marqués |
+| `ZombieEntityMixin` | `ZombieEntity` | Supprime tous les sons des zombies |
+| `ZombieEntityRenderStateMixin` | `ZombieEntityRenderState` | Ajoute les champs `customSkin`/`customTexture` (implémente `CustomSkinAccessor`) |
+| `ZombieGoblinLootMixin` | `LivingEntity` | Les zombies custom font tomber du loot et incrémentent le compteur de kills gobelin |
+
+#### Inventaire / craft (5)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `CraftingMixin` | `ServerPlayNetworkHandler` | Craft custom bâton ↔ torche près d'un feu de camp ou de l'eau |
+| `PlayerScreenHandlerMixin` | `PlayerScreenHandler` | Décale/masque les slots de craft hors créatif et réimplémente `quickMove` |
+| `RecipeBookMixin` | `RecipeBookWidget` | `isOpen` renvoie toujours false (désactive le livre de recettes) |
+| `SacKeepMixin` | `ServerPlayerEntity` | Retire/sauvegarde les sacs avant le drop de mort |
+| `ScreenHandlerMixin` | `ScreenHandler` | Tronque la liste des stacks synchronisés à la taille réelle des slots |
+
+#### Persistance / PV (4)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `HeavyPersistenceMixin` | `PlayerEntity` | Persiste les pièces « heavy », l'absorption et les valeurs stockées |
+| `MaxAbsorptionMixin` | `PlayerEntity` | Ajoute un attribut MAX_ABSORPTION de 100 |
+| `MaxHealthPersistMixin` | `ServerPlayerEntity` | Persiste la vie maximale et l'état « dans le donjon » |
+| `TetralameHealthMixin` | `PlayerEntity` | Persiste la vie sauvegardée liée à la Tétralame |
+
+#### Accessors / Invokers (3)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `PersistentProjectileEntityAccessor` | `PersistentProjectileEntity` | Expose `setPierceLevel` (Invoker) et `pickupType` (Accessor) |
+| `ScreenHandlerInvoker` | `ScreenHandler` | Expose `insertItem` et `addSlot` en Invoker |
+| `SlotAccessor` | `Slot` | Expose les setters mutables `x` et `y` du slot |
+
+#### Divers (4)
+
+| Fichier | Cible @Mixin | Effet |
+|---------|--------------|-------|
+| `FireSnowballMixin` | `SnowballEntity` | Particules selon le nom de la boule (feu, glace, sombre) |
+| `InteractionBlockerMixin` | `AbstractBlock` | `onUse`/`onUseWithItem` renvoient FAIL pour les blocs bloqués |
+| `ItemStackMixin` | `ItemStack` | Masque le tooltip d'attributs des armures et du crâne de squelette |
+| `NoXpMixin` | `LivingEntity` | Aucune entité ne drop d'XP |
 
 ## Items
 
-Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register(id, displayName, vanillaItem, modifier?, lore...)`.
+**75 items** au total : 74 via `ModItems.register(id, displayName, vanillaItem, modifier?, lore...)`
++ `sac` (item custom `SacItem`, enregistré via `Registry.register`). Les valeurs d'armure/attaque
+ci-dessous proviennent des `ATTRIBUTE_MODIFIERS` réels du code. Les bonus « Attaque +X % » des
+armures sont posés par `BeerStrengthData.registerArmorAttackBonus(...)` à l'enregistrement.
+Tout item reçoit `MAX_STACK_SIZE = 1`, `UNBREAKABLE`, et un `CUSTOM_NAME`.
 
 ### Casques (slot HEAD)
 
 | ID | Nom | Item | Armure | Effet |
 |----|-----|------|--------|-------|
-| `casque_chasseur` | Casque du chasseur | CHAINMAIL_HELMET | 4 | Montre PV/dégâts des monstres ≤5 blocs |
-| `crane_squelette` | Crâne de squelette | SKELETON_SKULL | 2 | Gobelins moins agressifs (follow_range réduit) |
-| `casque_lourd` | Casque lourd | IRON_HELMET | 8 | Overlay visière (caméra), -10% vitesse, -10% saut |
-| `casque_mineur` | Casque du mineur | LEATHER_HELMET | 2 | Place un Light block (luminosité 14) au-dessus du joueur |
+| `casque_chasseur` | Casque du chasseur | CHAINMAIL_HELMET | 10 | Voir PV/dégâts des monstres ≤5 blocs ; Attaque +65% |
+| `crane_squelette` | Crâne de squelette | SKELETON_SKULL | 6 | Gobelins moins agressifs (follow_range réduit) ; Attaque +45% |
+| `casque_lourd` | Casque lourd | IRON_HELMET | 17 | Overlay visière (caméra), −10% vitesse, −10% saut ; Attaque +75% |
+| `casque_mineur` | Casque du mineur | LEATHER_HELMET | 6 | Place un Light block (luminosité 14) au-dessus du joueur ; Attaque +25% |
 
 ### Plastrons (slot CHEST)
 
 | ID | Nom | Item | Armure | Effet |
 |----|-----|------|--------|-------|
-| `plastron_lourd` | Plastron lourd | IRON_CHESTPLATE | 12 | -30% vitesse, -30% saut, +10 absorption max (set 10 HP à l'équipement) |
-| `plastron_heros` | Plastron du héros | GOLDEN_CHESTPLATE | 8 | Reflette les dégâts subis à l'attaquant |
+| `plastron_lourd` | Plastron lourd | IRON_CHESTPLATE | 12 | −30% vitesse/saut ; +10 absorption (set « lourd », cf. `resetHeavyAbsorption`) |
+| `plastron_heros` | Plastron du héros | GOLDEN_CHESTPLATE | 8 | Renvoie les dégâts subis à l'attaquant |
 | `plastron_chasseur` | Plastron du chasseur | CHAINMAIL_CHESTPLATE | 23 | Kill → +0,5 cœur ; Attaque +125% |
 | `plastron_glouton` | Plastron du glouton | LEATHER_CHESTPLATE | 15 | Manger/boire instantané ; soins aliments ×2 ; durée potions/bières ×2 ; Attaque +40% |
 | `cape_du_voyageur` | Cape du voyageur | LEATHER_CHESTPLATE | 18 | Plane / chute nulle ; Attaque +70% |
@@ -75,29 +228,88 @@ Tous les items sont enregistrés dans `ModItems.java` avec la méthode `register
 
 ### Armes (slot MAINHAND)
 
-| ID | Nom | Item | ATK | Effet spécifique |
-|----|-----|------|-----|------------------|
-| `baton` | Bâton | STICK | +1 (total 1 cœur) | Clic droit→lance le bâton (4 dégâts+knockback), perdu |
-| `dague` | Dague | FLINT | +2 (total 1.5 cœurs) | Backstab (par derrière) : dégâts doublés (3 cœurs) |
-| `os` | Os | BONE | +1 (total 1 cœur) | Clic droit→lance l'os (4 dégâts+Slowness 255 2s+particules FIREWORK), perdu |
-| `hache_fer` | Hache en fer | IRON_AXE | 0 (total 0.5 cœur de base) | Combo : 1→1.5→2→4 cœurs, réinitialisé si changement cible |
+| ID | Nom | Item | Attributs (ADD_VALUE sauf mention) | Effet spécifique |
+|----|-----|------|-----------------------------------|------------------|
+| `tetralame_mort_subite` | Tétralame mort subite | NETHERITE_SWORD | damage +39, range +0,5 | 0,5 cœur max tant qu'elle est en main ; ~20 cœurs de dégâts, portée 3,5 blocs |
+| `baton` | Bâton | STICK | damage +1, speed −1,5, range −0,2 | Clic droit → lance le bâton (4 dégâts + knockback), perdu |
+| `dague` | Dague | FLINT | damage +2, speed 0, range −0,5 | Backstab (par derrière) : dégâts doublés ; parry en double dague |
+| `os` | Os | BONE | damage +4, speed −2,75 | Clic droit → lance l'os (4 dégâts + Slowness 255 2 s + particules), perdu |
+| `hache_fer` | Hache en fer | IRON_AXE | speed −2 | Combo croissant sur la même cible, réinitialisé si changement de cible |
+| `faux_fer` | Faux de fer | IRON_HOE | speed −2,333, range +0,5 | Attaque de zone (1,5 cœur), portée 3,5 blocs |
+| `epee` | Épée | STONE_SWORD | damage +3, speed −2, range +0,2 | Blocage (clic droit), guard break |
+| `lance` | Lance | TRIDENT | damage +2, speed −2,182, range +1,2 | Portée 4,2 blocs ; clic droit → lancer |
+| `fleche` | Flèche | ARROW | speed −1,143, range −0,2 | Poignard mêlée ou projectile ; combo de sang |
+| `arc_heros` | Arc du héros | BOW | damage +0 (base) | 2 → 4,66 cœurs selon le niveau de sang ; flèches custom uniquement |
+| `fouet` | Fouet | STICK | speed −2,75, range +4,0 | Clic droit : charge puis tire l'ennemi (portée 12 blocs) |
+| `torche` | Torche | STICK | speed −2,182 | Enflamme (0,5 cœur/s, 3 s) ; clic droit → lancer |
+| `boomerang` | Boomerang | STICK | damage +1, speed −1,143, range −0,2 | Clic gauche → lancer (1 cœur), revient après 1,5 s |
+| `sabre` | Sabre | IRON_SWORD | damage +3, speed −1,14, range +0,2 | Combo via attaques dans le vide (max 3), clic droit décharge |
+| `glaive` | Glaive | STICK | damage +5, speed −3 | Combo perforant en cône, clic droit → attaque tournoyante |
 
-### Autres items
+### Baguettes magiques (slot MAINHAND)
+
+`baguette_feu`, `baguette_glace`, `baguette_sombre` : STICK, speed −3, damage +0.
+Clic gauche → projectile ; clic droit → change de forme. Runes (`rune_sombre`, `rune_glace`)
+appliquées par glisser-déposer sur la baguette dans l'inventaire (`RuneApplyMixin`).
+- **Feu** : boule de feu (0,5 cœur + brûlure 2,5 s).
+- **Glace** : 1 cœur + ralentissement (0,5 cœur/s pendant 5 s).
+- **Sombre** : drain de vie (2 cœurs + 0,5 cœur/s 5 s ; les dégâts sur la cible soignent).
+
+### Consommables
 
 | ID | Nom | Item | Effet |
 |----|-----|------|-------|
-| `fiole` | Fiole | GLASS_BOTTLE | - |
-| `fiole_benite` | Fiole d'eau bénite | POTION (orange) | Régénération III 5s |
-| `pomme_rouge` | Pomme rouge | APPLE | Soigne 0.5 cœur |
-| `patate_douce` | Patate douce | POISONOUS_POTATO | Soigne 1 cœur + nausée 10s |
+| `fiole` | Fiole | GLASS_BOTTLE | Récipient vide |
+| `fiole_benite` | Fiole d'eau bénite | POTION | Régénère 0,5 cœur/s pendant 8 s |
+| `pomme_rouge` | Pomme rouge | APPLE | Soigne 0,5 cœur |
+| `patate_douce` | Patate douce | POISONOUS_POTATO | Soigne 1 cœur + nausée |
 | `steack_cru` | Steack cru | BEEF | Soigne 3 cœurs |
-| `biere_brune` | Bière périmée | POTION (couleur orange) | Nausée 10s |
-| `biere_blonde` | Bière blonde | HONEY_BOTTLE | Force 10s |
-| `oeuf_*` | Oeufs | STICK | Spawn zombie/gobelin custom |
-| `coeur` | Coeur | HEART_OF_THE_SEA | +1 cœur max + soigne 1 cœur |
-| `cle` | Clé | TRIAL_KEY | Ouvre les portes en fer (une utilisation), ouvre aussi les doubles portes |
+| `chair_gobelin_crue` | Chair de gobelin crue | BEEF | Soigne 2 cœurs |
+| `chair_gobelin_cuite` | Chair de gobelin cuite | COOKED_BEEF | Soigne 5 cœurs |
+| `biere_brune` | Bière périmée | POTION | Nausée + Force 50 % (20 s) ; reste une chope |
+| `biere_viking` | Bière de Viking | HONEY_BOTTLE | Force 150 % (30 s) ; reste une chope |
+| `chope_biere` | Chope de bière | GLASS_BOTTLE | Reste de bière bue |
+
+### Objets divers / quête
+
+| ID | Nom | Item | Effet |
+|----|-----|------|-------|
+| `sac` | Sac | `SacItem` | Conteneur (item custom, `item/SacItem.java`) |
+| `totem_immortalite` | Totem d'immortalité | TOTEM_OF_UNDYING | Protège de la mort |
+| `syrinx_oublie` | Syrinx oublié | STICK | Clic droit : joue des notes (utilisable comme un arc) |
+| `idole_du_bonheur` | Idole du bonheur | ECHO_SHARD | 25 % de chance d'annuler les dégâts ennemis (main droite ou gauche) |
+| `ancre` | Ancre | CONDUIT | Clic droit : point de réapparition sur l'eau des puits ; clic gauche : grappin ≤15 blocs |
+| `coeur` | Cœur | HEART_OF_THE_SEA | +1 cœur max |
+| `montre` | Montre | CLOCK | Décor / horloge arrêtée |
+| `tablette_de_pierre` | Tablette de pierre | PAPER | Décor / support de runes |
+| `poussiere_de_pierre` | Poussière de pierre | GUNPOWDER | Matériau |
+| `sablier` | Sablier | CLOCK | Décor |
+| `compas_casse` | Compas cassé | COMPASS | Aiguille qui tourne sans fin |
+| `compas_repare` | Compas réparé | COMPASS | Pointe le **centre** du puits le plus proche du même étage |
+| `anneau_basique` | Anneau basique | IRON_NUGGET | Anneau de fer |
+| `croix` | Croix | STICK | Décor |
+| `fragment_de_fer` | Fragment de fer | IRON_NUGGET | Matériau |
+| `cle` | Clé | TRIAL_KEY | Ouvre les portes en fer (une utilisation, doubles portes incluses) |
+| `cle_blanche` | Clé blanche | TRIAL_KEY | Ouvre la porte pale du jardin |
 | `denier` | Denier | GOLD_NUGGET | Monnaie du jeu |
-| `compas_repare` | Compas réparé | COMPASS | Pointe le **centre** de la salle-puits la plus proche du même étage (lodestone_tracker + textures du compas cassé) |
+| `rune_sombre` | Rune sombre | STICK | À glisser sur une baguette (change la forme) |
+| `rune_glace` | Rune de glace | STICK | À glisser sur une baguette (change la forme) |
+| `anneau_sang` | Anneau de sang | STICK | Dégâts infligés +150 %, mais dégâts subis ×2 |
+| `dent_de_loup` | Dent de loup | STICK | Révèle protection/force du porteur ; ennemis <40 % soulignés |
+| `conseil` | Conseil | PAPER | Objet de quête (Gaspard) |
+| `ongle_cyclope` | Ongle du Cyclope | BONE | Objet de quête |
+| `caillou` | Caillou | SNOWBALL | Clic droit → lancer |
+| `web` | Toile d'araignée | STRING | Matériau |
+| `leather` | Cuir | LEATHER | Matériau |
+
+### Œufs d'apparition (STICK)
+
+| ID | Invoque |
+|----|---------|
+| `oeuf_zombie` | Zombie custom |
+| `oeuf_gobelin_1` / `oeuf_gobelin_2` | Gobelins custom (skins 1 et 2) |
+| `oeuf_lanceur_gobelin` | Gobelin lanceur de pierre |
+| `oeuf_ogre` | Ogre lanceur de pierres |
 
 ## Gobelins
 

@@ -1,0 +1,7 @@
+# codebase-memory : exclure le genere / lourd / non-code
+dungeonmod/dungeon_viz.html
+dungeonmod/build/
+dungeonmod/run/
+dungeonmod/.gradle/
+A_INTEGRER/
+dungeonmod/src/main/resources/test_structures/
