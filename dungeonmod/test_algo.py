@@ -7,6 +7,14 @@ def open_in_brave(path):
     if not path or not os.path.exists(path):
         print("Viz introuvable :", path)
         return
+    # Brave tourne souvent en flatpak SANS acces a /home : on expose via /tmp (autorise).
+    try:
+        import shutil, tempfile
+        tmp = os.path.join(tempfile.gettempdir(), os.path.basename(path))
+        shutil.copyfile(path, tmp)
+        path = tmp
+    except Exception as e:
+        print("Copie /tmp impossible :", e)
     url = "file://" + os.path.abspath(path)
     candidates = [
         ["brave-browser"],

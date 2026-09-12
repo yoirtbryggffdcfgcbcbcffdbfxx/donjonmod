@@ -116,6 +116,8 @@ public class DungeonAlgo {
          */
         public Map<Point, Set<Point>> unifiedAdj;
         public Map<Point, RoomType> unifiedLabels;
+        /** Cellules reservees (registre d'occupation 3D) : salles multi-couches protegees. */
+        public Set<Point> reservedCells = new HashSet<>();
 
         /** Adjacence d'une seule couche : arêtes dont les DEUX extrémités sont sur la couche. */
         public Map<Point, Set<Point>> adjAt(int level) {
@@ -281,8 +283,9 @@ public class DungeonAlgo {
 
     private static boolean generatePart4Tree(Map<Point, Set<Point>> adj,
                                               Map<Point, RoomType> topLabels,
-                                              int hx, int hz, int level, String missingLootType, Random rng) {
-        return DungeonPart4.generatePart4Tree(adj, topLabels, hx, hz, level, missingLootType, rng);
+                                              int hx, int hz, int level, Set<Point> externalBlocked,
+                                              String missingLootType, Random rng) {
+        return DungeonPart4.generatePart4Tree(adj, topLabels, hx, hz, level, externalBlocked, missingLootType, rng);
     }
 
     private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked, Random rng) {
@@ -441,14 +444,16 @@ public class DungeonAlgo {
                 boolean p4Ok = false;
                 Map<Point, RoomType> currentTopLabels = null;
                 Map<Point, Set<Point>> p4Adj = null;
+                DungeonOccupancy occupancy = new DungeonOccupancy();
                 Point hubPoint = findPointByValue(labels, RoomType.CENTRALE);
                 if (hubPoint != null) {
+                    occupancy.reserve(hubPoint, RoomType.CENTRALE.size);
                     Point topHub = hubPoint.atLevel(1);
                     for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
                         currentTopLabels = new HashMap<>();
                         currentTopLabels.put(topHub, RoomType.CENTRALE);
                         p4Adj = new HashMap<>();
-                        if (generatePart4Tree(p4Adj, currentTopLabels, topHub.x(), topHub.y(), topHub.level(), missingLoot, rng)) {
+                        if (generatePart4Tree(p4Adj, currentTopLabels, topHub.x(), topHub.y(), topHub.level(), occupancy.cells(), missingLoot, rng)) {
                             p4Ok = true;
                             break;
                         }
@@ -476,6 +481,7 @@ public class DungeonAlgo {
                 dr.p1MonsterCells = p1MonsterCells;
                 dr.p2MonsterCells = p2MonsterCells;
                 dr.p1PrisonAdjacent = p1PrisonAdjacent;
+                dr.reservedCells = new HashSet<>(occupancy.cells());
 
                 // --- Graphe 3D unifie : toutes les couches + aretes verticales du hub ---
                 dr.unifiedAdj = new HashMap<>();

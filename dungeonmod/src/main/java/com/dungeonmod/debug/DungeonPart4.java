@@ -193,11 +193,12 @@ final class DungeonPart4 {
     }
 
     static boolean generatePart4Tree(Map<Point, Set<Point>> adj, Map<Point, RoomType> topLabels,
-                                              int hx, int hz, int level, String missingLootType, Random rng) {
+                                              int hx, int hz, int level, Set<Point> externalBlocked,
+                                              String missingLootType, Random rng) {
         DungeonLabelState labelState = new DungeonLabelState(); labelState.absorbLabels(topLabels);
         Point[] p4Exits = { new Point(hx, hz + 2, level), new Point(hx + 1, hz + 2, level), new Point(hx - 1, hz, level), new Point(hx + 2, hz, level), new Point(hx + 1, hz - 1, level) };
         List<Point> p4List = new ArrayList<>(Arrays.asList(p4Exits)); Collections.shuffle(p4List, rng);
-        Set<Point> globalOccupied = new HashSet<>();
+        Set<Point> globalOccupied = new HashSet<>(externalBlocked == null ? Set.of() : externalBlocked);
         Point hubAnchor = new Point(hx, hz, level);
         DungeonRoomPlacement.reserveFootprint(adj, hubAnchor, RoomType.CENTRALE.size);
         globalOccupied.addAll(DungeonRoomPlacement.footprint(hubAnchor, RoomType.CENTRALE.size));
