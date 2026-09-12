@@ -198,8 +198,9 @@ final class DungeonPart4 {
         Point[] p4Exits = { new Point(hx, hz + 2, level), new Point(hx + 1, hz + 2, level), new Point(hx - 1, hz, level), new Point(hx + 2, hz, level), new Point(hx + 1, hz - 1, level) };
         List<Point> p4List = new ArrayList<>(Arrays.asList(p4Exits)); Collections.shuffle(p4List, rng);
         Set<Point> globalOccupied = new HashSet<>();
-        RoomType.Size3D hubSize = RoomType.CENTRALE.size;
-        for (int x = hx; x < hx + hubSize.x(); x++) for (int z = hz; z < hz + hubSize.z(); z++) { Point hp = new Point(x, z, level); globalOccupied.add(hp); adj.putIfAbsent(hp, new HashSet<>()); }
+        Point hubAnchor = new Point(hx, hz, level);
+        DungeonRoomPlacement.reserveFootprint(adj, hubAnchor, RoomType.CENTRALE.size);
+        globalOccupied.addAll(DungeonRoomPlacement.footprint(hubAnchor, RoomType.CENTRALE.size));
         List<Point> cjKeys = new ArrayList<>(), exitKeys = new ArrayList<>(); List<int[]> cjDirs = new ArrayList<>();
         for (Point pp : p4List) {
             int adx = 0, ady = 0; Point hk = null;

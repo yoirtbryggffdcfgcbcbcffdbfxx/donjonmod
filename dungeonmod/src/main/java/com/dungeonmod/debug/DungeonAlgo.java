@@ -483,29 +483,10 @@ public class DungeonAlgo {
                 if (dr.p4Adj != null) for (var e : dr.p4Adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
                 dr.unifiedLabels = new HashMap<>(dr.labels);
                 if (dr.topLabels != null) dr.unifiedLabels.putAll(dr.topLabels);
-                RoomType.Size3D hubSize = RoomType.CENTRALE.size;
-                for (int i = 0; i < hubSize.x(); i++) for (int j = 0; j < hubSize.z(); j++) {
-                    Point g = new Point(hubPoint.x() + i, hubPoint.y() + j, 0);
-                    Point t = new Point(hubPoint.x() + i, hubPoint.y() + j, 1);
-                    dr.unifiedAdj.computeIfAbsent(g, k -> new HashSet<>());
-                    dr.unifiedAdj.computeIfAbsent(t, k -> new HashSet<>());
-                    // arete verticale (escalier)
-                    dr.unifiedAdj.get(g).add(t);
-                    dr.unifiedAdj.get(t).add(g);
-                    // maillage du cube 2x2x2 : voisins orthogonaux internes a chaque niveau
-                    if (i > 0) {
-                        Point gl = new Point(hubPoint.x() + i - 1, hubPoint.y() + j, 0);
-                        Point tl = new Point(hubPoint.x() + i - 1, hubPoint.y() + j, 1);
-                        dr.unifiedAdj.get(g).add(gl); dr.unifiedAdj.get(gl).add(g);
-                        dr.unifiedAdj.get(t).add(tl); dr.unifiedAdj.get(tl).add(t);
-                    }
-                    if (j > 0) {
-                        Point gl = new Point(hubPoint.x() + i, hubPoint.y() + j - 1, 0);
-                        Point tl = new Point(hubPoint.x() + i, hubPoint.y() + j - 1, 1);
-                        dr.unifiedAdj.get(g).add(gl); dr.unifiedAdj.get(gl).add(g);
-                        dr.unifiedAdj.get(t).add(tl); dr.unifiedAdj.get(tl).add(t);
-                    }
-                }
+                // Salle multi-cellules generique : maillage du volume + aretes verticales
+                // (une salle de size.y() > 1 est reliee nativement entre ses couches).
+                DungeonRoomPlacement.meshFootprint(dr.unifiedAdj, hubPoint, RoomType.CENTRALE.size);
+                DungeonRoomPlacement.linkVertical(dr.unifiedAdj, hubPoint, RoomType.CENTRALE.size);
 
                 lastSeed = actualSeed;
                 DungeonAlgo.lastTopLabels = currentTopLabels;
