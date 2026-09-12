@@ -1,4 +1,5 @@
 import os, subprocess, sys
+from _env import java_command, pause
 
 # Harnais de regression : echantillonne N donjons MODE JOUEUR (seed=0) et verifie
 # automatiquement coherence labels <-> adjacence, connexite, garanties gameplay.
@@ -20,10 +21,10 @@ classes = os.path.join(base, "build", "classes", "java", "main")
 
 if not os.path.isdir(classes):
     print("Pas de classes compilees ! Lance d'abord : python clean_build.py")
-    input("Appuie sur Entree pour fermer...")
+    pause()
     sys.exit(1)
 
-cmd = ["java", "-cp", classes, "com.dungeonmod.debug.SeedHarness"]
+cmd = [java_command(), "-cp", classes, "com.dungeonmod.debug.SeedHarness"]
 
 # Parse args souple pour rester compatible avec l'ancienne CLI
 #   ancienne : test_algo.py [nb] [seedDepart] [v]
@@ -72,5 +73,5 @@ if r.stderr:
     print(r.stderr)
 
 if r.returncode != 0:
-    input("ECHEC harnais (voir details ci-dessus). Appuie sur Entree pour fermer...")
+    pause("ECHEC harnais (voir details ci-dessus). Appuie sur Entree pour fermer...")
     sys.exit(1)

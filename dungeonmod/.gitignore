@@ -23,8 +23,7 @@ Desktop.ini
 # Gradle
 local.properties
 
-# Python temp scripts
-*.py
+# Python (les scripts d'outillage sont versionnés)
 
 # Cache Python (outils de validation)
 __pycache__/

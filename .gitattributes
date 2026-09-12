@@ -1,0 +1,17 @@
+# Normalise les fins de ligne : LF dans le dépôt par défaut.
+* text=auto eol=lf
+
+# Scripts Windows : forcer CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binaires et assets : ne jamais transformer.
+*.nbt binary
+*.png binary
+*.jar binary
+*.zip binary
+*.gif binary
+*.ogg binary
+*.ttf binary
+*.otf binary
+*.odt binary

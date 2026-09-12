@@ -1,3 +1,5 @@
-import subprocess, os
+import os
+from _env import run_gradle
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-subprocess.run(["gradlew.bat", "runClient"])
+run_gradle("runClient")

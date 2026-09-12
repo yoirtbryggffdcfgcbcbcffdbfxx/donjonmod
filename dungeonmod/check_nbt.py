@@ -1,10 +1,15 @@
-import nbtlib, gzip, sys
+import nbtlib, gzip, sys, os
+
+base = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "src", "main", "resources", "test_structures",
+)
 for name, path in [
     ("PorteGob", "porte_gobelin.nbt"),
     ("Chapelle2", "salle_chapelle_2.nbt"),
     ("Chapelle1", "salle_chapelle_1.nbt"),
 ]:
-    f = gzip.open(f"C:/Users/antoi/Downloads/salles/{path}")
+    f = gzip.open(os.path.join(base, path))
     nbt = nbtlib.File.parse(f)
     size = list(nbt["size"])
     print(f"{name} ({path}): size={size}")
