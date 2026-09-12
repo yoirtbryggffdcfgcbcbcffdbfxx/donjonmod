@@ -147,6 +147,16 @@ public class SeedHarness {
             }
         }
 
+        if (!AGG_FAILS.isEmpty()) {
+            java.util.List<java.util.Map.Entry<String, Integer>> top = new java.util.ArrayList<>(AGG_FAILS.entrySet());
+            top.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+            int tot = top.stream().mapToInt(java.util.Map.Entry::getValue).sum();
+            StringBuilder sb = new StringBuilder();
+            for (var e : top) sb.append(e.getKey()).append('=').append(e.getValue())
+                    .append(String.format(java.util.Locale.ROOT, " (%.1f%%)", 100.0 * e.getValue() / tot)).append(", ");
+            System.out.println("[Harnais] pertes par tentative (" + tot + ") : " + sb);
+        }
+
         // 3. Plage séquentielle (opt-in debug uniquement — ne reflète PAS le joueur)
         if (useRange) {
             System.out.println("== DEBUG plage entree : " + rangeStart + " .. "
@@ -195,9 +205,13 @@ public class SeedHarness {
         System.exit(1);
     }
 
+    /** Agrégat des causes de rejet par tentative, sur tout l'échantillon joueur. */
+    private static final java.util.Map<String, Integer> AGG_FAILS = new java.util.LinkedHashMap<>();
+
     private static PlayerGeneration generatePlayerLikeDungeon() {
         for (int batch = 1; batch <= MAX_PLAYER_BATCHES; batch++) {
             DungeonResult dr = DungeonAlgo.generateDungeon(0);
+            DungeonAlgo.FAIL_STAGES.forEach((k, v) -> AGG_FAILS.merge(k, v, Integer::sum));
             if (dr != null) return new PlayerGeneration(dr, batch);
         }
         return new PlayerGeneration(null, MAX_PLAYER_BATCHES);
@@ -208,11 +222,13 @@ public class SeedHarness {
      * le layout produit (reproductibilité d'un bug joueur).
      */
     private static List<String> testOutputSeed(long seed, boolean verbose) {
+        DungeonAlgo.resetFailStages();
         DungeonResult dr = DungeonAlgo.generateDungeon(seed);
         if (dr == null) {
             List<String> problems = new ArrayList<>();
-            problems.add("seed " + seed + " : GENERATION NULLE");
-            if (verbose) System.out.println("  seed " + seed + " : GENERATION NULLE");
+            String stages = DungeonAlgo.FAIL_STAGES.toString();
+            problems.add("seed " + seed + " : GENERATION NULLE " + stages);
+            if (verbose) System.out.println("  seed " + seed + " : GENERATION NULLE " + stages);
             return problems;
         }
         // La seed réellement utilisée peut être seed+outer (retry interne).

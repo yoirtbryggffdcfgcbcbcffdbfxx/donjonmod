@@ -335,9 +335,17 @@ public class DungeonAlgo {
 
     public static Map<Point, RoomType> getLastTopLabels() { return lastTopLabels; }
 
+    /** Compteurs de rejet par etape de generation (diagnostic harnais). */
+    public static final Map<String, Integer> FAIL_STAGES = new LinkedHashMap<>();
+
+    public static void resetFailStages() { FAIL_STAGES.clear(); }
+
+    private static void fail(String stage) { FAIL_STAGES.merge(stage, 1, Integer::sum); }
+
     public static DungeonResult generateDungeon(long seed) {
         int maxAttempts = seed != 0 ? 20 : 100;
         lastTopLabels = null;
+        resetFailStages();
 
         for (int outer = 0; outer < maxAttempts; outer++) {
             long actualSeed = seed != 0 ? seed + outer : System.nanoTime() + outer;
@@ -356,7 +364,7 @@ public class DungeonAlgo {
                 if (tryLabels == null) continue;
                 sp1 = try1; labels = tryLabels; break;
             }
-            if (sp1 == null) continue;
+            if (sp1 == null) { fail("P1:null"); continue; }
 
             Set<Point> p1MonsterCells = new HashSet<>();
             Point p1PrisonAdjacent = null;
@@ -378,19 +386,19 @@ public class DungeonAlgo {
             }
 
             Point porteKey = findPointByValue(labels, RoomType.DOOR_1);
-            if (porteKey == null) continue;
+            if (porteKey == null) { fail("P1:noDoor1"); continue; }
 
             TavernResult tavern = placeTavernAndPath(sp1.adj, porteKey, rng);
-            if (tavern == null) continue;
+            if (tavern == null) { fail("P2:tavernNull"); continue; }
             for (var e : tavern.tavern.entrySet()) labels.put(e.getValue(), e.getKey());
 
             TreeResult sp2 = generatePart2Tree(tavern.exitPoint, new HashSet<>(sp1.adj.keySet()), rng);
-            if (sp2.adj.size() < 5) continue;
+            if (sp2.adj.size() < 5) { fail("P2:tooSmall"); continue; }
             for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
             Point porte2Key = appendP2ExitSequence(sp1.adj, labels, sp2.trunkEnd, sp2.trunkEndDir,
                     null, rng);
-            if (porte2Key == null) continue;
+            if (porte2Key == null) { fail("P2:noExit"); continue; }
 
             int p1Loot = 0; for (RoomType v : labels.values()) if (v == RoomType.LOOT_1) p1Loot++;
             int totalTarget = 1 + rng.nextInt(2);
@@ -402,7 +410,7 @@ public class DungeonAlgo {
             }
 
             labels = analyzePart2(sp1.adj, tavern.exitPoint, labels, tavern.pathSet, rng);
-            if (labels == null) continue;
+            if (labels == null) { fail("P2:analyzeNull"); continue; }
 
             Set<Point> p2M5Cells = new HashSet<>();
             Set<Point> p2MonsterCells = new HashSet<>();
@@ -418,10 +426,10 @@ public class DungeonAlgo {
                 if (v == RoomType.MONSTER_5) p2M5Cells.add(e.getKey());
             }
 
-            if (findPointByValue(labels, RoomType.DOOR_2) == null) continue;
+            if (findPointByValue(labels, RoomType.DOOR_2) == null) { fail("P2:noDoor2"); continue; }
 
             CampResult camp = placeCampAndPath(sp1.adj, porte2Key, rng);
-            if (camp == null) continue;
+            if (camp == null) { fail("P3:campNull"); continue; }
             for (Point e : camp.campPathSet) {
                 if (labels.containsKey(e)) continue;
                 Set<Point> nb = sp1.adj.get(e);
@@ -430,75 +438,75 @@ public class DungeonAlgo {
             for (var e : camp.campNodes.entrySet()) labels.put(e.getValue(), e.getKey());
 
             TreeResult sp3 = generatePart3Tree(camp.campExit, new HashSet<>(sp1.adj.keySet()), rng);
-            if (sp3.adj.size() < 10) continue;
-            if (sp3.adj.get(sp3.startPoint).isEmpty()) continue;
+            if (sp3.adj.size() < 10) { fail("P3:tooSmall"); continue; }
+            if (sp3.adj.get(sp3.startPoint).isEmpty()) { fail("P3:startEmpty"); continue; }
             for (var e : sp3.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
             labels = analyzePart3(sp1.adj, camp.campExit, labels, rng);
-            if (labels != null) {
-                String missingLoot = null;
-                Set<RoomType> p3LootTypes = new HashSet<>();
-                for (RoomType v : labels.values()) if (v != null && v.isDjLoot()) p3LootTypes.add(v);
-                for (RoomType lt : RoomType.LOOT_P3_P4) { if (!p3LootTypes.contains(lt)) { missingLoot = lt.id; break; } }
+            if (labels == null) { fail("P3:analyzeNull"); continue; }
 
-                boolean p4Ok = false;
-                Map<Point, RoomType> currentTopLabels = null;
-                Map<Point, Set<Point>> p4Adj = null;
-                DungeonOccupancy occupancy = new DungeonOccupancy();
-                Point hubPoint = findPointByValue(labels, RoomType.CENTRALE);
-                if (hubPoint != null) {
-                    occupancy.reserve(hubPoint, RoomType.CENTRALE.size);
-                    Point topHub = hubPoint.atLevel(1);
-                    for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
-                        currentTopLabels = new HashMap<>();
-                        currentTopLabels.put(topHub, RoomType.CENTRALE);
-                        p4Adj = new HashMap<>();
-                        if (generatePart4Tree(p4Adj, currentTopLabels, topHub.x(), topHub.y(), topHub.level(), occupancy.cells(), missingLoot, rng)) {
-                            p4Ok = true;
-                            break;
-                        }
+            String missingLoot = null;
+            Set<RoomType> p3LootTypes = new HashSet<>();
+            for (RoomType v : labels.values()) if (v != null && v.isDjLoot()) p3LootTypes.add(v);
+            for (RoomType lt : RoomType.LOOT_P3_P4) { if (!p3LootTypes.contains(lt)) { missingLoot = lt.id; break; } }
+
+            boolean p4Ok = false;
+            Map<Point, RoomType> currentTopLabels = null;
+            Map<Point, Set<Point>> p4Adj = null;
+            DungeonOccupancy occupancy = new DungeonOccupancy();
+            Point hubPoint = findPointByValue(labels, RoomType.CENTRALE);
+            if (hubPoint != null) {
+                occupancy.reserve(hubPoint, RoomType.CENTRALE.size);
+                Point topHub = hubPoint.atLevel(1);
+                for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
+                    currentTopLabels = new HashMap<>();
+                    currentTopLabels.put(topHub, RoomType.CENTRALE);
+                    p4Adj = new HashMap<>();
+                    if (generatePart4Tree(p4Adj, currentTopLabels, topHub.x(), topHub.y(), topHub.level(), occupancy.cells(), missingLoot, rng)) {
+                        p4Ok = true;
+                        break;
                     }
                 }
-                if (!p4Ok) continue;
-
-                int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
-                if (m5 < 1) continue;
-
-                if (!respectsColinearLimit(sp1.adj)) continue;
-
-                reclassifyGeneric(labels, sp1.adj, rng);
-
-                DungeonResult dr = new DungeonResult();
-                dr.adj = sp1.adj; dr.labels = labels;
-                dr.startPoint = sp1.startPoint;
-                dr.startKey = sp1.startKey;
-                dr.startX = sp1.startX; dr.startY = sp1.startY;
-                dr.topLabels = currentTopLabels;
-                dr.p4Adj = p4Adj.isEmpty() ? null : p4Adj;
-                dr.missingLootType = missingLoot;
-                dr.seed = actualSeed;
-                dr.p2Monster5Cells = p2M5Cells;
-                dr.p1MonsterCells = p1MonsterCells;
-                dr.p2MonsterCells = p2MonsterCells;
-                dr.p1PrisonAdjacent = p1PrisonAdjacent;
-                dr.reservedCells = new HashSet<>(occupancy.cells());
-
-                // --- Graphe 3D unifie : toutes les couches + aretes verticales du hub ---
-                dr.unifiedAdj = new HashMap<>();
-                for (var e : dr.adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
-                if (dr.p4Adj != null) for (var e : dr.p4Adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
-                dr.unifiedLabels = new HashMap<>(dr.labels);
-                if (dr.topLabels != null) dr.unifiedLabels.putAll(dr.topLabels);
-                // Salle multi-cellules generique : maillage du volume + aretes verticales
-                // (une salle de size.y() > 1 est reliee nativement entre ses couches).
-                DungeonRoomPlacement.meshFootprint(dr.unifiedAdj, hubPoint, RoomType.CENTRALE.size);
-                DungeonRoomPlacement.linkVertical(dr.unifiedAdj, hubPoint, RoomType.CENTRALE.size);
-
-                lastSeed = actualSeed;
-                DungeonAlgo.lastTopLabels = currentTopLabels;
-
-                return dr;
             }
+            if (!p4Ok) { fail("P4:fail"); continue; }
+
+            int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
+            if (m5 < 1) { fail("P4:noM5"); continue; }
+
+            if (!respectsColinearLimit(sp1.adj)) { fail("COLINEAR"); continue; }
+
+            reclassifyGeneric(labels, sp1.adj, rng);
+
+            DungeonResult dr = new DungeonResult();
+            dr.adj = sp1.adj; dr.labels = labels;
+            dr.startPoint = sp1.startPoint;
+            dr.startKey = sp1.startKey;
+            dr.startX = sp1.startX; dr.startY = sp1.startY;
+            dr.topLabels = currentTopLabels;
+            dr.p4Adj = p4Adj.isEmpty() ? null : p4Adj;
+            dr.missingLootType = missingLoot;
+            dr.seed = actualSeed;
+            dr.p2Monster5Cells = p2M5Cells;
+            dr.p1MonsterCells = p1MonsterCells;
+            dr.p2MonsterCells = p2MonsterCells;
+            dr.p1PrisonAdjacent = p1PrisonAdjacent;
+            dr.reservedCells = new HashSet<>(occupancy.cells());
+
+            // --- Graphe 3D unifie : toutes les couches + aretes verticales du hub ---
+            dr.unifiedAdj = new HashMap<>();
+            for (var e : dr.adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
+            if (dr.p4Adj != null) for (var e : dr.p4Adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
+            dr.unifiedLabels = new HashMap<>(dr.labels);
+            if (dr.topLabels != null) dr.unifiedLabels.putAll(dr.topLabels);
+            // Salle multi-cellules generique : maillage du volume + aretes verticales
+            // (une salle de size.y() > 1 est reliee nativement entre ses couches).
+            DungeonRoomPlacement.meshFootprint(dr.unifiedAdj, hubPoint, RoomType.CENTRALE.size);
+            DungeonRoomPlacement.linkVertical(dr.unifiedAdj, hubPoint, RoomType.CENTRALE.size);
+
+            lastSeed = actualSeed;
+            DungeonAlgo.lastTopLabels = currentTopLabels;
+
+            return dr;
         }
         return null;
     }
