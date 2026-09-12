@@ -1,5 +1,29 @@
-import os, subprocess, sys
+import os, subprocess, sys, webbrowser
 from _env import java_command, pause
+
+
+def open_in_brave(path):
+    """Ouvre le HTML genere dans Brave (flatpak ou natif), sinon navigateur par defaut."""
+    if not path or not os.path.exists(path):
+        print("Viz introuvable :", path)
+        return
+    url = "file://" + os.path.abspath(path)
+    candidates = [
+        ["brave-browser"],
+        ["brave"],
+        ["brave-browser-stable"],
+        ["/var/lib/flatpak/exports/bin/com.brave.Browser"],
+        ["flatpak", "run", "com.brave.Browser"],
+    ]
+    for c in candidates:
+        try:
+            subprocess.Popen(c + [url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Apercu ouvert dans Brave :", url)
+            return
+        except (FileNotFoundError, OSError):
+            continue
+    webbrowser.open(url)
+    print("Brave introuvable -> navigateur par defaut :", url)
 
 # Harnais de regression : echantillonne N donjons MODE JOUEUR (seed=0) et verifie
 # automatiquement coherence labels <-> adjacence, connexite, garanties gameplay.
@@ -71,6 +95,17 @@ r = subprocess.run(cmd, capture_output=True, text=True)
 print(r.stdout)
 if r.stderr:
     print(r.stderr)
+
+# Apercu visuel : (re)genere dungeon_viz.html puis l'ouvre dans Brave.
+html = os.path.join(base, "dungeon_viz.html")
+try:
+    subprocess.run(
+        [java_command(), "-cp", classes, "com.dungeonmod.debug.DungeonViz", "-s", "0", "-o", html],
+        capture_output=True, text=True,
+    )
+    open_in_brave(html)
+except Exception as e:
+    print("Apercu viz impossible :", e)
 
 if r.returncode != 0:
     pause("ECHEC harnais (voir details ci-dessus). Appuie sur Entree pour fermer...")

@@ -108,6 +108,35 @@ public class DungeonAlgo {
         public Set<Point> p1MonsterCells = new HashSet<>();
         public Set<Point> p2MonsterCells = new HashSet<>();
         public Point p1PrisonAdjacent = null;
+
+        /**
+         * GRAPHE 3D UNIFIE : contient TOUTES les couches (sol + étage) ET les arêtes
+         * verticales (escalier du hub 2x2x2). Source de vérité pour la connectivité
+         * globale ; {@link #adj}/{@link #p4Adj} restent les vues par couche.
+         */
+        public Map<Point, Set<Point>> unifiedAdj;
+        public Map<Point, RoomType> unifiedLabels;
+
+        /** Adjacence d'une seule couche : arêtes dont les DEUX extrémités sont sur la couche. */
+        public Map<Point, Set<Point>> adjAt(int level) {
+            Map<Point, Set<Point>> out = new HashMap<>();
+            if (unifiedAdj == null) return out;
+            for (var e : unifiedAdj.entrySet()) {
+                if (e.getKey().level() != level) continue;
+                Set<Point> nb = new HashSet<>();
+                for (Point n : e.getValue()) if (n.level() == level) nb.add(n);
+                out.put(e.getKey(), nb);
+            }
+            return out;
+        }
+
+        /** Labels d'une seule couche. */
+        public Map<Point, RoomType> labelsAt(int level) {
+            Map<Point, RoomType> out = new HashMap<>();
+            if (unifiedLabels == null) return out;
+            for (var e : unifiedLabels.entrySet()) if (e.getKey().level() == level) out.put(e.getKey(), e.getValue());
+            return out;
+        }
     }
 
     static class TreeResult {
@@ -447,6 +476,36 @@ public class DungeonAlgo {
                 dr.p1MonsterCells = p1MonsterCells;
                 dr.p2MonsterCells = p2MonsterCells;
                 dr.p1PrisonAdjacent = p1PrisonAdjacent;
+
+                // --- Graphe 3D unifie : toutes les couches + aretes verticales du hub ---
+                dr.unifiedAdj = new HashMap<>();
+                for (var e : dr.adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
+                if (dr.p4Adj != null) for (var e : dr.p4Adj.entrySet()) dr.unifiedAdj.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
+                dr.unifiedLabels = new HashMap<>(dr.labels);
+                if (dr.topLabels != null) dr.unifiedLabels.putAll(dr.topLabels);
+                RoomType.Size3D hubSize = RoomType.CENTRALE.size;
+                for (int i = 0; i < hubSize.x(); i++) for (int j = 0; j < hubSize.z(); j++) {
+                    Point g = new Point(hubPoint.x() + i, hubPoint.y() + j, 0);
+                    Point t = new Point(hubPoint.x() + i, hubPoint.y() + j, 1);
+                    dr.unifiedAdj.computeIfAbsent(g, k -> new HashSet<>());
+                    dr.unifiedAdj.computeIfAbsent(t, k -> new HashSet<>());
+                    // arete verticale (escalier)
+                    dr.unifiedAdj.get(g).add(t);
+                    dr.unifiedAdj.get(t).add(g);
+                    // maillage du cube 2x2x2 : voisins orthogonaux internes a chaque niveau
+                    if (i > 0) {
+                        Point gl = new Point(hubPoint.x() + i - 1, hubPoint.y() + j, 0);
+                        Point tl = new Point(hubPoint.x() + i - 1, hubPoint.y() + j, 1);
+                        dr.unifiedAdj.get(g).add(gl); dr.unifiedAdj.get(gl).add(g);
+                        dr.unifiedAdj.get(t).add(tl); dr.unifiedAdj.get(tl).add(t);
+                    }
+                    if (j > 0) {
+                        Point gl = new Point(hubPoint.x() + i, hubPoint.y() + j - 1, 0);
+                        Point tl = new Point(hubPoint.x() + i, hubPoint.y() + j - 1, 1);
+                        dr.unifiedAdj.get(g).add(gl); dr.unifiedAdj.get(gl).add(g);
+                        dr.unifiedAdj.get(t).add(tl); dr.unifiedAdj.get(tl).add(t);
+                    }
+                }
 
                 lastSeed = actualSeed;
                 DungeonAlgo.lastTopLabels = currentTopLabels;

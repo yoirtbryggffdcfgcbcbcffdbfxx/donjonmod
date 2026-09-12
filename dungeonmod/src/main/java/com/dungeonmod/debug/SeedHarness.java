@@ -239,26 +239,28 @@ public class SeedHarness {
     private static List<String> validateResult(DungeonResult dr, long seed, String tag) {
         List<String> problems = new ArrayList<>();
 
-        // 1. Cohérence labels <-> adjacence (les deux étages)
-        problems.addAll(prefix(tag, DungeonAlgo.validateStructure(dr.labels, dr.adj, "ETAGE 0")));
+        // 1. Cohérence labels <-> adjacence, PAR COUCHE (extraite du graphe 3D unifié)
+        problems.addAll(prefix(tag, DungeonAlgo.validateStructure(dr.labelsAt(0), dr.adjAt(0), "ETAGE 0")));
         if (dr.topLabels != null && dr.p4Adj != null) {
-            problems.addAll(prefix(tag, DungeonAlgo.validateStructure(dr.topLabels, dr.p4Adj, "ETAGE 1")));
+            problems.addAll(prefix(tag, DungeonAlgo.validateStructure(dr.labelsAt(1), dr.adjAt(1), "ETAGE 1")));
         } else {
             problems.add(tag + " : P4 absente (topLabels ou p4Adj null)");
         }
 
-        // 2. Connexité des deux étages
-        checkConnectivity(problems, dr.labels, dr.adj, "ETAGE 0", tag);
-        checkConnectivity(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", tag);
+        // 2. Connexité BFS par couche
+        checkConnectivity(problems, dr.labelsAt(0), dr.adjAt(0), "ETAGE 0", tag);
+        checkConnectivity(problems, dr.labelsAt(1), dr.adjAt(1), "ETAGE 1", tag);
+        // 2b. Connexité GLOBALE : les couches sont reliées par l'escalier vertical du hub
+        checkConnectivity(problems, dr.unifiedLabels, dr.unifiedAdj, "GRAPHE 3D", tag);
 
         // 3. Garanties gameplay
         checkGuarantees(problems, dr, tag);
 
         // 4. Règles d'espacement (conversation 3) : monstres entre eux, isolement Ogre,
         //    culs-de-sac génériques jamais après une ligne droite.
-        checkSpacingRules(problems, dr.labels, dr.adj, "ETAGE 0", tag, true);
+        checkSpacingRules(problems, dr.labelsAt(0), dr.adjAt(0), "ETAGE 0", tag, true);
         if (dr.topLabels != null && dr.p4Adj != null) {
-            checkSpacingRules(problems, dr.topLabels, dr.p4Adj, "ETAGE 1", tag, false);
+            checkSpacingRules(problems, dr.labelsAt(1), dr.adjAt(1), "ETAGE 1", tag, false);
         }
 
         return problems;
