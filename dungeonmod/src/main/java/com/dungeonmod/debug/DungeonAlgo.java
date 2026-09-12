@@ -360,7 +360,9 @@ public class DungeonAlgo {
                 for (var e : try1.adj.entrySet()) if (e.getValue().size() == 1 && !e.getKey().equals(try1.startPoint)) leaves.add(e.getKey());
                 if (leaves.size() < 4) continue;
                 if (!hasPrisonCandidate(try1.adj, try1.startPoint)) continue;
-                Map<Point, RoomType> tryLabels = analyzePart1(try1.startPoint, try1.adj, rng);
+                // Retry LOCAL de l'analyse : on re-tente sur le MEME arbre (pas de regeneration).
+                Map<Point, RoomType> tryLabels = null;
+                for (int a = 0; a < 6 && tryLabels == null; a++) tryLabels = analyzePart1(try1.startPoint, try1.adj, rng);
                 if (tryLabels == null) continue;
                 sp1 = try1; labels = tryLabels; break;
             }
@@ -409,8 +411,12 @@ public class DungeonAlgo {
                 for (int i = 0; i < p1Loot - totalTarget && i < lootNodes.size(); i++) labels.put(lootNodes.get(i), RoomType.CUL);
             }
 
-            labels = analyzePart2(sp1.adj, tavern.exitPoint, labels, tavern.pathSet, rng);
-            if (labels == null) { fail("P2:analyzeNull"); continue; }
+            // Retry LOCAL : on ne jette plus la tentative entiere sur un echec de labellisation.
+            Map<Point, RoomType> p2Labels = null;
+            for (int a = 0; a < 12 && p2Labels == null; a++)
+                p2Labels = analyzePart2(sp1.adj, tavern.exitPoint, labels, tavern.pathSet, rng);
+            if (p2Labels == null) { fail("P2:analyzeNull"); continue; }
+            labels = p2Labels;
 
             Set<Point> p2M5Cells = new HashSet<>();
             Set<Point> p2MonsterCells = new HashSet<>();
@@ -442,8 +448,12 @@ public class DungeonAlgo {
             if (sp3.adj.get(sp3.startPoint).isEmpty()) { fail("P3:startEmpty"); continue; }
             for (var e : sp3.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
-            labels = analyzePart3(sp1.adj, camp.campExit, labels, rng);
-            if (labels == null) { fail("P3:analyzeNull"); continue; }
+            // Retry LOCAL de l'analyse P3 (meme graphe, pas de regeneration).
+            Map<Point, RoomType> p3Labels = null;
+            for (int a = 0; a < 12 && p3Labels == null; a++)
+                p3Labels = analyzePart3(sp1.adj, camp.campExit, labels, rng);
+            if (p3Labels == null) { fail("P3:analyzeNull"); continue; }
+            labels = p3Labels;
 
             String missingLoot = null;
             Set<RoomType> p3LootTypes = new HashSet<>();
