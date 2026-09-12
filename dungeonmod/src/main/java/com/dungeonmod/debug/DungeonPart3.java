@@ -261,7 +261,14 @@ final class DungeonPart3 {
             for (int dxi = 0; dxi < hubSize.x(); dxi++) for (int dzi = 0; dzi < hubSize.z(); dzi++) hubCells.add(new Point(hx2 + dxi, hz2 + dzi));
             boolean hubFree = true; for (Point hc : hubCells) { if (adj.containsKey(hc) || hc.isOutOfBounds()) { hubFree = false; break; } }
             if (!hubFree) { removeNodesClean(adj, corrNodes); continue; }
-            Point hubKey = new Point(hx2, hz2); adj.put(hubKey, new HashSet<>()); adj.get(hubKey).add(wKey); adj.get(wKey).add(hubKey);
+            Point hubKey = new Point(hx2, hz2);
+            // Cellule du hub orthogonalement adjacente a wKey : evite l'arete DIAGONALE
+            // (wKey est en +x ; la cellule hub en face est (hx2+1, hz2)).
+            Point hubEntry = new Point(hx2 + 1, hz2);
+            adj.put(hubKey, new HashSet<>());
+            adj.putIfAbsent(hubEntry, new HashSet<>());
+            adj.get(hubKey).add(hubEntry); adj.get(hubEntry).add(hubKey);
+            adj.get(hubEntry).add(wKey); adj.get(wKey).add(hubEntry);
             labelState.setTheme(corrNodes, Theme.P12); labelState.putSpecial(hubKey, RoomType.CENTRALE);
             hubOk = true;
         }

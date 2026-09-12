@@ -1005,6 +1005,7 @@ public class TestGenerator {
         Map<Point, String> exits = new HashMap<>();
         if (data == null) return exits;
         int sx = data.length, sy = data[0].length, sz = data[0][0].length;
+        com.dungeonmod.debug.RoomType.Size3D hubSize = com.dungeonmod.debug.RoomType.CENTRALE.size;
         Random rng = new Random();
         for (int y = 0; y < sy; y++) {
             for (int x = 0; x < sx; x++) {
@@ -1012,9 +1013,9 @@ public class TestGenerator {
                     if (!isWool(data[x][y][z], PURPLE_WOOL)) continue;
                     int ex, ez;
                     if (x == 0) { ex = hubX - 1; ez = hubZ + (z / CELL); }
-                    else if (x == sx - 1) { ex = hubX + 2; ez = hubZ + (z / CELL); }
+                    else if (x == sx - 1) { ex = hubX + hubSize.x(); ez = hubZ + (z / CELL); }
                     else if (z == 0) { ex = hubX + (x / CELL); ez = hubZ - 1; }
-                    else if (z == sz - 1) { ex = hubX + (x / CELL); ez = hubZ + 2; }
+                    else if (z == sz - 1) { ex = hubX + (x / CELL); ez = hubZ + hubSize.z(); }
                     else continue;
                     exits.putIfAbsent(new Point(ex, ez, level), CJ_TYPES.get(rng.nextInt(3)));
                 }

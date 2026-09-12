@@ -252,6 +252,10 @@ public class SeedHarness {
         checkConnectivity(problems, dr.labelsAt(1), dr.adjAt(1), "ETAGE 1", tag);
         // 2b. Connexité GLOBALE : les couches sont reliées par l'escalier vertical du hub
         checkConnectivity(problems, dr.unifiedLabels, dr.unifiedAdj, "GRAPHE 3D", tag);
+        // 2c. Intégrité structurelle (orthogonalité, symétrie, bornes, labels sans nœud)
+        checkGraphIntegrity(problems, dr.labelsAt(0), dr.adjAt(0), "ETAGE 0", tag);
+        checkGraphIntegrity(problems, dr.labelsAt(1), dr.adjAt(1), "ETAGE 1", tag);
+        checkGraphIntegrity(problems, dr.unifiedLabels, dr.unifiedAdj, "GRAPHE 3D", tag);
 
         // 3. Garanties gameplay
         checkGuarantees(problems, dr, tag);
@@ -322,6 +326,42 @@ public class SeedHarness {
         List<String> out = new ArrayList<>();
         for (String p : problems) out.add(tag + " : " + p);
         return out;
+    }
+
+    /**
+     * INTEGRITE STRUCTURELLE du graphe. Detecte le type d'erreur qui n'etait pas
+     * couvert avant (mauvais placement de hub) :
+     *  - arete NON ORTHOGONALE : distance de Manhattan 3D != 1 (donc diagonale, ou saut de couche) ;
+     *  - arete NON SYMETRIQUE, arete NULLE ;
+     *  - noeud HORS BORNES ;
+     *  - label SANS NOEUD dans l'adjacence.
+     */
+    private static void checkGraphIntegrity(List<String> problems, Map<Point, RoomType> labels,
+                                            Map<Point, Set<Point>> adj, String scope, String tag) {
+        if (adj == null) return;
+        for (var e : adj.entrySet()) {
+            Point a = e.getKey();
+            if (a.isOutOfBounds()) problems.add(tag + " : " + scope + " noeud HORS BORNES " + a.key());
+            for (Point b : e.getValue()) {
+                if (b == null) { problems.add(tag + " : " + scope + " arete NULLE depuis " + a.key()); continue; }
+                if (!adj.getOrDefault(b, Collections.emptySet()).contains(a)) {
+                    problems.add(tag + " : " + scope + " arete NON SYMETRIQUE " + a.key() + " -> " + b.key());
+                }
+                int dist = Math.abs(a.x() - b.x()) + Math.abs(a.y() - b.y()) + Math.abs(a.level() - b.level());
+                if (dist != 1) {
+                    problems.add(tag + " : " + scope + " arete NON ORTHOGONALE " + a.key()
+                            + " -> " + b.key() + " (dist=" + dist + ")");
+                }
+            }
+        }
+        if (labels != null) {
+            for (var e : labels.entrySet()) {
+                if (!adj.containsKey(e.getKey())) {
+                    problems.add(tag + " : " + scope + " label "
+                            + (e.getValue() != null ? e.getValue().id : "?") + " SANS NOEUD @ " + e.getKey().key());
+                }
+            }
+        }
     }
 
     /**
