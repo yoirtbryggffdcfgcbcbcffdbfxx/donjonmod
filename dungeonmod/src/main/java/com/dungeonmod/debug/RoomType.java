@@ -81,7 +81,7 @@ public enum RoomType {
     WELL_DJ("PuitDJ"),
     GARDEN("Jardin"),
     STATUE("Statue"),
-    CENTRALE("Centrale"),
+    CENTRALE("Centrale", new Size3D(2, 2, 2)),
     BLACK_MARKET("MarchandNoir"),
     CHAPEL_1("Chapelle1"),
     CHAPEL_2("Chapelle2"),
@@ -107,12 +107,29 @@ public enum RoomType {
     public final String id;
     public final Shape shape;
     public final Theme theme; // null = salle speciale
+    /** Taille native de la salle : (largeur X, hauteur Y, profondeur Z). Defaut 1x1x1. */
+    public final Size3D size;
 
-    RoomType(String id) { this(id, null, null); }
-    RoomType(String id, Shape shape, Theme theme) {
+    /** Volume d'une salle en cellules. La majorite des salles sont 1x1x1. */
+    public record Size3D(int x, int y, int z) {
+        public static final Size3D UNIT = new Size3D(1, 1, 1);
+        public Size3D {
+            if (x < 1 || y < 1 || z < 1) {
+                throw new IllegalArgumentException("Size3D doit etre >= 1 : " + x + "x" + y + "x" + z);
+            }
+        }
+        public int cells() { return x * y * z; }
+    }
+
+    RoomType(String id) { this(id, null, null, Size3D.UNIT); }
+    RoomType(String id, Shape shape, Theme theme) { this(id, shape, theme, Size3D.UNIT); }
+    /** Salle speciale a volume explicite (ex. Centrale 2x2x2). */
+    RoomType(String id, Size3D size) { this(id, null, null, size); }
+    RoomType(String id, Shape shape, Theme theme, Size3D size) {
         this.id = id;
         this.shape = shape;
         this.theme = theme;
+        this.size = size;
     }
 
     // ===================== Helpers =====================

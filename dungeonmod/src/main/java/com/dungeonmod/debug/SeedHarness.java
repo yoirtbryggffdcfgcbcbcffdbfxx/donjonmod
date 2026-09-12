@@ -337,10 +337,10 @@ public class SeedHarness {
         if ("ETAGE 1".equals(scope)) {
             for (var e : labels.entrySet()) {
                 if (e.getValue() == RoomType.CENTRALE) {
-                    int hx = e.getKey().x(), hz = e.getKey().y();
+                    int hx = e.getKey().x(), hz = e.getKey().y(), lvl = e.getKey().level();
                     for (int dx = 0; dx <= 1; dx++)
                         for (int dz = 0; dz <= 1; dz++)
-                            hub.add(new Point(hx + dx, hz + dz));
+                            hub.add(new Point(hx + dx, hz + dz, lvl));
                     break;
                 }
             }

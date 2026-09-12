@@ -119,8 +119,8 @@ final class DungeonConstraints {
                 if (parentLbl.isGeneric()) {
                     int dx = parent.x() - gp.x(), dy = parent.y() - gp.y();
                     List<Point> laterals = new ArrayList<>();
-                    Point l1 = new Point(parent.x() - dy, parent.y() + dx);
-                    Point l2 = new Point(parent.x() + dy, parent.y() - dx);
+                    Point l1 = new Point(parent.x() - dy, parent.y() + dx, parent.level());
+                    Point l2 = new Point(parent.x() + dy, parent.y() - dx, parent.level());
                     if (isFreeCell(adj, l1)) laterals.add(l1);
                     if (isFreeCell(adj, l2)) laterals.add(l2);
                     if (!laterals.isEmpty()) {

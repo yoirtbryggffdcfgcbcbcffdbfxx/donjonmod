@@ -193,20 +193,21 @@ final class DungeonPart4 {
     }
 
     static boolean generatePart4Tree(Map<Point, Set<Point>> adj, Map<Point, RoomType> topLabels,
-                                              int hx, int hz, String missingLootType, Random rng) {
+                                              int hx, int hz, int level, String missingLootType, Random rng) {
         DungeonLabelState labelState = new DungeonLabelState(); labelState.absorbLabels(topLabels);
-        Point[] p4Exits = { new Point(hx, hz + 2), new Point(hx + 1, hz + 2), new Point(hx - 1, hz), new Point(hx + 2, hz), new Point(hx + 1, hz - 1) };
+        Point[] p4Exits = { new Point(hx, hz + 2, level), new Point(hx + 1, hz + 2, level), new Point(hx - 1, hz, level), new Point(hx + 2, hz, level), new Point(hx + 1, hz - 1, level) };
         List<Point> p4List = new ArrayList<>(Arrays.asList(p4Exits)); Collections.shuffle(p4List, rng);
         Set<Point> globalOccupied = new HashSet<>();
-        for (int x = hx; x <= hx + 1; x++) for (int z = hz; z <= hz + 1; z++) { Point hp = new Point(x, z); globalOccupied.add(hp); adj.putIfAbsent(hp, new HashSet<>()); }
+        RoomType.Size3D hubSize = RoomType.CENTRALE.size;
+        for (int x = hx; x < hx + hubSize.x(); x++) for (int z = hz; z < hz + hubSize.z(); z++) { Point hp = new Point(x, z, level); globalOccupied.add(hp); adj.putIfAbsent(hp, new HashSet<>()); }
         List<Point> cjKeys = new ArrayList<>(), exitKeys = new ArrayList<>(); List<int[]> cjDirs = new ArrayList<>();
         for (Point pp : p4List) {
             int adx = 0, ady = 0; Point hk = null;
-            if (pp.x() == hx && pp.y() == hz+2) { adx = 0; ady = 1; hk = new Point(hx, hz+1); }
-            else if (pp.x() == hx+1 && pp.y() == hz+2) { adx = 0; ady = 1; hk = new Point(hx+1, hz+1); }
-            else if (pp.x() == hx-1 && pp.y() == hz) { adx = -1; ady = 0; hk = new Point(hx, hz); }
-            else if (pp.x() == hx+2 && pp.y() == hz) { adx = 1; ady = 0; hk = new Point(hx+1, hz); }
-            else if (pp.x() == hx+1 && pp.y() == hz-1) { adx = 0; ady = -1; hk = new Point(hx+1, hz); }
+            if (pp.x() == hx && pp.y() == hz+2) { adx = 0; ady = 1; hk = new Point(hx, hz+1, level); }
+            else if (pp.x() == hx+1 && pp.y() == hz+2) { adx = 0; ady = 1; hk = new Point(hx+1, hz+1, level); }
+            else if (pp.x() == hx-1 && pp.y() == hz) { adx = -1; ady = 0; hk = new Point(hx, hz, level); }
+            else if (pp.x() == hx+2 && pp.y() == hz) { adx = 1; ady = 0; hk = new Point(hx+1, hz, level); }
+            else if (pp.x() == hx+1 && pp.y() == hz-1) { adx = 0; ady = -1; hk = new Point(hx+1, hz, level); }
             if (hk == null) continue;
             Point cjPt = pp.move(adx, ady);
             if (!cjPt.isOutOfBounds() && !globalOccupied.contains(cjPt)) {

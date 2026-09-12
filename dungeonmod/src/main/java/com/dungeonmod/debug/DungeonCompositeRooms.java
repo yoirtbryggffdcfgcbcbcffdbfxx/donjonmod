@@ -231,7 +231,8 @@ final class DungeonCompositeRooms {
         int sy = dx;
         return new Point(
                 anchor.x() + local.forward() * dx + local.side() * sx,
-                anchor.y() + local.forward() * dy + local.side() * sy
+                anchor.y() + local.forward() * dy + local.side() * sy,
+                anchor.level()
         );
     }
 }

@@ -256,7 +256,9 @@ final class DungeonPart3 {
             adj.put(wKey, new HashSet<>()); adj.get(wKey).add(prev); adj.get(prev).add(wKey); corrNodes.add(wKey);
             int hx2 = cx, hz2 = cz + 1;
             if (hz2 + 1 >= DungeonAlgo.GRID_SIZE) { removeNodesClean(adj, corrNodes); continue; }
-            Point[] hubCells = {new Point(hx2, hz2), new Point(hx2+1, hz2), new Point(hx2, hz2+1), new Point(hx2+1, hz2+1)};
+            RoomType.Size3D hubSize = RoomType.CENTRALE.size;
+            List<Point> hubCells = new ArrayList<>();
+            for (int dxi = 0; dxi < hubSize.x(); dxi++) for (int dzi = 0; dzi < hubSize.z(); dzi++) hubCells.add(new Point(hx2 + dxi, hz2 + dzi));
             boolean hubFree = true; for (Point hc : hubCells) { if (adj.containsKey(hc) || hc.isOutOfBounds()) { hubFree = false; break; } }
             if (!hubFree) { removeNodesClean(adj, corrNodes); continue; }
             Point hubKey = new Point(hx2, hz2); adj.put(hubKey, new HashSet<>()); adj.get(hubKey).add(wKey); adj.get(wKey).add(hubKey);

@@ -81,17 +81,16 @@ public class TestGenerator {
     }
 
     private static class RoomCell {
-        int cx, cz, rot, corrIdx;
+        int cx, cz, rot, corrIdx, level;
         String typeKey;
-        boolean topLevel;
 
         RoomCell(int cx, int cz, String typeKey, int rot, int corrIdx) {
-            this(cx, cz, typeKey, rot, corrIdx, false);
+            this(cx, cz, typeKey, rot, corrIdx, 0);
         }
 
-        RoomCell(int cx, int cz, String typeKey, int rot, int corrIdx, boolean topLevel) {
+        RoomCell(int cx, int cz, String typeKey, int rot, int corrIdx, int level) {
             this.cx = cx; this.cz = cz; this.typeKey = typeKey; this.rot = rot;
-            this.corrIdx = corrIdx; this.topLevel = topLevel;
+            this.corrIdx = corrIdx; this.level = level;
         }
     }
 
@@ -285,7 +284,7 @@ public class TestGenerator {
                 if (e.getValue() == com.dungeonmod.debug.RoomType.CENTRALE) { hubPoint = e.getKey(); break; }
             }
             if (hubPoint != null && NBT_CACHE.get("Centrale") != null) {
-                for (var e : detectCentraleExits(NBT_CACHE.get("Centrale"), hubPoint.x(), hubPoint.y()).entrySet()) {
+                for (var e : detectCentraleExits(NBT_CACHE.get("Centrale"), hubPoint.x(), hubPoint.y(), hubPoint.level()).entrySet()) {
                     com.dungeonmod.debug.RoomType rt = com.dungeonmod.debug.RoomType.byId(e.getValue()); if (rt != null && !result.topLabels.containsKey(e.getKey())) result.topLabels.put(e.getKey(), rt);
                 }
             }
@@ -310,7 +309,7 @@ public class TestGenerator {
         lastOriginX = ox; lastOriginZ = oz; lastDepartX = 0; lastDepartZ = 0; lastOriginY = oy;
 
         for (RoomCell rc : cells) {
-            int wy = rc.topLevel ? oy + 10 : oy;
+            int wy = oy + rc.level * com.dungeonmod.debug.DungeonAlgo.LEVEL_HEIGHT;
             int wx = ox + rc.cx * CELL, wz = oz + rc.cz * CELL;
 
             BlockState[][][] data = getData(rc.typeKey, rc.corrIdx);
@@ -509,7 +508,7 @@ public class TestGenerator {
                 }
 
                 int corrIdx = typeKey.startsWith("CJ") || typeKey.startsWith("CG") ? rng.nextInt(3) : 0;
-                cells.add(new RoomCell(x - g.startX, y - g.startY, typeKey, rot, corrIdx, true));
+                cells.add(new RoomCell(x - g.startX, y - g.startY, typeKey, rot, corrIdx, p.level()));
             }
         }
         return cells;
@@ -540,7 +539,7 @@ public class TestGenerator {
         // Tirage P2 : 2 salles M différentes reçoivent une clé chacune
         List<RoomCell> p2MCandidates = new java.util.ArrayList<>();
         for (RoomCell rc : cells) {
-            if (rc.topLevel) continue;
+            if (rc.level != 0) continue;
             if (!("M1".equals(rc.typeKey) || "M2".equals(rc.typeKey) || "M3".equals(rc.typeKey)
                     || "M4".equals(rc.typeKey) || "M5".equals(rc.typeKey))) continue;
             com.dungeonmod.debug.DungeonAlgo.Point gp = new com.dungeonmod.debug.DungeonAlgo.Point(
@@ -559,7 +558,7 @@ public class TestGenerator {
         }
 
         for (RoomCell rc : cells) {
-            if (rc.topLevel) continue;
+            if (rc.level != 0) continue;
             int wx = ox + rc.cx * CELL;
             int wz = oz + rc.cz * CELL;
             net.minecraft.util.math.BlockPos roomCorner = new net.minecraft.util.math.BlockPos(wx, oy, wz);
@@ -1002,7 +1001,7 @@ public class TestGenerator {
         return state != null && !state.isAir() && woolId.equals(Registries.BLOCK.getId(state.getBlock()));
     }
 
-    private static Map<Point, String> detectCentraleExits(BlockState[][][] data, int hubX, int hubZ) {
+    private static Map<Point, String> detectCentraleExits(BlockState[][][] data, int hubX, int hubZ, int level) {
         Map<Point, String> exits = new HashMap<>();
         if (data == null) return exits;
         int sx = data.length, sy = data[0].length, sz = data[0][0].length;
@@ -1017,7 +1016,7 @@ public class TestGenerator {
                     else if (z == 0) { ex = hubX + (x / CELL); ez = hubZ - 1; }
                     else if (z == sz - 1) { ex = hubX + (x / CELL); ez = hubZ + 2; }
                     else continue;
-                    exits.putIfAbsent(new Point(ex, ez), CJ_TYPES.get(rng.nextInt(3)));
+                    exits.putIfAbsent(new Point(ex, ez, level), CJ_TYPES.get(rng.nextInt(3)));
                 }
             }
         }

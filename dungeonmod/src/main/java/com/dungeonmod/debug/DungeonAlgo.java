@@ -8,6 +8,8 @@ public class DungeonAlgo {
 
     public static final int[][] DIR_OFFSET = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
     public static final int GRID_SIZE = 400;
+    /** Hauteur monde (en blocs) entre deux couches logiques (level). */
+    public static final int LEVEL_HEIGHT = 10;
 
     static final int PART1_TARGET_MIN = 24;
     static final int PART1_TARGET_MAX = 30;
@@ -30,20 +32,50 @@ public class DungeonAlgo {
 
     // ===================== Point Record & Helpers =====================
 
-    public record Point(int x, int y) {
+    /**
+     * Nœud 3D natif : (x, y) dans le plan, {@code level} = couche logique (sans maximum).
+     * Le plan reste borné par {@link #GRID_SIZE} ; la couche est native et sans limite.
+     */
+    public record Point(int x, int y, int level) {
+        /** Point du plan sur la couche 0 (compat historique 2D). */
+        public Point(int x, int y) { this(x, y, 0); }
+
+        /** Parse "x,y" (couche 0) ou "x,y,level". */
         public static Point parse(String key) {
-            int idx = key.indexOf(',');
+            int i1 = key.indexOf(',');
+            int i2 = key.indexOf(',', i1 + 1);
+            if (i2 < 0) {
+                return new Point(
+                    Integer.parseInt(key.substring(0, i1).trim()),
+                    Integer.parseInt(key.substring(i1 + 1).trim()),
+                    0
+                );
+            }
             return new Point(
-                Integer.parseInt(key.substring(0, idx)),
-                Integer.parseInt(key.substring(idx + 1))
+                Integer.parseInt(key.substring(0, i1).trim()),
+                Integer.parseInt(key.substring(i1 + 1, i2).trim()),
+                Integer.parseInt(key.substring(i2 + 1).trim())
             );
         }
 
-        public String key() { return x + "," + y; }
+        /** Clé stable : "x,y" sur la couche 0 (compat), "x,y,level" sinon. */
+        public String key() { return level == 0 ? x + "," + y : x + "," + y + "," + level; }
 
-        public Point move(int[] dir) { return new Point(x + dir[0], y + dir[1]); }
+        /** Déplacement planaire ; la couche est conservée. */
+        public Point move(int[] dir) { return new Point(x + dir[0], y + dir[1], level); }
 
-        public Point move(int dx, int dy) { return new Point(x + dx, y + dy); }
+        /** Déplacement planaire ; la couche est conservée. */
+        public Point move(int dx, int dy) { return new Point(x + dx, y + dy, level); }
+
+        /** Déplacement générique, vertical inclus (dl = ±1). */
+        public Point move(int dx, int dy, int dl) { return new Point(x + dx, y + dy, level + dl); }
+
+        /** Même cellule planaire, autre couche. */
+        public Point atLevel(int l) { return new Point(x, y, l); }
+
+        public Point above() { return new Point(x, y, level + 1); }
+
+        public Point below() { return new Point(x, y, level - 1); }
 
         public boolean isOutOfBounds() {
             return x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE;
@@ -220,8 +252,8 @@ public class DungeonAlgo {
 
     private static boolean generatePart4Tree(Map<Point, Set<Point>> adj,
                                               Map<Point, RoomType> topLabels,
-                                              int hx, int hz, String missingLootType, Random rng) {
-        return DungeonPart4.generatePart4Tree(adj, topLabels, hx, hz, missingLootType, rng);
+                                              int hx, int hz, int level, String missingLootType, Random rng) {
+        return DungeonPart4.generatePart4Tree(adj, topLabels, hx, hz, level, missingLootType, rng);
     }
 
     private static TreeResult generatePart2Tree(Point startPoint, Set<Point> blocked, Random rng) {
@@ -382,11 +414,12 @@ public class DungeonAlgo {
                 Map<Point, Set<Point>> p4Adj = null;
                 Point hubPoint = findPointByValue(labels, RoomType.CENTRALE);
                 if (hubPoint != null) {
+                    Point topHub = hubPoint.atLevel(1);
                     for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
                         currentTopLabels = new HashMap<>();
-                        currentTopLabels.put(hubPoint, RoomType.CENTRALE);
+                        currentTopLabels.put(topHub, RoomType.CENTRALE);
                         p4Adj = new HashMap<>();
-                        if (generatePart4Tree(p4Adj, currentTopLabels, hubPoint.x(), hubPoint.y(), missingLoot, rng)) {
+                        if (generatePart4Tree(p4Adj, currentTopLabels, topHub.x(), topHub.y(), topHub.level(), missingLoot, rng)) {
                             p4Ok = true;
                             break;
                         }
