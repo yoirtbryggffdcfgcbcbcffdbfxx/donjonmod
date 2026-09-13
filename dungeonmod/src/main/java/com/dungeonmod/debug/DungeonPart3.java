@@ -201,6 +201,20 @@ final class DungeonPart3 {
                     chainKeys[i] = next; curr = next;
                 }
                 if (chainOk) {
+                    // LOOK-AHEAD : la DROITE de BIB2 (direction imposee, calculee par candidat) doit
+                    // avoir la place du couloir du hub. Sinon -> on essaie un autre BIB (jamais d'autre sens).
+                    int adx = chainKeys[1].x() - chainKeys[0].x(), adz = chainKeys[1].y() - chainKeys[0].y();
+                    int pcx, pcz;
+                    if (adx == 1 && adz == 0) { pcx = 0; pcz = 1; }
+                    else if (adx == -1 && adz == 0) { pcx = 0; pcz = -1; }
+                    else if (adx == 0 && adz == 1) { pcx = -1; pcz = 0; }
+                    else { pcx = 1; pcz = 0; }
+                    boolean rightFree = true; Point probe = chainKeys[1];
+                    for (int k = 0; k < 4 && rightFree; k++) {
+                        probe = probe.move(pcx, pcz);
+                        if (probe.isOutOfBounds() || adj.containsKey(probe)) rightFree = false;
+                    }
+                    if (!rightFree) continue;
                     adj.put(chainKeys[0], new HashSet<>()); adj.get(src).add(chainKeys[0]); adj.get(chainKeys[0]).add(src);
                     adj.put(chainKeys[1], new HashSet<>()); adj.get(chainKeys[0]).add(chainKeys[1]); adj.get(chainKeys[1]).add(chainKeys[0]);
                     bibNodes = chainKeys; break;
