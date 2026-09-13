@@ -223,14 +223,8 @@ final class DungeonPart1 {
                 Point straight = new Point(cx + dx, cy + dy);
                 boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                         && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-                boolean goStraight;
-                if (i == 0) {
-                    // B : prolonger tout droit si possible ; sinon tenter un virage au 1er pas.
-                    goStraight = straightOk;
-                    if (!straightOk) doorBlocked = true;
-                } else {
-                    goStraight = straightOk && rng.nextFloat() < 0.35f;
-                }
+                if (i == 0 && !straightOk) { doorBlocked = true; failed = true; break; }
+                boolean goStraight = (i == 0) || (straightOk && rng.nextFloat() < 0.35f);
                 int ndx = dx, ndy = dy;
                 if (!goStraight) {
                     int[][] perp = {{dy, -dx}, {-dy, dx}};

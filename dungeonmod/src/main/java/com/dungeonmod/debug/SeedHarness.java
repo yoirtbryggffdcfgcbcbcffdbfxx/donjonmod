@@ -272,6 +272,9 @@ public class SeedHarness {
         checkGraphIntegrity(problems, dr.labelsAt(0), dr.adjAt(0), "ETAGE 0", tag);
         checkGraphIntegrity(problems, dr.labelsAt(1), dr.adjAt(1), "ETAGE 1", tag);
         checkGraphIntegrity(problems, dr.unifiedLabels, dr.unifiedAdj, "GRAPHE 3D", tag);
+        // 2d. Formes imposées des labels spéciaux (ex. une porte doit rester droite)
+        checkSpecialShapes(problems, dr.labelsAt(0), dr.adjAt(0), "ETAGE 0", tag);
+        checkSpecialShapes(problems, dr.labelsAt(1), dr.adjAt(1), "ETAGE 1", tag);
 
         // 3. Garanties gameplay
         checkGuarantees(problems, dr, tag);
@@ -342,6 +345,30 @@ public class SeedHarness {
         List<String> out = new ArrayList<>();
         for (String p : problems) out.add(tag + " : " + p);
         return out;
+    }
+
+    /**
+     * FORMES IMPOSEES des labels speciaux dans le graphe FINAL. `validateStructure`
+     * ne verifie que les generiques : ici on couvre les portes (DOOR_*) qui doivent
+     * rester sur un axe DROIT (une porte sur un virage = bug de placement).
+     */
+    private static void checkSpecialShapes(List<String> problems, Map<Point, RoomType> labels,
+                                           Map<Point, Set<Point>> adj, String scope, String tag) {
+        if (labels == null) return;
+        for (var e : labels.entrySet()) {
+            RoomType t = e.getValue();
+            if (t == null) continue;
+            DungeonAlgo.Shape expected = switch (t) {
+                case DOOR_1, DOOR_2, DOOR_3 -> DungeonAlgo.Shape.STRAIGHT;
+                default -> null;
+            };
+            if (expected == null) continue;
+            DungeonAlgo.Shape actual = DungeonAlgo.shapeOf(adj.getOrDefault(e.getKey(), Set.of()));
+            if (actual != expected) {
+                problems.add(tag + " : " + scope + " " + t.id + " @ " + e.getKey().key()
+                        + " doit etre " + expected + " mais est " + actual);
+            }
+        }
     }
 
     /**
