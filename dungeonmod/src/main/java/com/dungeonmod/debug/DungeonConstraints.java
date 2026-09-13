@@ -96,6 +96,11 @@ final class DungeonConstraints {
      */
     static boolean enforceDeadEndAfterTurn(Map<Point, RoomType> labels, Map<Point, Set<Point>> adj, Random rng) {
         boolean fixed;
+        // GARDE-FOU anti-oscillation : la boucle de reparation est bornee. Une reparation saine est
+        // monotone (branche 1 = lateral du parent ; branche 2 = gp non-droit), mais on ne veut
+        // JAMAIS dependre de cette hypothese -> cap dur.
+        int repairGuard = 0;
+        int repairCap = Math.max(8, labels.size());
         do {
             fixed = false;
             List<Point> sorted = new ArrayList<>(labels.keySet());
@@ -150,6 +155,7 @@ final class DungeonConstraints {
                     else DungeonAlgo.fail("deadEnd:branch2Other");
                 }
                 if (!moved) { DungeonAlgo.fail("deadEnd:nomove"); return false; }
+                if (++repairGuard > repairCap) { DungeonAlgo.fail("deadEnd:guardCap"); return false; }
                 fixed = true;
                 break;
             }
