@@ -275,7 +275,18 @@ final class DungeonPart4 {
                 for (RoomType t : pool) if (!usedOnTree.contains(t)) cands.add(new Object[]{k, t, ti});
             }
             if (cands.isEmpty()) break;
-            Object[] ch = cands.get(rng.nextInt(cands.size()));
+            // 1b : preferer un candidat dont le type MONSTER_DJ manque encore. On garde mjT
+            // (meme nombre de monstres) tout en couvrant les 5 types -> moins d'echecs P4.
+            List<Object[]> priority = new ArrayList<>();
+            for (Object[] c : cands) {
+                RoomType ct = (RoomType) c[1];
+                if (ct == RoomType.MONSTER_DJ_1 || ct == RoomType.MONSTER_DJ_2 || ct == RoomType.MONSTER_DJ_3
+                        || ct == RoomType.MONSTER_DJ_4 || ct == RoomType.MONSTER_DJ_5) {
+                    if (!topLabels.containsValue(ct)) priority.add(c);
+                }
+            }
+            List<Object[]> pickFrom = priority.isEmpty() ? cands : priority;
+            Object[] ch = pickFrom.get(rng.nextInt(pickFrom.size()));
             Point best = (Point) ch[0]; RoomType bestType = (RoomType) ch[1]; int ti = (int) ch[2];
             putSpecial(labelState, topLabels, best, bestType); mjPlacedKeys.add(best);
             if (ti >= 0) mjTypesOnTree.get(ti).add(bestType);
