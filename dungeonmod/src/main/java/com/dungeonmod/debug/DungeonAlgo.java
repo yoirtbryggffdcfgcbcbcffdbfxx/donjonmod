@@ -490,7 +490,13 @@ public class DungeonAlgo {
             int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
             if (m5 < 1) { fail("P4:noM5"); continue; }
 
-            if (!respectsColinearLimit(sp1.adj)) { fail("COLINEAR"); continue; }
+                if (!respectsColinearLimit(sp1.adj)) {
+                    // Diagnostic : la run fautive vient-elle d'une PORTE (coupure legitime) ?
+                    boolean doorAwareOk = DungeonConstraints.respectsColinearLimitDoorAware(
+                            sp1.adj, labels, MAX_COLINEAR_RUN);
+                    fail(doorAwareOk ? "COLINEAR:doors" : "COLINEAR:real");
+                    continue;
+                }
 
             reclassifyGeneric(labels, sp1.adj, rng);
 

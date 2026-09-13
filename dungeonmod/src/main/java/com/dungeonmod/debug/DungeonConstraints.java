@@ -123,6 +123,7 @@ final class DungeonConstraints {
                     Point l2 = new Point(parent.x() + dy, parent.y() - dx, parent.level());
                     if (isFreeCell(adj, l1)) laterals.add(l1);
                     if (isFreeCell(adj, l2)) laterals.add(l2);
+                    if (laterals.isEmpty()) DungeonAlgo.fail("deadEnd:lateralsOccupied");
                     if (!laterals.isEmpty()) {
                         Point target = laterals.get(rng.nextInt(laterals.size()));
                         moveDeadEnd(labels, adj, leaf, parent, parent, target);
@@ -140,9 +141,9 @@ final class DungeonConstraints {
                         Point target = opts.get(rng.nextInt(opts.size()));
                         moveDeadEnd(labels, adj, leaf, parent, gp, target);
                         moved = true;
-                    }
-                }
-                if (!moved) return false;
+                    } else DungeonAlgo.fail("deadEnd:gpOptsEmpty");
+                } else if (!moved) DungeonAlgo.fail("deadEnd:branch2Skipped");
+                if (!moved) { DungeonAlgo.fail("deadEnd:nomove"); return false; }
                 fixed = true;
                 break;
             }
@@ -178,6 +179,46 @@ final class DungeonConstraints {
     /** True si aucune droite geometrique de l'adj ne depasse maxRun. */
     static boolean respectsColinearLimit(Map<Point, Set<Point>> adj, int maxRun) {
         return maxColinearRunInGraph(adj) <= maxRun;
+    }
+
+    /** Vrai pour une cellule PORTE (coupe naturellement une ligne droite). */
+    private static boolean isDoorLabel(Map<Point, RoomType> labels, Point p) {
+        RoomType t = labels.get(p);
+        return t != null && t.isDoor();
+    }
+
+    /**
+     * Longueur max d'une run colineaire en traitant les PORTES comme des COUPURES.
+     * Sert au garde final : une porte est une rupture, donc les runs mesurees
+     * s'arretent de part et d'autre (coherent avec la generation des chemins).
+     */
+    static int maxColinearRunInGraphDoorAware(Map<Point, Set<Point>> adj, Map<Point, RoomType> labels) {
+        int max = 0;
+        for (Point p : adj.keySet()) {
+            for (int[] d : new int[][]{{1, 0}, {0, 1}}) {
+                int back = 0; Point cur = p;
+                while (back < 16) {
+                    if (isDoorLabel(labels, cur)) break;
+                    Point prev = cur.move(-d[0], -d[1]);
+                    if (!adj.getOrDefault(cur, Set.of()).contains(prev)) break;
+                    back++; cur = prev;
+                }
+                int fwd = 0; cur = p;
+                while (fwd < 16) {
+                    Point next = cur.move(d[0], d[1]);
+                    if (!adj.getOrDefault(cur, Set.of()).contains(next)) break;
+                    if (isDoorLabel(labels, next)) break;
+                    fwd++; cur = next;
+                }
+                if (back + fwd > max) max = back + fwd;
+            }
+        }
+        return max;
+    }
+
+    /** Garde de colinearite "portes = coupures". */
+    static boolean respectsColinearLimitDoorAware(Map<Point, Set<Point>> adj, Map<Point, RoomType> labels, int maxRun) {
+        return maxColinearRunInGraphDoorAware(adj, labels) <= maxRun;
     }
 
     /** Longueur d'une run COLINAIRE dans l'adjacence REELLE le long de l'axe (dx,dy). */
