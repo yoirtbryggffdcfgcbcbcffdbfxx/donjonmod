@@ -192,7 +192,7 @@ final class DungeonPart3 {
             }
             if (bibNodes != null) break;
         }
-        if (bibNodes == null) return null;
+        if (bibNodes == null) { DungeonAlgo.fail("P3:bibNull"); return null; }
 
         Point shopNode = null;
         shuffled = new ArrayList<>(bfsP3); Collections.shuffle(shuffled, rng);
@@ -206,7 +206,7 @@ final class DungeonPart3 {
             }
             if (shopNode != null) break;
         }
-        if (shopNode == null) return null;
+        if (shopNode == null) { DungeonAlgo.fail("P3:shopNull"); return null; }
 
         Set<Point> allNodes = new HashSet<>(adj.keySet());
         List<Point> leaves = new ArrayList<>(), internals = new ArrayList<>();
@@ -234,7 +234,7 @@ final class DungeonPart3 {
         else { cdx = 0; cdz = 1; }
 
         boolean hubOk = false;
-        for (int corridorLen : new int[]{5, 6, 7}) {
+        for (int corridorLen : new int[]{4, 5, 6, 7, 8, 9}) {
             if (hubOk) break;
             int cx = b2.x(), cz = b2.y(); Point prev = bibNodes[1]; List<Point> corrNodes = new ArrayList<>();
             boolean ok = true; int mid = corridorLen / 2;
@@ -269,7 +269,7 @@ final class DungeonPart3 {
             labelState.setTheme(corrNodes, Theme.P12); labelState.putSpecial(hubKey, RoomType.CENTRALE);
             hubOk = true;
         }
-        if (!hubOk) { bibNodes = null; return null; }
+        if (!hubOk) { DungeonAlgo.fail("P3:hubNull"); bibNodes = null; return null; }
         cjList.remove(bibNodes[0]);
         if (shopNode != null) { labelState.putSpecial(shopNode, RoomType.SHOP); leaves.remove(shopNode); }
         leaves.remove(bibNodes[1]); leaves.remove(bibNodes[0]);
@@ -283,7 +283,7 @@ final class DungeonPart3 {
 
         int targetM3 = 5 + rng.nextInt(2);
         int availLeafM = Math.max(0, leaves.size() - leafLoot - 2);
-        if (availLeafM + cjList.size() < targetM3 || leaves.size() < leafLoot + 2) return null;
+        if (availLeafM + cjList.size() < targetM3 || leaves.size() < leafLoot + 2) { DungeonAlgo.fail("P3:leavesNull"); return null; }
         int leafM3 = Math.min(targetM3, availLeafM);
         int corrM3 = targetM3 - leafM3;
         if (corrM3 > cjList.size()) { corrM3 = cjList.size(); leafM3 = targetM3 - corrM3; }
@@ -304,16 +304,16 @@ final class DungeonPart3 {
             RoomType type = placedLeafM3 < 3 ? leafPool.get(placedLeafM3) : RoomType.LEAF_MONSTERS_P3_P4.get(rng.nextInt(3));
             labelState.putSpecial(cand, type); mjSet.add(cand); placedLeafM3++;
         }
-        if (placedLeafM3 < leafM3) return null;
+        if (placedLeafM3 < leafM3) { DungeonAlgo.fail("P3:monstersNull"); return null; }
 
         List<Point> restLeaves = new ArrayList<>();
         for (int i = leafLoot; i < leaves.size(); i++) if (!labelState.hasSpecial(leaves.get(i))) restLeaves.add(leaves.get(i));
         restLeaves.sort(Comparator.comparingInt(lp -> -Math.abs(lp.x() - campExit.x()) - Math.abs(lp.y() - campExit.y())));
-        if (restLeaves.size() < 2) return null;
+        if (restLeaves.size() < 2) { DungeonAlgo.fail("P3:restLeavesNull"); return null; }
         labelState.putSpecial(restLeaves.get(0), RoomType.GARDEN);
         labelState.putSpecial(restLeaves.get(1), RoomType.STATUE);
 
-        if (cjList.size() < corrM3 + corrLoot + 1) return null;
+        if (cjList.size() < corrM3 + corrLoot + 1) { DungeonAlgo.fail("P3:corridorsNull"); return null; }
         Collections.shuffle(cjList, rng);
         int mjPlaced = 0; List<Point> remCJ = new ArrayList<>();
         List<RoomType> corrPool = new ArrayList<>(RoomType.CORRIDOR_MONSTERS_P3_P4);
@@ -335,9 +335,9 @@ final class DungeonPart3 {
         genericOrder.addAll(ij2List); genericOrder.addAll(ij3List); genericOrder.addAll(ij4List);
         Map<Point, RoomType> finalLabels = labelState.buildLabels(adj, rng, genericOrder);
 
-        if (!validatePart3SpecialShapes(finalLabels, adj)) return null;
-        if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) return null;
-        if (!validatePart3SpecialShapes(finalLabels, adj)) return null;
+        if (!validatePart3SpecialShapes(finalLabels, adj)) { DungeonAlgo.fail("P3:shapes1"); return null; }
+        if (!DungeonConstraints.enforceDeadEndAfterTurn(finalLabels, adj, rng)) { DungeonAlgo.fail("P3:deadEnd"); return null; }
+        if (!validatePart3SpecialShapes(finalLabels, adj)) { DungeonAlgo.fail("P3:shapes2"); return null; }
         return finalLabels;
     }
 }
