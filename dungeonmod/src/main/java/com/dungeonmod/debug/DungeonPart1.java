@@ -30,7 +30,11 @@ final class DungeonPart1 {
     }
 
     static TreeResult generatePart1Tree(Random rng) {
-        return DungeonTreeBuilder.generateRawTree(DungeonAlgo.PART1_TARGET_MIN, DungeonAlgo.PART1_TARGET_MAX, DungeonAlgo.PART1_MAX_I3, DungeonAlgo.PART1_MAX_I4, DungeonAlgo.PART1_STRAIGHT_WEIGHT, null, null, DungeonAlgo.MAX_COLINEAR_RUN, rng);
+        TreeResult tr = DungeonTreeBuilder.generateRawTree(DungeonAlgo.PART1_TARGET_MIN, DungeonAlgo.PART1_TARGET_MAX, DungeonAlgo.PART1_MAX_I3, DungeonAlgo.PART1_MAX_I4, DungeonAlgo.PART1_STRAIGHT_WEIGHT, null, null, DungeonAlgo.MAX_COLINEAR_RUN, rng);
+        // (B) "pas de cul-droit" applique a la SOURCE, uniquement sur l'arbre P1 (avant labeling) :
+        // chaque cul dont le parent est droit est deplace sur un lateral libre du parent.
+        if (tr != null && tr.adj != null) DungeonTreeBuilder.fixStraightLeaves(tr.adj, new HashSet<>(tr.adj.keySet()), Set.of(tr.startPoint));
+        return tr;
     }
 
     static Map<Point, RoomType> analyzePart1(Point startPoint, Map<Point, Set<Point>> adj, Random rng) {

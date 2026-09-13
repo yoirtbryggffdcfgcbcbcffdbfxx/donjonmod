@@ -117,6 +117,38 @@ final class DungeonTreeBuilder {
         return tr;
     }
 
+    static void fixStraightLeaves(Map<Point, Set<Point>> adj, Set<Point> occupied, Set<Point> exclude) {
+        Set<Point> ex = exclude == null ? Set.of() : exclude;
+        int guard = 0;
+        int cap = adj.size() + 4;
+        boolean changed = true;
+        while (changed && guard++ < cap) {
+            changed = false;
+            for (Point leaf : new ArrayList<>(adj.keySet())) {
+                Set<Point> lnb = adj.get(leaf);
+                if (lnb == null || lnb.size() != 1) continue;
+                if (ex.contains(leaf)) continue;
+                Point parent = lnb.iterator().next();
+                Set<Point> pnb = adj.get(parent);
+                if (pnb == null || pnb.size() != 2) continue;
+                List<Point> pnbs = new ArrayList<>(pnb);
+                if (!(pnbs.get(0).x() == pnbs.get(1).x() || pnbs.get(0).y() == pnbs.get(1).y())) continue;
+                Point gp = pnbs.get(0).equals(leaf) ? pnbs.get(1) : pnbs.get(0);
+                int dx = parent.x() - gp.x(), dy = parent.y() - gp.y();
+                Point b1 = new Point(parent.x() - dy, parent.y() + dx);
+                Point b2 = new Point(parent.x() + dy, parent.y() - dx);
+                Point bump = (!b1.isOutOfBounds() && !occupied.contains(b1)) ? b1
+                           : (!b2.isOutOfBounds() && !occupied.contains(b2)) ? b2 : null;
+                if (bump == null) continue;
+                adj.get(parent).remove(leaf); adj.remove(leaf);
+                adj.put(bump, new HashSet<>()); adj.get(parent).add(bump); adj.get(bump).add(parent);
+                occupied.add(bump);
+                changed = true;
+                break;
+            }
+        }
+    }
+
     static void addEdge(Map<Point, Set<Point>> adj, Set<Point> occupied, Point a, Point b) {
         adj.putIfAbsent(a, new HashSet<>());
         adj.putIfAbsent(b, new HashSet<>());

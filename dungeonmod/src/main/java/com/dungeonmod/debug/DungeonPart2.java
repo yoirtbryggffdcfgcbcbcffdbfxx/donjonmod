@@ -385,6 +385,9 @@ final class DungeonPart2 {
             DungeonTreeBuilder.addEdge(adj, occupied, choice[0], choice[1]);
             int nd = adj.get(choice[0]).size(); if (nd == 3) ci3++; else if (nd == 4) ci4++;
         }
+        // (B) "pas de cul-droit" a la source, sur l'arbre P2 (en protegeant start ET trunkEnd,
+        // references ensuite par la sequence de sortie).
+        DungeonTreeBuilder.fixStraightLeaves(adj, occupied, Set.of(start, trunkEnd));
         TreeResult tr = new TreeResult(); tr.startPoint = start; tr.startKey = start.key(); tr.startX = start.x(); tr.startY = start.y(); tr.adj = adj; tr.trunkEnd = trunkEnd; tr.trunkEndDir = dir;
         return tr;
     }
