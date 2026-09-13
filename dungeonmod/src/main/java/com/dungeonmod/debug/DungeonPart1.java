@@ -85,10 +85,14 @@ final class DungeonPart1 {
             List<Point> pnbs = new ArrayList<>(pnb);
             if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
             int score = depth + 10;
-            // A : preferer une porte dont la case "devant" est libre (le chemin taverne pourra demarrer).
+            // A : preferer une porte ou le chemin taverne peut demarrer TOUT DROIT :
+            // case devant libre ET limite de colinearite respectee (sinon echec garanti).
             Point outward = new Point(2 * leaf.x() - par.x(), 2 * leaf.y() - par.y());
             boolean outFree = !outward.isOutOfBounds() && !adj.containsKey(outward);
-            if (outFree) score += 1000;
+            boolean straightOk = outFree
+                    && DungeonConstraints.colinearRunAfterEdge(leaf, outward, adj) <= DungeonAlgo.MAX_COLINEAR_RUN;
+            if (straightOk) score += 1000;
+            else if (outFree) score += 100;
             if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
         }
         if (porte == null) {
@@ -97,7 +101,9 @@ final class DungeonPart1 {
                 Point par = adj.get(leaf).iterator().next();
                 Point outward = new Point(2 * leaf.x() - par.x(), 2 * leaf.y() - par.y());
                 boolean outFree = !outward.isOutOfBounds() && !adj.containsKey(outward);
-                int score = depth + (outFree ? 1000 : 0);
+                boolean straightOk = outFree
+                        && DungeonConstraints.colinearRunAfterEdge(leaf, outward, adj) <= DungeonAlgo.MAX_COLINEAR_RUN;
+                int score = depth + (straightOk ? 1000 : (outFree ? 100 : 0));
                 if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
             }
         }
