@@ -157,6 +157,9 @@ public class SeedHarness {
             }
         }
 
+        if (!DungeonPart3.HUB_REACH.isEmpty()) {
+            System.out.println("[Hub P3] par longueur de couloir : " + DungeonPart3.hubReport());
+        }
         if (!DungeonPart4.CHAPEL_TRY.isEmpty()) {
             System.out.println("[Chapelle] variantes (pathLen/turnAt/turnDir) : " + DungeonPart4.chapelReport());
         }

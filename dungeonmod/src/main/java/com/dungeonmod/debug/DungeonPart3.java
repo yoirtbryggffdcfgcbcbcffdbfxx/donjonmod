@@ -155,6 +155,22 @@ final class DungeonPart3 {
         return generateTrunkTree(35, 45, startPoint, blocked, DungeonAlgo.PART3_MAX_IJ3, DungeonAlgo.PART3_MAX_IJ4, rng);
     }
 
+    /** Stats hub : par longueur de couloir, nb de fois "atteinte" et nb de succes. */
+    static final Map<Integer, Integer> HUB_REACH = new LinkedHashMap<>();
+    static final Map<Integer, Integer> HUB_OK = new LinkedHashMap<>();
+
+    static String hubReport() {
+        StringBuilder sb = new StringBuilder();
+        List<Integer> keys = new ArrayList<>(HUB_REACH.keySet());
+        Collections.sort(keys);
+        for (int k : keys) {
+            int r = HUB_REACH.getOrDefault(k, 0), o = HUB_OK.getOrDefault(k, 0);
+            sb.append("L").append(k).append(":reach=").append(r).append(" ok=").append(o)
+              .append(String.format(java.util.Locale.ROOT, "(%.1f%%)", r == 0 ? 0.0 : 100.0 * o / r)).append("  ");
+        }
+        return sb.toString();
+    }
+
     static Map<Point, RoomType> analyzePart3(Map<Point, Set<Point>> adj, Point campExit,
                                                      Map<Point, RoomType> existingLabels, Random rng) {
         DungeonLabelState labelState = new DungeonLabelState();
@@ -234,8 +250,11 @@ final class DungeonPart3 {
         else { cdx = 0; cdz = 1; }
 
         boolean hubOk = false;
-        for (int corridorLen : new int[]{4, 5, 6, 7, 8, 9}) {
+        // Mesures : L4 reussit ~24 % ; L5-L9 seulement 0.1-2 % (pour ~26k constructions inutiles).
+        // On ne garde que L4 : les relances (24x) rejouent L4 -> cout batch negligeable, gros gain CPU.
+        for (int corridorLen : new int[]{4}) {
             if (hubOk) break;
+            HUB_REACH.merge(corridorLen, 1, Integer::sum);
             int cx = b2.x(), cz = b2.y(); Point prev = bibNodes[1]; List<Point> corrNodes = new ArrayList<>();
             boolean ok = true; int mid = corridorLen / 2;
             for (int i = 0; i < corridorLen && ok; i++) {
@@ -267,6 +286,7 @@ final class DungeonPart3 {
             adj.get(hubKey).add(hubEntry); adj.get(hubEntry).add(hubKey);
             adj.get(hubEntry).add(wKey); adj.get(wKey).add(hubEntry);
             labelState.setTheme(corrNodes, Theme.P12); labelState.putSpecial(hubKey, RoomType.CENTRALE);
+            HUB_OK.merge(corridorLen, 1, Integer::sum);
             hubOk = true;
         }
         if (!hubOk) { DungeonAlgo.fail("P3:hubNull"); bibNodes = null; return null; }
