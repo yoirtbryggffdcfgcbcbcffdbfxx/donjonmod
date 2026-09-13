@@ -211,7 +211,9 @@ final class DungeonCompositeRooms {
             Point a = world.get(e.a()), b = world.get(e.b());
             if (a == null || b == null) continue;
             if (DungeonConstraints.colinearRunAfterEdge(a, b, adj) > DungeonAlgo.MAX_COLINEAR_RUN) {
-                DungeonFailureLog.compositeReject(spec.name, "COLINEAR", anchor, "arete " + a.key() + "->" + b.key());
+                // Detail volontairement null : evite une allocation de String a chaque rejet
+                // (appele des dizaines de milliers de fois). L'ancre suffit au diagnostic.
+                DungeonFailureLog.compositeReject(spec.name, "COLINEAR", anchor, null);
                 return null;
             }
         }

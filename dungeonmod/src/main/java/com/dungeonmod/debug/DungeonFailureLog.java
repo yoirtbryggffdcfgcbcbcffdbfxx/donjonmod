@@ -32,8 +32,11 @@ final class DungeonFailureLog {
     static void compositeReject(String scope, String reason, Point anchor, String detail) {
         String key = scope + "|" + reason;
         int count = COUNTS.merge(key, 1, Integer::sum);
-        FIRST_DETAIL.putIfAbsent(key, "anchor=" + point(anchor)
-                + (detail == null || detail.isBlank() ? "" : " — " + detail));
+        // Ne construit le detail QUE pour la 1ere occurrence (putIfAbsent evaluait sa valeur a chaque appel).
+        if (!FIRST_DETAIL.containsKey(key)) {
+            FIRST_DETAIL.put(key, "anchor=" + point(anchor)
+                    + (detail == null || detail.isBlank() ? "" : " — " + detail));
+        }
 
         String cellKey = extractCellKey(detail);
         if (cellKey != null) {
