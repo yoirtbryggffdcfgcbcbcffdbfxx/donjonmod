@@ -387,10 +387,11 @@ final class DungeonPart1 {
         Point p2 = p1 != null ? parent.get(p1) : null;
         Point p3 = p2 != null ? parent.get(p2) : null;
         for (Point cand : new Point[]{p2, p3}) {
-            if (cand == null || cand.equals(startPoint)) continue;
-            if (!isReplaceableStraightCorridor(cand, labels, adj)) continue;
-            if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) continue;
-            if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) continue;
+            if (cand == null) { DungeonAlgo.fail("P4:noM5:candNull"); continue; }
+            if (cand.equals(startPoint)) { DungeonAlgo.fail("P4:noM5:candStart"); continue; }
+            if (!isReplaceableStraightCorridor(cand, labels, adj)) { DungeonAlgo.fail("P4:noM5:notReplaceable"); continue; }
+            if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) { DungeonAlgo.fail("P4:noM5:tooClose"); continue; }
+            if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) { DungeonAlgo.fail("P4:noM5:gapNotCorridor"); continue; }
             return cand;
         }
         return null;
@@ -399,9 +400,9 @@ final class DungeonPart1 {
     private static boolean isReplaceableStraightCorridor(Point cand, Map<Point, RoomType> labels,
                                                           Map<Point, Set<Point>> adj) {
         Set<Point> nb = adj.getOrDefault(cand, Set.of());
-        if (nb.size() != 2) return false;
+        if (nb.size() != 2) { DungeonAlgo.fail("P4:noM5:deg"); return false; }
         List<Point> nbs = new ArrayList<>(nb);
-        if (!isStraight(nbs.get(0), nbs.get(1))) return false;
+        if (!isStraight(nbs.get(0), nbs.get(1))) { DungeonAlgo.fail("P4:noM5:turn"); return false; }
         RoomType lbl = labels.get(cand);
         if (lbl != null && (lbl == RoomType.MONSTER_2 || lbl == RoomType.PRISON
                 || lbl == RoomType.START || lbl == RoomType.LOOT_1
@@ -409,14 +410,17 @@ final class DungeonPart1 {
                 || lbl == RoomType.FOUNTAIN || lbl == RoomType.OGRE
                 || lbl == RoomType.DOOR_1 || lbl == RoomType.DOOR_2
                 || lbl.isTavern() || lbl.isCamp())) {
+            DungeonAlgo.fail("P4:noM5:labelSpecial");
             return false;
         }
-        return lbl == null
+        boolean ok = lbl == null
                 || RoomType.CORRIDORS_P1_P2.contains(lbl)
                 || lbl == RoomType.WELL
                 || lbl == RoomType.MONSTER_4
                 || lbl == RoomType.MONSTER_5
                 || lbl == RoomType.I2;
+        if (!ok) DungeonAlgo.fail("P4:noM5:labelOther");
+        return ok;
     }
 
     private static boolean gapCellsAreCorridors(Point from, Point door, Map<Point, Point> parent,
