@@ -347,6 +347,11 @@ public class DungeonAlgo {
 
     public static void resetFailStages() { FAIL_STAGES.clear(); }
 
+    /** Profilage par phase : nanosecondes cumulees (diagnostic vitesse). */
+    public static final Map<String, Long> PHASE_NANOS = new LinkedHashMap<>();
+    public static void resetPhaseNanos() { PHASE_NANOS.clear(); }
+    static void addPhase(String phase, long startNanos) { PHASE_NANOS.merge(phase, System.nanoTime() - startNanos, Long::sum); }
+
     static void fail(String stage) { FAIL_STAGES.merge(stage, 1, Integer::sum); }
 
     public static DungeonResult generateDungeon(long seed) {
@@ -360,6 +365,7 @@ public class DungeonAlgo {
 
             TreeResult sp1 = null;
             Map<Point, RoomType> labels = null;
+            long __p1 = System.nanoTime();
             for (int inner = 0; inner < 50; inner++) {
                 TreeResult try1 = generatePart1Tree(rng);
                 if (try1.adj.size() < 10) continue;
@@ -373,6 +379,7 @@ public class DungeonAlgo {
                 if (tryLabels == null) continue;
                 sp1 = try1; labels = tryLabels; break;
             }
+            addPhase("P1", __p1);
             if (sp1 == null) { fail("P1:null"); continue; }
 
             Set<Point> p1MonsterCells = new HashSet<>();
@@ -476,8 +483,10 @@ public class DungeonAlgo {
 
             // Retry LOCAL de l'analyse P3 (meme graphe, pas de regeneration).
             Map<Point, RoomType> p3Labels = null;
-            for (int a = 0; a < 12 && p3Labels == null; a++)
+            long __p3 = System.nanoTime();
+            for (int a = 0; a < 24 && p3Labels == null; a++)
                 p3Labels = analyzePart3(sp1.adj, camp.campExit, labels, rng);
+            addPhase("P3label", __p3);
             if (p3Labels == null) { fail("P3:analyzeNull"); continue; }
             labels = p3Labels;
 
@@ -490,12 +499,13 @@ public class DungeonAlgo {
             Map<Point, RoomType> currentTopLabels = null;
             Map<Point, Set<Point>> p4Adj = null;
             DungeonOccupancy occupancy = new DungeonOccupancy();
-            Point hubPoint = findPointByValue(labels, RoomType.CENTRALE);
-            if (hubPoint != null) {
+                Point hubPoint = findPointByValue(labels, RoomType.CENTRALE);
+                long __p4 = System.nanoTime();
+                if (hubPoint != null) {
                 occupancy.reserve(hubPoint, RoomType.CENTRALE.size);
                 Point topHub = hubPoint.atLevel(1);
-                for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
-                    currentTopLabels = new HashMap<>();
+                    for (int p4Retry = 0; p4Retry < 15; p4Retry++) {
+                        currentTopLabels = new HashMap<>();
                     currentTopLabels.put(topHub, RoomType.CENTRALE);
                     p4Adj = new HashMap<>();
                     if (generatePart4Tree(p4Adj, currentTopLabels, topHub.x(), topHub.y(), topHub.level(), occupancy.cells(), missingLoot, rng)) {
@@ -504,7 +514,8 @@ public class DungeonAlgo {
                     }
                 }
             }
-            if (!p4Ok) { fail("P4:fail"); continue; }
+                addPhase("P4", __p4);
+                if (!p4Ok) { fail("P4:fail"); continue; }
 
             int m5 = placeMonster5OnDoorPaths(labels, sp1.adj, sp1.startPoint);
             if (m5 < 1) { fail("P4:noM5"); continue; }

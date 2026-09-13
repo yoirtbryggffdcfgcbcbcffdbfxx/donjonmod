@@ -157,6 +157,15 @@ public class SeedHarness {
             }
         }
 
+        if (!DungeonAlgo.PHASE_NANOS.isEmpty()) {
+            java.util.List<java.util.Map.Entry<String, Long>> ph = new java.util.ArrayList<>(DungeonAlgo.PHASE_NANOS.entrySet());
+            ph.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+            long tot = ph.stream().mapToLong(java.util.Map.Entry::getValue).sum();
+            StringBuilder sb = new StringBuilder();
+            for (var e : ph) sb.append(e.getKey()).append('=').append(e.getValue() / 1_000_000).append("ms")
+                    .append(String.format(java.util.Locale.ROOT, "(%.0f%%) ", 100.0 * e.getValue() / tot));
+            System.out.println("[Profil] " + sb + " total=" + (tot / 1_000_000) + "ms");
+        }
         if (!DungeonPart1.TAVERN_LEN_OK.isEmpty() || !DungeonPart1.M5_STEP_OK.isEmpty()) {
             System.out.println("[Recherches] " + DungeonPart1.searchReport());
         }
