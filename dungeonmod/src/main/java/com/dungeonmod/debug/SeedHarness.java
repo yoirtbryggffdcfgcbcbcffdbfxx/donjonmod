@@ -73,6 +73,8 @@ public class SeedHarness {
                     }
                 }
                 case "-s", "-seed" -> extraSeeds.add(Long.parseLong(args[++i]));
+                // Mesure REPRODUCTIBLE : seeds joueur fixes (comparaison d'optimisations).
+                case "-det", "--det" -> DungeonAlgo.playerSeedSource = new java.util.Random(12345L)::nextLong;
                 // Compat ancienne CLI : -s <start> sans -range était "plage séquentielle".
                 // On l'ignore volontairement ici (remplacé par l'échantillonnage joueur) ;
                 // utiliser -range <start> pour l'ancien comportement debug.

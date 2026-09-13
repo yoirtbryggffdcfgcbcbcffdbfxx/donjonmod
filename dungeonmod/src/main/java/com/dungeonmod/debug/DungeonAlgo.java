@@ -331,6 +331,13 @@ public class DungeonAlgo {
     private static long lastSeed = 0;
     private static Map<Point, RoomType> lastTopLabels = null;
 
+    /**
+     * Source des seeds "joueur" (mode seed=0). Par defaut non deterministe
+     * ({@code System.nanoTime}). Remplaçable par le harnais pour des mesures
+     * REPRODUCTIBLES (comparaison d'optimisations sans bruit).
+     */
+    public static java.util.function.LongSupplier playerSeedSource = System::nanoTime;
+
     public static long getLastSeed() { return lastSeed; }
 
     public static Map<Point, RoomType> getLastTopLabels() { return lastTopLabels; }
@@ -348,7 +355,7 @@ public class DungeonAlgo {
         resetFailStages();
 
         for (int outer = 0; outer < maxAttempts; outer++) {
-            long actualSeed = seed != 0 ? seed + outer : System.nanoTime() + outer;
+            long actualSeed = seed != 0 ? seed + outer : playerSeedSource.getAsLong() + outer;
             Random rng = new Random(actualSeed);
 
             TreeResult sp1 = null;

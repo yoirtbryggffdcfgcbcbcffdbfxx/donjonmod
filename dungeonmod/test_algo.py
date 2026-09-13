@@ -68,6 +68,9 @@ while i < len(args):
     a = args[i]
     if a in ("-v", "v", "--verbose"):
         cmd.append("-v")
+    elif a in ("--det", "-det"):
+        # Mesure reproductible (seeds joueur fixes) : pour comparer des optimisations.
+        cmd.append("-det")
     elif a in ("-n", "--n") and i + 1 < len(args):
         cmd += ["-n", args[i + 1]]; i += 1
     elif a in ("-s", "--seed", "-seed") and i + 1 < len(args):
