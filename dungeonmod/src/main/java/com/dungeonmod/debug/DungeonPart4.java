@@ -276,6 +276,7 @@ final class DungeonPart4 {
                 if (w.isEmpty()) break; Object[] ch = w.get(rng.nextInt(w.size())); Point src = (Point) ch[0], dst = (Point) ch[1];
                 globalOccupied.add(dst); tr.put(dst, new HashSet<>()); tr.get(src).add(dst); tr.get(dst).add(src); int nd = tr.get(src).size(); if (nd == 3) ci3++; else if (nd == 4) ci4++;
             }
+            DungeonTreeBuilder.fixStraightLeavesBump(tr, globalOccupied, Set.of(startPoint));
             if (tr.size() < 6) continue; allTrees.add(tr); allStarts.add(startPoint); labelTreeNodes(labelState, tr, topLabels, startPoint, rng);
             for (var e : tr.entrySet()) { adj.putIfAbsent(e.getKey(), new HashSet<>()); adj.get(e.getKey()).addAll(e.getValue()); }
         }
