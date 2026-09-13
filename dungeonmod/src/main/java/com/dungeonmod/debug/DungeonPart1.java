@@ -85,12 +85,20 @@ final class DungeonPart1 {
             List<Point> pnbs = new ArrayList<>(pnb);
             if (!isStraight(pnbs.get(0), pnbs.get(1))) continue;
             int score = depth + 10;
+            // A : preferer une porte dont la case "devant" est libre (le chemin taverne pourra demarrer).
+            Point outward = new Point(2 * leaf.x() - par.x(), 2 * leaf.y() - par.y());
+            boolean outFree = !outward.isOutOfBounds() && !adj.containsKey(outward);
+            if (outFree) score += 1000;
             if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
         }
         if (porte == null) {
             for (Point leaf : others) {
                 int depth = depthFromStart.getOrDefault(leaf, 0);
-                if (depth > bestPorteScore) { bestPorteScore = depth; porte = leaf; }
+                Point par = adj.get(leaf).iterator().next();
+                Point outward = new Point(2 * leaf.x() - par.x(), 2 * leaf.y() - par.y());
+                boolean outFree = !outward.isOutOfBounds() && !adj.containsKey(outward);
+                int score = depth + (outFree ? 1000 : 0);
+                if (score > bestPorteScore) { bestPorteScore = score; porte = leaf; }
             }
         }
         if (porte == null) porte = others.get(0);
@@ -215,8 +223,14 @@ final class DungeonPart1 {
                 Point straight = new Point(cx + dx, cy + dy);
                 boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                         && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-                if (i == 0 && !straightOk) { doorBlocked = true; failed = true; break; }
-                boolean goStraight = (i == 0) || (straightOk && rng.nextFloat() < 0.35f);
+                boolean goStraight;
+                if (i == 0) {
+                    // B : prolonger tout droit si possible ; sinon tenter un virage au 1er pas.
+                    goStraight = straightOk;
+                    if (!straightOk) doorBlocked = true;
+                } else {
+                    goStraight = straightOk && rng.nextFloat() < 0.35f;
+                }
                 int ndx = dx, ndy = dy;
                 if (!goStraight) {
                     int[][] perp = {{dy, -dx}, {-dy, dx}};
