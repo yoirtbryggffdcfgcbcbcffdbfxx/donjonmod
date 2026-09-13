@@ -200,6 +200,8 @@ final class DungeonPart1 {
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
+        boolean reachedSearch = false; // un chemin a-t-il ete construit (on a cherche le 2x2) ?
+        boolean doorBlocked = false;   // la case devant la porte est occupee
 
         for (int maxLen = 2; maxLen <= 7; maxLen++) {
             int dx = baseDx, dy = baseDy;
@@ -213,7 +215,7 @@ final class DungeonPart1 {
                 Point straight = new Point(cx + dx, cy + dy);
                 boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
                         && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
-                if (i == 0 && !straightOk) { failed = true; break; }
+                if (i == 0 && !straightOk) { doorBlocked = true; failed = true; break; }
                 boolean goStraight = (i == 0) || (straightOk && rng.nextFloat() < 0.35f);
                 int ndx = dx, ndy = dy;
                 if (!goStraight) {
@@ -248,7 +250,8 @@ final class DungeonPart1 {
                 curTmp = next;
                 cx = next.x(); cy = next.y();
             }
-            if (failed || pathCells.size() < 2) continue;
+            if (failed || pathCells.size() < 2) { if (!failed) DungeonAlgo.fail("tavern:pathTooShort"); continue; }
+            reachedSearch = true;
 
             Point t1 = new Point(cx + dx, cy + dy);
             Point lastPath = pathCells.get(pathCells.size() - 1);
@@ -306,6 +309,7 @@ final class DungeonPart1 {
             tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
             return tr;
         }
+        DungeonAlgo.fail(reachedSearch ? "tavern:noFit" : (doorBlocked ? "tavern:doorStraightBlocked" : "tavern:noPath"));
         return null;
     }
 

@@ -340,7 +340,7 @@ public class DungeonAlgo {
 
     public static void resetFailStages() { FAIL_STAGES.clear(); }
 
-    private static void fail(String stage) { FAIL_STAGES.merge(stage, 1, Integer::sum); }
+    static void fail(String stage) { FAIL_STAGES.merge(stage, 1, Integer::sum); }
 
     public static DungeonResult generateDungeon(long seed) {
         int maxAttempts = seed != 0 ? 20 : 100;
