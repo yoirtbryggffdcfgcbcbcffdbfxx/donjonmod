@@ -320,6 +320,7 @@ final class DungeonPart2 {
         Point c = start.move(DungeonAlgo.DIR_OFFSET[dir]);
         DungeonTreeBuilder.addEdge(adj, occupied, start, c);
         List<Point> trunkCells = new ArrayList<>(); trunkCells.add(c);
+        List<Point> branchRoots = new ArrayList<>(); List<Integer> branchDirs = new ArrayList<>();
         int trunkTarget = DungeonAlgo.PART2_TRUNK_MIN + rng.nextInt(DungeonAlgo.PART2_TRUNK_MAX - DungeonAlgo.PART2_TRUNK_MIN + 1);
         for (int t = 1; t < trunkTarget; t++) {
             int runIfStraight = DungeonConstraints.colinearRunAfterEdge(c, c.move(DungeonAlgo.DIR_OFFSET[dir]), adj);
@@ -340,7 +341,9 @@ final class DungeonPart2 {
             DungeonTreeBuilder.addEdge(adj, occupied, c, n); trunkCells.add(n); c = n;
             if (t < trunkTarget - 3 && rng.nextFloat() < 0.55f) {
                 int pDir = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
-                growMiniTreeBounded(n, pDir, adj, occupied, rng);
+                // Differe : les mini-arbres du tronc poussent APRES la reservation de trunkEnd,
+                // pour ne pas squatter ses voisins (cause de P2:noExit). Ils sont conserves.
+                branchRoots.add(n); branchDirs.add(pDir);
             }
         }
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
@@ -356,6 +359,9 @@ final class DungeonPart2 {
             }
         }
         if (!trunkCells.isEmpty()) { int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4; growMiniTreeBounded(trunkEnd, side, adj, occupied, rng); }
+        // Mini-arbres du tronc differes : pousses APRES la reservation (donc ils respectent
+        // les voisins liberes de trunkEnd tout en restant presents dans le donjon).
+        for (int bi = 0; bi < branchRoots.size(); bi++) growMiniTreeBounded(branchRoots.get(bi), branchDirs.get(bi), adj, occupied, rng);
         int targetSize = DungeonAlgo.PART2_TARGET_MIN + rng.nextInt(DungeonAlgo.PART2_TARGET_MAX - DungeonAlgo.PART2_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
