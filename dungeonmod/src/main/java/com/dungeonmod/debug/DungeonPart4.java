@@ -250,15 +250,15 @@ final class DungeonPart4 {
             if (tr.size() < 6) continue; allTrees.add(tr); allStarts.add(startPoint); labelTreeNodes(labelState, tr, topLabels, startPoint, rng);
             for (var e : tr.entrySet()) { adj.putIfAbsent(e.getKey(), new HashSet<>()); adj.get(e.getKey()).addAll(e.getValue()); }
         }
-        Set<Point> seenTreeCells = new HashSet<>(); for (Map<Point, Set<Point>> t : allTrees) for (Point k : t.keySet()) if (!seenTreeCells.add(k)) return false;
+        Set<Point> seenTreeCells = new HashSet<>(); for (Map<Point, Set<Point>> t : allTrees) for (Point k : t.keySet()) if (!seenTreeCells.add(k)) { DungeonAlgo.fail("P4:dupCell"); return false; }
         for (Point ek : exitKeys) { if (topLabels.containsKey(ek)) continue; Set<Point> skn = adj.get(ek); if (skn == null) continue; putGeneric(labelState, topLabels, ek, Theme.DJ, skn, rng); }
         for (Point cjk : cjKeys) { Set<Point> cn = adj.get(cjk); if (cn == null) continue; putGeneric(labelState, topLabels, cjk, Theme.DJ, cn, rng); }
-        if (allTrees.size() < 5) return false;
+        if (allTrees.size() < 5) { DungeonAlgo.fail("P4:trees<5"); return false; }
         List<Integer> idxs = new ArrayList<>(Arrays.asList(0, 1, 2, 3, 4)); Collections.shuffle(idxs, rng);
         int gIdx = idxs.get(0), cIdx = idxs.get(1), pIdx = idxs.get(2); Set<Point> goblinCells = new HashSet<>();
         placePrisonBlock(labelState, adj, topLabels, allTrees.get(pIdx), allStarts.get(pIdx), globalOccupied);
         placeChapelAndCrypt(labelState, adj, topLabels, allTrees.get(cIdx), allStarts.get(cIdx), globalOccupied, rng);
-        if (!placeGoblinVillage(labelState, adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) return false;
+        if (!placeGoblinVillage(labelState, adj, topLabels, allTrees.get(gIdx), globalOccupied, goblinCells, rng)) { DungeonAlgo.fail("P4:goblinVillage"); return false; }
         DungeonLabels.reclassifyGeneric(topLabels, adj, rng);
         java.util.function.Predicate<Point> isHubExit = kp -> (kp.x() == hx-1 && kp.y() == hz) || (kp.x() == hx+2 && kp.y() == hz) || (kp.x() == hx+1 && kp.y() == hz-1) || (kp.x() == hx && kp.y() == hz+2) || (kp.x() == hx+1 && kp.y() == hz+2);
         int mjT = 5 + rng.nextInt(6); Map<Point, Integer> treeForNode = new HashMap<>(); for (int ti = 0; ti < allTrees.size(); ti++) for (Point k : allTrees.get(ti).keySet()) treeForNode.put(k, ti);
@@ -282,7 +282,7 @@ final class DungeonPart4 {
         }
         if (!(topLabels.containsValue(RoomType.MONSTER_DJ_1) && topLabels.containsValue(RoomType.MONSTER_DJ_2)
             && topLabels.containsValue(RoomType.MONSTER_DJ_3) && topLabels.containsValue(RoomType.MONSTER_DJ_4)
-            && topLabels.containsValue(RoomType.MONSTER_DJ_5))) return false;
+            && topLabels.containsValue(RoomType.MONSTER_DJ_5))) { DungeonAlgo.fail("P4:monstersDJ"); return false; }
         for (var e : new ArrayList<>(topLabels.entrySet())) { if (e.getValue() == RoomType.CUL_DJ && !isHubExit.test(e.getKey())) { putSpecial(labelState, topLabels, e.getKey(), RoomType.BLACK_MARKET); break; } }
         if (missingLootType != null) {
             RoomType missingLT = RoomType.byId(missingLootType);
@@ -295,7 +295,7 @@ final class DungeonPart4 {
         Point puitDJKey = null; for (var e : topLabels.entrySet()) { RoomType v = e.getValue(); Point k = e.getKey(); if (v == null || goblinCells.contains(k) || isHubExit.test(k)) continue;
             if (v.isDjCorridor() || v.isGoblinCorridor()) { puitDJKey = k; break; } }
         if (puitDJKey != null) putSpecial(labelState, topLabels, puitDJKey, RoomType.WELL_DJ);
-        if (!DungeonConstraints.enforceDeadEndAfterTurn(topLabels, adj, rng)) return false;
+        if (!DungeonConstraints.enforceDeadEndAfterTurn(topLabels, adj, rng)) { DungeonAlgo.fail("P4:deadEnd"); return false; }
         rebuildFinalLabels(topLabels, adj, rng);
         boolean hc1 = topLabels.containsValue(RoomType.CHAPEL_1) && topLabels.containsValue(RoomType.CRYPT_1);
         boolean hpr = false; for (RoomType v : topLabels.values()) if (v != null && v.isPrisonCentral()) { hpr = true; break; }
@@ -306,7 +306,9 @@ final class DungeonPart4 {
         int gbc = 0; for (RoomType v : topLabels.values()) if (v == RoomType.GOBLIN_WELL || v == RoomType.GOBLIN_MARCH || v == RoomType.GOBLIN_ARMORY || v == RoomType.GOBLIN_TREASURE) gbc++;
         boolean hmg = false; int hmgCount = 0; for (RoomType v : topLabels.values()) if (v != null && v.isGoblinHouse()) { hmgCount++; }
         hmg = hmgCount >= 3;
-        return hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc == 4 && mjPlacedKeys.size() >= 5;
+        boolean ok = hc1 && hpr && hpg && hmn && hlt && hPuitDJ && hmg && gbc == 4 && mjPlacedKeys.size() >= 5;
+        if (!ok) DungeonAlgo.fail("P4:guarantees");
+        return ok;
     }
 
     private static boolean isStraight(Point p1, Point p2) { return p1.x() == p2.x() || p1.y() == p2.y(); }

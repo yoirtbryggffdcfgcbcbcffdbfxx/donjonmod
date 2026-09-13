@@ -342,11 +342,12 @@ final class DungeonPart1 {
                                                  Point startPoint) {
         int placed = 0;
         Point door = findPointByValue(labels, RoomType.DOOR_1);
-        if (door == null) return 0;
+        if (door == null) { DungeonAlgo.fail("P4:noM5:noDoor"); return 0; }
         if (hasM5WithGapBeforeDoor(door, labels, adj, startPoint)) placed++;
         else {
             Point candidate = findM5WithGapBeforeDoor(door, labels, adj, startPoint);
             if (candidate != null) { labels.put(candidate, RoomType.MONSTER_5); placed++; }
+            else DungeonAlgo.fail("P4:noM5:noSpot");
         }
         return placed;
     }
