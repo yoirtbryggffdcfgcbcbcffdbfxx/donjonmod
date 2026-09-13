@@ -384,15 +384,18 @@ final class DungeonPart1 {
         if (startPoint == null || door == null) return null;
         Map<Point, Point> parent = bfsParents(startPoint, adj);
         Point p1 = parent.get(door);
-        Point p2 = p1 != null ? parent.get(p1) : null;
-        Point p3 = p2 != null ? parent.get(p2) : null;
-        for (Point cand : new Point[]{p2, p3}) {
-            if (cand == null) { DungeonAlgo.fail("P4:noM5:candNull"); continue; }
-            if (cand.equals(startPoint)) { DungeonAlgo.fail("P4:noM5:candStart"); continue; }
-            if (!isReplaceableStraightCorridor(cand, labels, adj)) { DungeonAlgo.fail("P4:noM5:notReplaceable"); continue; }
-            if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) { DungeonAlgo.fail("P4:noM5:tooClose"); continue; }
-            if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) { DungeonAlgo.fail("P4:noM5:gapNotCorridor"); continue; }
-            return cand;
+        // Recherche ELARGIE : p2, p3, p4... le long du chemin d'acces (jusqu'au gap max de
+        // gapCellsAreCorridors), pour trouver une cellule de couloir DROITE quand p2/p3 sont
+        // des virages. Meme regle (M5 sur couloir droit), juste plus de candidates.
+        Point cand = p1 != null ? parent.get(p1) : null;
+        int steps = 0;
+        while (cand != null && steps < 5) {
+            if (cand.equals(startPoint)) { DungeonAlgo.fail("P4:noM5:candStart"); }
+            else if (!isReplaceableStraightCorridor(cand, labels, adj)) { /* sous-compteurs internes */ }
+            else if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) { DungeonAlgo.fail("P4:noM5:tooClose"); }
+            else if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) { DungeonAlgo.fail("P4:noM5:gapNotCorridor"); }
+            else return cand;
+            cand = parent.get(cand); steps++;
         }
         return null;
     }
