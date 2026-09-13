@@ -215,6 +215,20 @@ final class DungeonPart1 {
         return true;
     }
 
+    /** Stats de recherche : longueur de taverne qui reussit, et pas d'ancetre M5 qui reussit. */
+    static final Map<Integer, Integer> TAVERN_LEN_OK = new LinkedHashMap<>();
+    static final Map<Integer, Integer> M5_STEP_OK = new LinkedHashMap<>();
+
+    static String searchReport() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("TAVERN[maxLen ok:");
+        for (var e : TAVERN_LEN_OK.entrySet()) sb.append(" L").append(e.getKey()).append("=").append(e.getValue());
+        sb.append("]  M5[step ok:");
+        for (var e : M5_STEP_OK.entrySet()) sb.append(" s").append(e.getKey()).append("=").append(e.getValue());
+        sb.append("]");
+        return sb.toString();
+    }
+
     static TavernResult placeTavernAndPath(Map<Point, Set<Point>> adj, Point porte, Random rng) {
         Point parent = adj.get(porte).iterator().next();
         int baseDx = porte.x() - parent.x(), baseDy = porte.y() - parent.y();
@@ -323,6 +337,7 @@ final class DungeonPart1 {
             }
             DungeonCompositeRooms.place(adj, cur, tavern);
 
+            TAVERN_LEN_OK.merge(maxLen, 1, Integer::sum);
             TavernResult tr = new TavernResult();
             tr.tavern = tavern.labelPoints();
             tr.exitPoint = tavern.exitPoint(); tr.pathSet = pathSet;
@@ -398,7 +413,7 @@ final class DungeonPart1 {
             else if (!isReplaceableStraightCorridor(cand, labels, adj)) { /* sous-compteurs internes */ }
             else if (!DungeonConstraints.isFarFromAll(adj, cand, DungeonConstraints.monsterPoints(labels), DungeonAlgo.MONSTER_MIN_DIST)) { DungeonAlgo.fail("P4:noM5:tooClose"); }
             else if (!gapCellsAreCorridors(cand, door, parent, labels, adj)) { DungeonAlgo.fail("P4:noM5:gapNotCorridor"); }
-            else return cand;
+            else { M5_STEP_OK.merge(steps, 1, Integer::sum); return cand; }
             cand = parent.get(cand); steps++;
         }
         return null;

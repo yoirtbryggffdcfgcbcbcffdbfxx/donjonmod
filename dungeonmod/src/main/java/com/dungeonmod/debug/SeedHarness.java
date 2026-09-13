@@ -157,6 +157,9 @@ public class SeedHarness {
             }
         }
 
+        if (!DungeonPart1.TAVERN_LEN_OK.isEmpty() || !DungeonPart1.M5_STEP_OK.isEmpty()) {
+            System.out.println("[Recherches] " + DungeonPart1.searchReport());
+        }
         if (!DungeonPart3.HUB_REACH.isEmpty()) {
             System.out.println("[Hub P3] par longueur de couloir : " + DungeonPart3.hubReport());
         }
