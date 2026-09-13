@@ -157,6 +157,9 @@ public class SeedHarness {
             }
         }
 
+        if (!DungeonPart4.CHAPEL_TRY.isEmpty()) {
+            System.out.println("[Chapelle] variantes (pathLen/turnAt/turnDir) : " + DungeonPart4.chapelReport());
+        }
         if (!AGG_FAILS.isEmpty()) {
             java.util.List<java.util.Map.Entry<String, Integer>> top = new java.util.ArrayList<>(AGG_FAILS.entrySet());
             top.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));

@@ -108,6 +108,30 @@ final class DungeonPart4 {
         goblinCells.add(gLeaf); return true;
     }
 
+    // Stats par variante de chapelle (diagnostic) : cle = L<pathLen>T<turnAt>D<turnDir>.
+    static final Map<String, Integer> CHAPEL_TRY = new LinkedHashMap<>();
+    static final Map<String, Integer> CHAPEL_OK = new LinkedHashMap<>();
+
+    private static void chapelTry(int pathLen, int turnAt, int turnDir) {
+        CHAPEL_TRY.merge("L" + pathLen + "T" + turnAt + "D" + turnDir, 1, Integer::sum);
+    }
+
+    private static void chapelOk(int pathLen, int turnAt, int turnDir) {
+        CHAPEL_OK.merge("L" + pathLen + "T" + turnAt + "D" + turnDir, 1, Integer::sum);
+    }
+
+    static String chapelReport() {
+        StringBuilder sb = new StringBuilder();
+        List<String> keys = new ArrayList<>(CHAPEL_TRY.keySet());
+        Collections.sort(keys);
+        for (String k : keys) {
+            int t = CHAPEL_TRY.getOrDefault(k, 0), o = CHAPEL_OK.getOrDefault(k, 0);
+            sb.append(k).append(":try=").append(t).append(" ok=").append(o)
+              .append(String.format(java.util.Locale.ROOT, "(%.2f%%)", t == 0 ? 0.0 : 100.0 * o / t)).append("  ");
+        }
+        return sb.toString();
+    }
+
     private static void placeChapelAndCrypt(DungeonLabelState labelState, Map<Point, Set<Point>> adj,
                                              Map<Point, RoomType> topLabels, Map<Point, Set<Point>> ct,
                                              Point cs, Set<Point> globalOccupied, Random rng) {
@@ -120,9 +144,12 @@ final class DungeonPart4 {
             if (preF2.isOutOfBounds() || adj.containsKey(preF2) || globalOccupied.contains(preF2)) continue;
             boolean placed = false;
             boolean logged = false;
-            for (int pathLen = 3; pathLen <= 5 && !placed; pathLen++) {
+            // Mesures : pathLen 4 et 5 n'aboutissent quasiment jamais (~0 %). On se limite a 3
+            // (le succes vient de L3T1), ce qui supprime ~2/3 des essais sans perdre de couverture.
+            for (int pathLen = 3; pathLen <= 3 && !placed; pathLen++) {
                 for (int turnAt = 1; turnAt < pathLen && !placed; turnAt++) {
                     for (int turnDir : new int[]{1, -1}) {
+                        chapelTry(pathLen, turnAt, turnDir);
                         DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder().name("CHAPEL_CRYPT")
                                 .entry(0, 0).label(0, 0, RoomType.CHAPEL_1).label(1, 0, RoomType.CHAPEL_2).edge(0, 0, 1, 0);
                         List<DungeonCompositeRooms.LocalPoint> pathLocals = new ArrayList<>();
@@ -149,6 +176,7 @@ final class DungeonPart4 {
                         for (Point cell : placement.occupiedCells()) { if (!cell.equals(k) && globalOccupied.contains(cell)) { occupied = true; firstBlocked = cell; break; } }
                         if (occupied) { if (!logged) { DungeonFailureLog.compositeReject(placement.name(), "GLOBAL_OCCUPIED", k, "cellule=" + firstBlocked.key() + " (turnDir=" + turnDir + " pathLen=" + pathLen + " turnAt=" + turnAt + ")"); logged = true; } continue; }
                         DungeonCompositeRooms.place(adj, null, placement); globalOccupied.addAll(placement.occupiedCells());
+                        chapelOk(pathLen, turnAt, turnDir);
                         for (var e : placement.labelPoints().entrySet()) putSpecial(labelState, topLabels, e.getValue(), e.getKey());
                         for (int step = 0; step < pathLocals.size(); step++) {
                             Point pathPoint = placement.point(pathLocals.get(step));
