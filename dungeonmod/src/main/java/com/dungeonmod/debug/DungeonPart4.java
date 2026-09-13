@@ -147,7 +147,8 @@ final class DungeonPart4 {
             // Mesures : pathLen 4 et 5 n'aboutissent quasiment jamais (~0 %). On se limite a 3
             // (le succes vient de L3T1), ce qui supprime ~2/3 des essais sans perdre de couverture.
             for (int pathLen = 3; pathLen <= 3 && !placed; pathLen++) {
-                for (int turnAt = 1; turnAt < pathLen && !placed; turnAt++) {
+                // L3T2 n'aboutit qu'a ~2 % : on ne garde que L3T1 (virage immediat, gagnant).
+                for (int turnAt = 1; turnAt <= 1 && !placed; turnAt++) {
                     for (int turnDir : new int[]{1, -1}) {
                         chapelTry(pathLen, turnAt, turnDir);
                         DungeonCompositeRooms.Builder builder = DungeonCompositeRooms.Spec.builder().name("CHAPEL_CRYPT")
