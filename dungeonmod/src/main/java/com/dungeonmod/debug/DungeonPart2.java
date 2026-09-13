@@ -415,6 +415,15 @@ final class DungeonPart2 {
         }
     }
 
+    /** Rollback d'une tentative d'appendP2ExitSequence : retire noeuds et aretes ajoutes. */
+    private static void rollbackAppend(Map<Point, Set<Point>> adj, List<Point> addedNodes, List<Point[]> addedEdges) {
+        for (Point[] e : addedEdges) {
+            Set<Point> a = adj.get(e[0]); if (a != null) a.remove(e[1]);
+            Set<Point> b = adj.get(e[1]); if (b != null) b.remove(e[0]);
+        }
+        for (Point p : addedNodes) adj.remove(p);
+    }
+
     static Point appendP2ExitSequence(Map<Point, Set<Point>> adj, Map<Point, RoomType> labels,
                                               Point trunkEnd, int trunkEndDir, Set<Point> blocked, Random rng) {
         if (trunkEnd == null || trunkEndDir < 0) return null;
@@ -422,6 +431,9 @@ final class DungeonPart2 {
         if (blocked != null) occupied.addAll(blocked);
         int dir = trunkEndDir; Point cursor = trunkEnd;
         List<Point> chain = new ArrayList<>();
+        // Transaction : en cas d'echec, l'adjacence est laissee INTACTE (essais de plusieurs points).
+        List<Point> addedNodes = new ArrayList<>();
+        List<Point[]> addedEdges = new ArrayList<>();
         int gap = 1 + rng.nextInt(2); int need = gap;
         for (int i = 0; i < need + 1; i++) {
             Point next = null; int chosenDir = -1;
@@ -438,16 +450,17 @@ final class DungeonPart2 {
                 }
                 next = cand; chosenDir = td; break;
             }
-            if (next == null) return null;
+            if (next == null) { rollbackAppend(adj, addedNodes, addedEdges); return null; }
             adj.putIfAbsent(cursor, new HashSet<>()); adj.putIfAbsent(next, new HashSet<>());
             adj.get(cursor).add(next); adj.get(next).add(cursor);
+            addedNodes.add(next); addedEdges.add(new Point[]{cursor, next});
             occupied.add(next); dir = chosenDir; cursor = next;
             if (i < need) { chain.add(next); }
             else {
                 for (Point gp : chain) {
-                    if (adj.getOrDefault(gp, Set.of()).size() != 2) return null;
+                    if (adj.getOrDefault(gp, Set.of()).size() != 2) { rollbackAppend(adj, addedNodes, addedEdges); return null; }
                     Shape sh = DungeonLabels.shapeOf(adj.get(gp));
-                    if (sh != Shape.STRAIGHT && sh != Shape.TURN) return null;
+                    if (sh != Shape.STRAIGHT && sh != Shape.TURN) { rollbackAppend(adj, addedNodes, addedEdges); return null; }
                 }
                 DungeonLabelState labelState = new DungeonLabelState();
                 labelState.setTheme(chain, Theme.P12);
@@ -456,6 +469,7 @@ final class DungeonPart2 {
                 return next;
             }
         }
+        rollbackAppend(adj, addedNodes, addedEdges);
         return null;
     }
 }

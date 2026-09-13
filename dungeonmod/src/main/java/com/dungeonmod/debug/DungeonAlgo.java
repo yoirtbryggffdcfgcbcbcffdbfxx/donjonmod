@@ -405,8 +405,27 @@ public class DungeonAlgo {
             if (sp2.adj.size() < 5) { fail("P2:tooSmall"); continue; }
             for (var e : sp2.adj.entrySet()) { if (sp1.adj.containsKey(e.getKey())) sp1.adj.get(e.getKey()).addAll(e.getValue()); else sp1.adj.put(e.getKey(), e.getValue()); }
 
-            Point porte2Key = appendP2ExitSequence(sp1.adj, labels, sp2.trunkEnd, sp2.trunkEndDir,
-                    null, rng);
+            Point porte2Key = appendP2ExitSequence(sp1.adj, labels, sp2.trunkEnd, sp2.trunkEndDir, null, rng);
+            if (porte2Key == null) {
+                // Repli borne : essayer les autres extremites libres du P2 (meme logique de sequence).
+                List<Point> p2Tips = new ArrayList<>();
+                for (var e : sp1.adj.entrySet()) {
+                    if (e.getValue().size() != 1 || !sp2.adj.containsKey(e.getKey())) continue;
+                    if (e.getKey().equals(sp2.trunkEnd)) continue;
+                    p2Tips.add(e.getKey());
+                }
+                Collections.shuffle(p2Tips, rng);
+                for (Point tip : p2Tips) {
+                    Point par = sp1.adj.get(tip).iterator().next();
+                    int dl = tip.x() - par.x(), dv = tip.y() - par.y();
+                    int dirIdx = -1;
+                    for (int i = 0; i < DungeonAlgo.DIR_OFFSET.length; i++)
+                        if (DungeonAlgo.DIR_OFFSET[i][0] == dl && DungeonAlgo.DIR_OFFSET[i][1] == dv) { dirIdx = i; break; }
+                    if (dirIdx < 0) continue;
+                    porte2Key = appendP2ExitSequence(sp1.adj, labels, tip, dirIdx, null, rng);
+                    if (porte2Key != null) break;
+                }
+            }
             if (porte2Key == null) { fail("P2:noExit"); continue; }
 
             int p1Loot = 0; for (RoomType v : labels.values()) if (v == RoomType.LOOT_1) p1Loot++;
