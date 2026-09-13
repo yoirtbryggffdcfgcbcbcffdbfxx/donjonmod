@@ -186,8 +186,9 @@ final class DungeonPart2 {
 
         for (int i = 0; i < maxLen; i++) {
             Point straight = new Point(cx + dx, cy + dy);
+            // La porte coupe la ligne droite : au 1er pas on ne compte pas la run arriere du couloir.
             boolean straightOk = !straight.isOutOfBounds() && !tmpAdj.containsKey(straight)
-                    && DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN;
+                    && (i == 0 || DungeonConstraints.colinearRunAfterEdge(curTmp, straight, tmpAdj) <= DungeonAlgo.MAX_COLINEAR_RUN);
             if (i == 0 && !straightOk) return null;
             boolean goStraight = (i == 0) || (straightOk && (lastStraight ? rng.nextBoolean() : rng.nextFloat() < 0.35f));
             int ndx = dx, ndy = dy;
@@ -214,7 +215,7 @@ final class DungeonPart2 {
             }
             Point next = new Point(cx + ndx, cy + ndy);
             if (tmpAdj.containsKey(next) || next.isOutOfBounds()) break;
-            if (DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) break;
+            if (i > 0 && DungeonConstraints.colinearRunAfterEdge(curTmp, next, tmpAdj) > DungeonAlgo.MAX_COLINEAR_RUN) break;
             tmpAdj.putIfAbsent(curTmp, new HashSet<>());
             tmpAdj.putIfAbsent(next, new HashSet<>());
             tmpAdj.get(curTmp).add(next);
