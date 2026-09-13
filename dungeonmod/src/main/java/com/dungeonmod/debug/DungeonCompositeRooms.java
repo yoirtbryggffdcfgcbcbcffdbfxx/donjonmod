@@ -205,6 +205,16 @@ final class DungeonCompositeRooms {
             }
             world.put(local, p);
         }
+        // Pre-check colinearite A COUT MAITRISE : aucune copie du graphe ; on teste seulement les
+        // aretes du spec contre l'adjacence existante (les composites sont petits).
+        for (LocalEdge e : spec.edges) {
+            Point a = world.get(e.a()), b = world.get(e.b());
+            if (a == null || b == null) continue;
+            if (DungeonConstraints.colinearRunAfterEdge(a, b, adj) > DungeonAlgo.MAX_COLINEAR_RUN) {
+                DungeonFailureLog.compositeReject(spec.name, "COLINEAR", anchor, "arete " + a.key() + "->" + b.key());
+                return null;
+            }
+        }
         return new Placement(spec, anchor, dx, dy, world);
     }
 
