@@ -116,7 +116,7 @@ final class DungeonConstraints {
                 if (gp == null) continue;
 
                 boolean moved = false;
-                if (parentLbl.isGeneric()) {
+                if (true) { // latéraux du parent : valable pour TOUT parent (générique OU spécial)
                     int dx = parent.x() - gp.x(), dy = parent.y() - gp.y();
                     List<Point> laterals = new ArrayList<>();
                     Point l1 = new Point(parent.x() - dy, parent.y() + dx, parent.level());
@@ -142,7 +142,13 @@ final class DungeonConstraints {
                         moveDeadEnd(labels, adj, leaf, parent, gp, target);
                         moved = true;
                     } else DungeonAlgo.fail("deadEnd:gpOptsEmpty");
-                } else if (!moved) DungeonAlgo.fail("deadEnd:branch2Skipped");
+                } else if (!moved) {
+                    RoomType gl = labels.get(gp);
+                    if (gl == null) DungeonAlgo.fail("deadEnd:gpNull");
+                    else if (!gl.isGeneric()) DungeonAlgo.fail("deadEnd:gpSpecial");
+                    else if (adj.get(gp).size() > 3) DungeonAlgo.fail("deadEnd:gpJunction");
+                    else DungeonAlgo.fail("deadEnd:branch2Other");
+                }
                 if (!moved) { DungeonAlgo.fail("deadEnd:nomove"); return false; }
                 fixed = true;
                 break;
