@@ -344,18 +344,20 @@ final class DungeonPart2 {
             }
         }
         Point trunkEnd = trunkCells.isEmpty() ? start : trunkCells.get(trunkCells.size() - 1);
-        // Reserve l'espace autour de trunkEnd (tous les voisins sauf le parent du tronc) :
-        // la sequence de Porte2 peut ainsi TOUJOURS demarrer (droit ou virage), sans exempter
-        // la limite globale de colinearite. Evite P2:noExit par congestion.
+        // "la 2" : reserve les voisins de trunkEnd SAUF le parent du tronc et la direction du
+        // mini-arbre. Le mini-arbre est conserve (ramification), mais trunkEnd garde >= 2 voisins
+        // libres -> la sequence de Porte2 peut toujours demarrer (droit ou virage).
         if (!trunkCells.isEmpty()) {
             Point exitParent = trunkCells.size() >= 2 ? trunkCells.get(trunkCells.size() - 2) : start;
+            int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4;
+            Point sideCell = trunkEnd.move(DungeonAlgo.DIR_OFFSET[side]);
             for (int[] d : DungeonAlgo.DIR_OFFSET) {
                 Point nb = trunkEnd.move(d);
-                if (nb.equals(exitParent)) continue;
+                if (nb.equals(exitParent) || nb.equals(sideCell)) continue;
                 if (!nb.isOutOfBounds()) occupied.add(nb);
             }
+            growMiniTreeBounded(trunkEnd, side, adj, occupied, rng);
         }
-        if (!trunkCells.isEmpty()) { int side = (dir + (rng.nextBoolean() ? 1 : 3)) % 4; growMiniTreeBounded(trunkEnd, side, adj, occupied, rng); }
         int targetSize = DungeonAlgo.PART2_TARGET_MIN + rng.nextInt(DungeonAlgo.PART2_TARGET_MAX - DungeonAlgo.PART2_TARGET_MIN + 1);
         int ci3 = 0, ci4 = 0;
         for (Set<Point> nb : adj.values()) { int d = nb.size(); if (d == 3) ci3++; else if (d == 4) ci4++; }
